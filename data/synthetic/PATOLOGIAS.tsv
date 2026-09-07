@@ -1,0 +1,15 @@
+patologia	valor
+qpcr_n_filas	1000
+qpcr_n_madres	18
+qpcr_n_fetos_e15	36
+qpcr_n_filas_e15	720
+qpcr_ct_igual_40	86
+qpcr_ct_vacio	30
+qpcr_il6_brain_e15_detectados	11
+qpcr_il6_brain_e15_hembracontrol_detectados	0
+elisa_ms_n	14
+elisa_ms_conc_neg	4
+elisa_la_n	28
+elisa_la_conc_neg	8
+pstat3_n_filas	36
+pstat3_membranas	1:12|2:12|3:12
