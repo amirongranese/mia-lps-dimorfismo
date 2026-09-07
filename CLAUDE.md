@@ -180,7 +180,7 @@ MIA_LPS_reanalisis/
 | # | Tarea | Entregable | Cierre sesión | Estado |
 |---|---|---|---|---|
 | T0 | `AGENTS.md`, `CLAUDE.md`, estructura, `.gitignore`, `README.md` esqueleto | repo inicializado | Sí | **HECHO** (2026-09-07) |
-| T1 | `00_config` + `01_generar_sinteticos` (R y Python) | datos sintéticos que corren | Sí | pendiente |
+| T1 | `00_config` + `01_generar_sinteticos` (R y Python) | datos sintéticos que corren | Sí | **HECHO** (2026-09-07) |
 | T2 | `02_ingesta_qc`: lectura, 40→NA, censura ELISA, tabla de n real | reporte de QC | Sí | pendiente |
 | T3 | `03_elisa` + figura de validación | Acto 1.1 | No | pendiente |
 | T4 | `04_qpcr_cuantificacion`: ΔCt, calibrador, ΔΔCt, z-scores | tablas intermedias | Sí | pendiente |

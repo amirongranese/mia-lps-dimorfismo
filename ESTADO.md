@@ -148,12 +148,20 @@ ESTADO.md (esta entrada)
 - R: `openxlsx` (4.2.8.1, escritura de `.xlsx` con tipo por celda) y `digest`
   (sha256 de los `.tsv`). Python: `openpyxl` (ya en `requirements.txt`).
 
-### Pendiente / siguiente paso concreto
+### Cierre de T1
 
-- **Cerrar T1**: `renv::init()` + `renv::snapshot()` desde `RAIZ_REPO` para generar
-  `renv.lock` (aún NO ejecutado en esta sesión). Commit de T1 ya hecho.
-- Actualizar la tabla de estado de AGENTS.md/CLAUDE.md (T1 → HECHO) cuando se
-  cierre la sesión, junto con `renv.lock`.
+- `renv` 1.2.4 instalado y **`renv::init()` ejecutado** desde `RAIZ_REPO`:
+  crea `renv/` (`activate.R`, `settings.json`, `.gitignore`), `.Rprofile`
+  (`source("renv/activate.R")`) y **`renv.lock`**. La lockfile captura por ahora
+  solo lo que usan los scripts (`openxlsx` 4.2.8.1, `digest` 0.6.39 + deps
+  `cli`, `Rcpp`, `stringi`, `zip`, `renv`) y R 4.6.1; se ampliará con cada tarea
+  que agregue `library(...)` y un nuevo `renv::snapshot()`.
+- `R/01_generar_sinteticos.R` re-corrido bajo renv → hashes idénticos. OK.
+- Tabla de estado en AGENTS.md/CLAUDE.md: **T1 → HECHO (2026-09-07)**.
+- **T1 cerrado.** Conviene cerrar la sesión acá.
+
+### Siguiente paso concreto
+
 - **T2** (`02_ingesta_qc`): lectura de los 3 archivos vía `ruta_datos()`, `40→NA`
   y celda vacía→NA unificados, exclusión de `BRAIN_P1` (registrar en
   `analisis_descartados.md`), censura ELISA (`Conc<0` → `censurado=TRUE`, valor
