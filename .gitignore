@@ -1,0 +1,39 @@
+# --- Datos crudos (inéditos): se copian a data/raw/ pero NO se versionan ---
+data/raw/*
+!data/raw/.gitkeep
+
+# --- Intermedios regenerables ---
+data/processed/*
+!data/processed/.gitkeep
+outputs/intermediate/*
+!outputs/intermediate/.gitkeep
+
+# --- Excel fuera de data/synthetic/ ---
+*.xlsx
+*.xls
+!data/synthetic/*.xlsx
+!data/synthetic/*.xls
+
+# --- R ---
+.Rhistory
+.RData
+.Rproj.user/
+renv/library/
+renv/local/
+renv/cellar/
+renv/lock/
+renv/staging/
+*.Rproj
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# --- Sistema operativo ---
+Thumbs.db
+Desktop.ini
+.DS_Store
