@@ -2,17 +2,30 @@
 data/raw/*
 !data/raw/.gitkeep
 
-# --- Intermedios regenerables ---
+# --- Intermedios y salidas regenerables ---
+# Se regeneran con run_all.ps1. Ademas, corridas sobre datos reales dejarian
+# numeros de datos ineditos en git (ver AGENTS.md 2/5): no se versionan.
 data/processed/*
 !data/processed/.gitkeep
 outputs/intermediate/*
 !outputs/intermediate/.gitkeep
+outputs/tables/*
+!outputs/tables/.gitkeep
+!outputs/tables/R/
+!outputs/tables/python/
+outputs/tables/R/*
+!outputs/tables/R/.gitkeep
+outputs/tables/python/*
+!outputs/tables/python/.gitkeep
+outputs/figures/*
+!outputs/figures/.gitkeep
 
-# --- Excel fuera de data/synthetic/ ---
+# --- Excel: nunca se versiona ---
+# Los crudos son ineditos. Los sinteticos .xlsx los regenera 01_generar_sinteticos
+# y NO son byte-deterministas (openpyxl escribe timestamps en el zip). La forma
+# canonica y versionada del fixture son los .tsv de data/synthetic/ + MANIFEST.tsv.
 *.xlsx
 *.xls
-!data/synthetic/*.xlsx
-!data/synthetic/*.xls
 
 # --- R ---
 .Rhistory

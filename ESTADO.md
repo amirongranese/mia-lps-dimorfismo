@@ -177,3 +177,107 @@ ESTADO.md (esta entrada)
   `.tsv`/`MANIFEST`.
 - Emojis/VS16: `NOMINACION` = `<madre>` + `♀`/`♂` + `U+FE0F`; `GRUPO` sin VS16;
   LA col0 = `"Control ♂"` (espacio + emoji, sin VS16). Ya reproducido.
+
+---
+
+## Sesión 3 — 2026-09-07 — T2
+
+### Qué se completó
+
+- **`python/02_ingesta_qc.py` + `R/02_ingesta_qc.R`** (equivalentes): única puerta
+  de entrada de datos al pipeline. Leen los 3 Excel vía `ruta_datos()` (crudo real
+  si está en `data/raw/`, si no el sintético), formato largo + saneo, sin tocar
+  otras decisiones.
+  - **qPCR**: detección de encabezado por nombres exactos; `CT_CRUDO == 40` y celda
+    vacía unificadas → `no_detectado=TRUE`, `CT=NA` (D3, sin imputar); `CT_CRUDO`
+    original se conserva para auditar. `BRAIN_P1` se aparta (`qpcr_brain_p1_excluido.tsv`)
+    y se registra en `analisis_descartados.md`. Invariantes duros: 36 fetos E15,
+    720 filas, tejidos = {PLACENTA_E15, BRAIN_E15}, `rsp29` sin NA/40, `CT_CRUDO`
+    sin no-numéricos fuera de vacío. `MADRE_ID` = `FETO` sin sufijo `.NN`.
+  - **ELISA**: encabezado localizado por la celda `TEJIDO`; hoja partida en MS/LA
+    por esa columna (ignora scratch cols 6–13); `TTO` de la col 0, `SEXO` sólo en
+    LA (del emoji), MS sin sexo fetal. `Conc < 0` → censura a izquierda D10:
+    `censurado=TRUE`, `IL6_pgml=NA`, `LOD=0` aparte. Col `IL-6` del crudo NO se usa
+    (registrado en `analisis_descartados.md`: es `max(Conc,0)` salvo MS/LPS que es
+    `Conc×4`).
+  - **pSTAT3**: `SEXO`/`TTO` normalizados (venían en Title case); verifica 3
+    membranas balanceadas (12/12/12).
+- **Salidas** (todas byte-idénticas R↔Python, verificado con `cmp`):
+  - `data/processed/`: `qpcr_e15_long.tsv`, `qpcr_brain_p1_excluido.tsv`,
+    `elisa_long.tsv`, `pstat3_long.tsv` (intermedios para T3–T6).
+  - `outputs/tables/{R,python}/`: `qc_n_por_grupo.csv` (n real por archivo×grupo×sexo),
+    `qc_no_detectados_qpcr.csv` (80 filas gen×tejido×grupo; marca D7),
+    `qc_censura_elisa.csv` (% censura por bloque×grupo, D10),
+    `qc_faltantes.csv` (IDs de referencia sin dato y viceversa),
+    `qc_resumen.csv` (chequeos máquina-legibles).
+  - `outputs/tables/`: `qc_reporte.md` (reporte legible), y alta de
+    `analisis_descartados.md` (sección `02_ingesta_qc`, delimitada por marcadores
+    HTML para reemplazo idempotente), `procedencia.csv` y `verificaciones.csv`
+    (merge por columna `script`, id **sin extensión** `02_ingesta_qc` para que R y
+    Python reemplacen la misma fila → archivo único).
+
+### Números (datos reales, para referencia; NO se versionan)
+
+qPCR E15: 36 fetos / 720 filas; BRAIN_P1 excluido 280 filas; CT no detectado
+129 (`==40`) + 30 (vacío) = 159. D7 dispara en `il6@BRAIN_E15` (0/9 en calibrador).
+ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membranas
+1:12|2:12|3:12. Faltan en ELISA-MS 4 madres (`C_240719_1`, `C_240724_1`,
+`C_241029_1`, `C_241031_1`); ELISA-LA 8 sacos. pSTAT3 cruza 36/36 con qPCR E15.
+(Sobre sintético: CT=40 → 86, LA censurados → 8; el resto igual.)
+
+### Decisiones / desviaciones de esta sesión
+
+- **`leer_grid()` bifurca por fuente:** datos **reales** → `.xlsx` de `data/raw/`
+  (Python: `openpyxl`; R: `readxl` con `col_types="text"` → los números vuelven como
+  texto de precisión completa y `as.numeric()`/`float()` recuperan el mismo `double`
+  → `%.10g` coincide). Datos **sintéticos** → el **mirror `.tsv` canónico** de
+  `data/synthetic/` (`<archivo sin .xlsx>.tsv` o `…__<hoja>.tsv`), que es la forma
+  versionada, determinista y byte-idéntica R/Python creada en T1. Fallback al `.xlsx`
+  sintético sólo si no hubiera `.tsv`.
+  - Motivos para NO leer el `.xlsx` sintético: (a) `openxlsx::read.xlsx` (R)
+    mal-parsea cadenas con `xml:space="preserve"` → los encabezados `"Conc "` /
+    `"IL-6 "` del ELISA salían como `xml:space="preserve">Conc `; (b) `openpyxl`
+    (Python) **no podía re-leer** el `.xlsx` que escribe `openxlsx` (`KeyError:
+    xl/drawings/drawing1.xml`); (c) el `.xlsx` de `openpyxl` **no es
+    byte-determinista** (mete timestamps en el zip). El `.tsv` esquiva las tres.
+  - Costo asumido: el `rsp29`/CT del sintético leído del `.tsv` tiene 10 cifras
+    (`%.10g`) en vez de la precisión completa del `.xlsx`. Es consistente entre R y
+    Python (ambos usan el `.tsv`) y está muy dentro de `TOL_ESTADISTICO = 1e-6`.
+- **`data/synthetic/*.xlsx` dejan de versionarse** (`.gitignore`: `*.xlsx` sin
+  excepción; `git rm --cached` de los tres). `01_generar_sinteticos` los sigue
+  generando para inspección manual; la forma canónica del fixture son los `.tsv` +
+  `MANIFEST.tsv` (hash del `.tsv`, sin cambios).
+- **Lector R:** se instaló `readxl` 1.5.0 + 17 deps en renv y se corrió
+  `renv::snapshot()` (renv.lock actualizado). Sólo se usa en la rama de datos reales.
+- **`.gitignore`**: además de los `.xlsx`, se agregan `outputs/tables/*` y
+  `outputs/figures/*` (salvo `.gitkeep` y los subdirs `R/`, `python/`). Son
+  regenerables por `run_all` y, sobre datos reales, contendrían números de datos
+  inéditos (AGENTS §2/§5). `99_verificar` igual chequea su existencia/no-vacuidad.
+
+### Verificado
+
+- R↔Python byte-idénticos en las 4 tablas `data/processed/*.tsv`, las 5
+  `qc_*.csv` (× R/ y python/), `qc_reporte.md`, `procedencia.csv`,
+  `verificaciones.csv`, `analisis_descartados.md` — sobre datos reales y sobre
+  sintético.
+- Idempotente: 2ª corrida de cada implementación no cambia ningún archivo.
+- Ambas rutas de `leer_grid` verificadas: real (`.xlsx`) y sintético (`.tsv`, con
+  los `.xlsx` sintéticos borrados) dan salidas byte-idénticas R↔Python.
+- `renv::status()` limpio tras el snapshot (readxl + deps en el lock).
+
+### Siguiente paso concreto
+
+- **T3** (`03_elisa`): análisis del ELISA IL-6 con censura a izquierda (D10) sobre
+  `data/processed/elisa_long.tsv` — % de detección/censura por grupo primero,
+  luego KM/ROS (`NADA` en R) o no paramétrico con censurados como empates en el
+  rango más bajo; figura de validación (Acto 1.1). MS por tratamiento, LA por
+  tratamiento×sexo. Instalar `NADA` (R) y `lifelines` (Python) si hacen falta.
+  T3 NO cierra sesión (según plan).
+
+### Notas para la próxima sesión
+
+- Los `.tsv` de `data/processed/` los escriben ambas implementaciones (cada corrida
+  pisa con contenido idéntico). En `run_all` (R y luego Python) el estado final lo
+  deja Python; la paridad se chequea en T10.
+- `qc_no_detectados_qpcr.csv` ya trae la columna que necesita T5 para D7: filtrar
+  `GRUPO == "HEMBRA_CONTROL" & n_total > 0 & n_detectado == 0`.
