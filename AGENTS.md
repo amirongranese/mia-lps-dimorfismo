@@ -182,7 +182,7 @@ MIA_LPS_reanalisis/
 | T0 | `AGENTS.md`, `CLAUDE.md`, estructura, `.gitignore`, `README.md` esqueleto | repo inicializado | Sí | **HECHO** (2026-09-07) |
 | T1 | `00_config` + `01_generar_sinteticos` (R y Python) | datos sintéticos que corren | Sí | **HECHO** (2026-09-07) |
 | T2 | `02_ingesta_qc`: lectura, 40→NA, censura ELISA, tabla de n real | reporte de QC | Sí | **HECHO** (2026-09-07) |
-| T3 | `03_elisa` + figura de validación | Acto 1.1 | No | pendiente |
+| T3 | `03_elisa` + figura de validación | Acto 1.1 | No | **HECHO** (2026-09-08) |
 | T4 | `04_qpcr_cuantificacion`: ΔCt, calibrador, ΔΔCt, z-scores | tablas intermedias | Sí | pendiente |
 | T5 | `05_qpcr_modelos`: cascada D5, post hoc D6, Fisher para D7 | tabla de clasificación | Sí | pendiente |
 | T6 | `06_pstat3` + `07_figuras_acto1` (función de brackets D11) | Acto 1 completo | Sí | pendiente |

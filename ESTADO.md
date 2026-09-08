@@ -281,3 +281,110 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
   deja Python; la paridad se chequea en T10.
 - `qc_no_detectados_qpcr.csv` ya trae la columna que necesita T5 para D7: filtrar
   `GRUPO == "HEMBRA_CONTROL" & n_total > 0 & n_detectado == 0`.
+
+---
+
+## Sesión 4 — 2026-09-08 — T3
+
+### Decisiones confirmadas con el usuario (dentro del menú de D10)
+
+- **Contraste primario con censura = Peto-Peto** (Fleming-Harrington G-rho = 1),
+  con los censurados empatados en el rango más bajo. NO ROS/KM-NADA.
+- **Suero materno (MS): solo detección + Fisher exacto** Control vs LPS. Control
+  tiene 4/5 censurados (80%) → ningún estimador de ubicación es defendible
+  (cláusula final de D10). Regla fija para MS (no depende de umbral ni de la
+  fuente de datos).
+- **Líquido amniótico (LA): estratificado por sexo** — Peto-Peto Control vs LPS
+  dentro de ♀ y dentro de ♂, + Fisher de detección por sexo. Sin modelo
+  factorial SEXO×TTO (censura 0–60% + n 5–9 por celda).
+
+### Qué se completó
+
+- **`python/03_elisa.py` + `R/03_elisa.R`** (equivalentes). Leen
+  `data/processed/elisa_long.tsv`. No tocan ninguna decisión fuera de D10.
+  - **Detección/censura por grupo** (D10 paso 1, antes de cualquier estadístico):
+    `elisa_deteccion.csv` (6 grupos: MS×2 + LA×4).
+  - **Descriptivo** `elisa_descriptivo.csv`: n, n_det, %censura, min/mediana/max
+    de detectados, y **mediana Kaplan-Meier** del dato reflejado
+    `t' = M - t` (`M = ceil(max Conc detectada) + 1`; sobre real M=1407). Vacío
+    cuando `S(t)` no baja de 0.5 (censura alta) → MS Control y LA Control ♀.
+  - **Peto-Peto** `peto_peto_2grupos()` — **PROPIO**, misma fórmula G-rho que
+    `survival::survdiff`. Reflexión censura izquierda → derecha
+    (`M - Conc` evento, `M - LOD` censura a derecha) para que survdiff, que
+    maneja censura a derecha, deje a los "< LOD" en el rango más bajo.
+    **R verifica en corrida** `abs(hand − survdiff(rho=1)) < 1e-8` (`stopifnot`).
+    `elisa_petopeto_la.csv` (♀, ♂).
+  - **Fisher exacto 2×2** `fisher_2x2()` — **PROPIO**, misma regla de dos colas
+    que `stats::fisher.test` (suma de tablas con `prob ≤ prob(obs)·(1+1e-7)`);
+    OR con corrección de Haldane (`+0.5`). **R verifica en corrida** contra
+    `fisher.test` (`< 1e-9`). `elisa_fisher_deteccion.csv` (MS, LA♀, LA♂).
+  - **Figuras Acto 1.1** (300 dpi): `outputs/figures/acto1_elisa_ms.png`
+    (Conc por tratamiento; censurados = símbolo abierto en el LOD; box de
+    detectados si n≥3; Fisher p en subtítulo) y `acto1_elisa_la.png` (facet por
+    sexo; Peto-Peto p por panel). R con ggplot2, Python con matplotlib —
+    equivalentes, no byte-idénticas (son PNG).
+  - `elisa_reporte.md` legible; sección `03_elisa` en `analisis_descartados.md`
+    (marcadores `<!-- 03_elisa:inicio/fin -->`); filas en `procedencia.csv` y
+    `verificaciones.csv` (merge por `script`, id sin extensión `03_elisa`).
+
+### Resultados (datos reales; NO se versionan)
+
+- MS: Control 1/5 detectados vs LPS 9/9. Fisher p = 4.995e-03. (Descriptivo:
+  mediana detectados MS-LPS = 567.5 pg/mL; MS-Control no estimable.)
+- LA ♀: Peto-Peto χ² = 1.0664, p = 0.302. LA ♂: χ² = 0.9375, p = 0.333.
+  Fisher detección LA♀ p = 1.0, LA♂ p = 0.258.
+- (Sobre sintético M = 1132; MS igual patrón 4/5 censura en Control; LA con otra
+  censura → LA♀ Peto-Peto p = 0.031, LA♂ p = 0.795. Los números cambian con la
+  fuente pero R==Python para cada fuente.)
+
+### Paridad y robustez verificadas
+
+- **R ↔ Python byte-idénticos** en `elisa_deteccion.csv`,
+  `elisa_descriptivo.csv`, `elisa_fisher_deteccion.csv`,
+  `elisa_petopeto_la.csv` (× `R/` y `python/`), `elisa_reporte.md`,
+  `procedencia.csv`, `verificaciones.csv`, `analisis_descartados.md` — **sobre
+  datos reales y sobre sintético**.
+- Idempotente: 2ª corrida de cada implementación no cambia ningún archivo.
+- Truco de paridad: los p-valores y el `chisq` que dependen de funciones
+  trascendentes (`lgamma`, `exp`, `erfc`/`pchisq`) se guardan como texto
+  `"%.6e"` ya formateado → mismo string aunque la libm difiera en el último bit
+  (documentado en `analisis_descartados.md §03_elisa`). Los conteos, %, medianas
+  y OR (aritmética exacta) van con `%.10g`.
+
+### Entorno
+
+- **ggplot2 4.0.3** instalado en renv (+ deps: scales, farver, gtable, isoband,
+  labeling, RColorBrewer, viridisLite, withr, S7) y **`survival` 3.8-6** +
+  `Matrix`/`lattice` capturados. `renv::snapshot()` corrido → `renv.lock` (38
+  paquetes), `renv::status()` limpio.
+- **`renv.lock` Repositories y `renv/settings.json`**: CRAN pasó de
+  `packagemanager.posit.co` (fallaba acá con error SSL 60) a
+  `https://cloud.r-project.org`; `ppm.enabled: null → false`. Mejora de
+  reproducibilidad en redes donde Posit PM está bloqueado.
+- **`NADA` (R) y `lifelines` (Python) NO se instalaron**: la elección de
+  Peto-Peto + KM-reflejado no los necesita.
+
+### Siguiente paso concreto
+
+- **T4** (`04_qpcr_cuantificacion`): sobre `data/processed/qpcr_e15_long.tsv`,
+  calcular `ΔCt = CT_gen − CT_rsp29` por muestra; calibrador **HEMBRA_CONTROL**
+  por gen×tejido promediando **solo detectados** (D1); `ΔΔCt` y analizar sobre
+  **−ΔΔCt** (D2); z-score por gen dentro de tejido sobre los 36 fetos y score
+  compuesto = promedio de los 7 z de transportadores por feto (D8, **prohibido
+  "TONE"**). `il6@BRAIN_E15` se deja fuera de la cuantificación (D7, 0/9 en
+  calibrador) — solo entra como proporción de detección en T5. Tablas
+  intermedias en `data/processed/` + `outputs/tables/{R,python}/`. T4 **sí**
+  cierra sesión.
+
+### Notas para la próxima sesión
+
+- La regla D7 se detecta programáticamente con
+  `qc_no_detectados_qpcr.csv` (filtrar `GRUPO=="HEMBRA_CONTROL" & n_total>0 &
+  n_detectado==0`) — hoy solo `il6@BRAIN_E15`.
+- Las figuras del ELISA las escriben ambas implementaciones a la misma ruta; en
+  `run_all` (R y luego Python) queda la de Python. No son byte-idénticas (PNG);
+  la equivalencia es visual/estructural.
+- Helpers de escritura/merge (`.fmt`, `escribir_csv`, `merge_por_script`,
+  `registrar_procedencia/verificaciones`) están duplicados en cada script
+  numerado (patrón del proyecto desde 01/02); si crecen mucho, evaluar
+  factorizarlos en T10.
