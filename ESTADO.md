@@ -388,3 +388,109 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
   `registrar_procedencia/verificaciones`) están duplicados en cada script
   numerado (patrón del proyecto desde 01/02); si crecen mucho, evaluar
   factorizarlos en T10.
+
+---
+
+## Sesión 5 — 2026-09-08 — T4
+
+### Encuadre confirmado con el usuario
+
+- **T4 = solo cuantificación.** NO se corre `nondetects`, NO se implementa EM, NO
+  se imputa por ningún camino (D3 está tomada, no se re-litiga).
+- z-score con **desvío estándar muestral (n−1)**.
+- **Eigengene / PCA diferido a T9** (Acto 2.6). T4 entrega solo el score
+  compuesto (promedio de los 7 z de transportadores).
+- "Documentar la MNAR con números" = una **tabla descriptiva de no detectados**
+  (n y % de NA por gen×tejido×grupo + marca de calibrador ♀Control 0/detectados).
+  Esa tabla es el sustento numérico de D3 **y** de D7. La redacción del descarte
+  MNAR se escribe en T10 apoyándose en ella (cualitativo en la lógica,
+  cuantitativo en los conteos).
+
+### Qué se completó
+
+- **`python/04_qpcr_cuantificacion.py` + `R/04_qpcr_cuantificacion.R`**
+  (equivalentes). Leen `data/processed/qpcr_e15_long.tsv`.
+  - **D1** `dCt = CT_gen − CT_rsp29`; calibrador = promedio de `dCt` en
+    `HEMBRA_CONTROL` por gen×tejido, **solo detectados**; `ddCt = dCt − dCt_cal`.
+  - **D2** medida de análisis = `neg_ddCt = −ddCt`. `FC = 2^(−ddCt)` **no se
+    guarda** (se calcula al graficar en T6/T7) — así se evita el redondeo de
+    `2^x` entre libm.
+  - **D7** `il6@BRAIN_E15` no cuantificable (calibrador ♀Control 0/9):
+    `cuantificable = FALSE`, `ddCt/neg_ddCt/z` NA. Único caso; se detecta
+    programáticamente (`HEMBRA_CONTROL n_detectado==0 & n_total>0`).
+  - **D8** z-score por gen dentro de tejido sobre los 36 fetos, solo detectados,
+    **sd muestral (n−1)**. **Score compuesto** = promedio de los z de los 7
+    transportadores por feto×tejido (los disponibles si <7). **No se usa "TONE"**
+    en ningún archivo.
+  - Tabla `qpcr_no_detectados_descriptivo.csv`: n y % de NA por
+    gen×tejido×{4 grupos + TODOS} + `calibrador_cero_detectados` (sustento D3/D7).
+
+### Salidas
+
+- `data/processed/qpcr_cuantificacion_long.tsv` (720 filas): …, `dCt`,
+  `dCt_calibrador`, `ddCt`, `neg_ddCt`, `z`, flags `no_detectado`,
+  `cuantificable`, `es_transportador`.
+- `data/processed/qpcr_score_compuesto_long.tsv` (72 filas): `n_z_disponibles`,
+  `score_compuesto` por feto×tejido.
+- `outputs/tables/{R,python}/`: `qpcr_calibradores.csv` (20),
+  `qpcr_no_detectados_descriptivo.csv` (100), `qpcr_cuantificacion_resumen.csv`
+  (20: n_det/36, media/sd/mediana de `neg_ddCt`),
+  `qpcr_score_compuesto_resumen.csv` (8: media/sd del score por grupo×tejido).
+- `outputs/tables/qpcr_cuantificacion_reporte.md`; sección
+  `04_qpcr_cuantificacion` en `analisis_descartados.md`; filas en
+  `procedencia.csv` y `verificaciones.csv`.
+
+### Números (datos reales; NO se versionan)
+
+- Calibradores: 20 gen×tejido, todos con ≥5 detectados en ♀Control salvo
+  `il6R@BRAIN_E15` (3/9, cuantificable) y `il6@BRAIN_E15` (0/9, **no**
+  cuantificable, D7).
+- `dCt` NA = 77 = exactamente los no detectados E15 → nada imputado.
+  (El "159" de `qc_resumen` de T2 es el total E15+BRAIN_P1; E15 solo = 77, todos
+  `CT_CRUDO==40`; las 30 celdas vacías están todas en BRAIN_P1.)
+- Score compuesto (media por grupo): PLACENTA ♀Control −0.93, ♀LPS +0.18,
+  ♂Control +0.11, ♂LPS +0.41 · BRAIN ♀Control −0.50, ♀LPS +0.68,
+  ♂Control −0.09, ♂LPS −0.34. (Descriptivo; el modelo es T5.)
+
+### Paridad y robustez
+
+- **R ↔ Python byte-idénticos** en las 4 `qpcr_*.csv` (× `R/` y `python/`), los
+  2 `.tsv` de `data/processed/`, `qpcr_cuantificacion_reporte.md`,
+  `procedencia.csv`, `verificaciones.csv`, `analisis_descartados.md` — **sobre
+  datos reales y sobre sintético**. Idempotente.
+- Truco de paridad clave: **promedios y desvíos con acumulador `double`
+  explícito** (`a <- a + v` en un loop), NO `sum()`/`mean()`/`sd()` de R (usan
+  `long double` en Windows/MinGW → divergían del `double` de Python). Con el loop
+  explícito y el mismo orden de suma (fetos ordenados por `MADRE_ID, FETO`
+  radix), `dCt_calibrador`, `z` y `score_compuesto` salen bit-idénticos → todo
+  con `%.10g`, sin necesidad de formateo `%.6e` como en T3.
+- R/04 corre ~40–50 s (lookups por clave-string en loops); aceptable.
+
+### Cierre de T4
+
+- Tabla de estado en AGENTS.md/CLAUDE.md: **T4 → HECHO (2026-09-08)**.
+- **T4 cerrado. Conviene cerrar la sesión acá.**
+
+### Siguiente paso concreto
+
+- **T5** (`05_qpcr_modelos`): sobre `qpcr_cuantificacion_long.tsv`, modelo
+  `neg_ddCt ~ SEXO * TTO` por gen×tejido con la **cascada de supuestos D5/§4.1**
+  (Shapiro + Levene → ANOVA III `car::Anova(type=3)` con `contr.sum`; falla
+  Levene → HC3; falla Shapiro → **ART**, en Python implementado a mano y
+  verificado contra `ARTool`). Post hoc **solo si `SEXO×TTO` significativa**: 4
+  comparaciones fijas, corrección **Holm** (D6). Para `il6@BRAIN_E15` (D7):
+  fuera del modelo, solo **Fisher exacto 2×2 de detección dentro de cada sexo** +
+  tabla 2×4. Columna suplementaria BH entre genes por tejido (D12), sin cambiar
+  conclusiones. Entregable: tabla de clasificación por gen×tejido (qué rama de la
+  cascada, p de interacción, post hoc). T5 **sí** cierra sesión.
+
+### Notas para la próxima sesión
+
+- Instalar en renv, al abrir T5: `car`, `ARTool`, `emmeans`, `sandwich`,
+  `lmtest` (están en el toolchain de AGENTS §8 pero **no** en la lockfile
+  mínima; hoy la lock tiene 38 paquetes: readxl/openxlsx/digest/ggplot2/survival
+  + deps). Python: `statsmodels`, `scipy`, `pingouin`, `patsy` ya están.
+- El z-score y el score compuesto de T4 **no** entran al modelo de T5 (ese modela
+  `neg_ddCt` por gen); el score compuesto se usa en el Acto 2 (T7–T9).
+- `qpcr_cuantificacion_long.tsv` ya trae `cuantificable` y `es_transportador`
+  para filtrar directo en T5.
