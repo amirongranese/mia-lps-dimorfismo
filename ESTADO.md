@@ -494,3 +494,121 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
   `neg_ddCt` por gen); el score compuesto se usa en el Acto 2 (T7–T9).
 - `qpcr_cuantificacion_long.tsv` ya trae `cuantificable` y `es_transportador`
   para filtrar directo en T5.
+
+---
+
+## Sesión 6 — 2026-09-08 — T5
+
+### Decisiones confirmadas con el usuario (dentro del menú de D5/D6/D12)
+
+- **alfa = 0.05** para la compuerta D6 (interacción `SEXO×TTO` que habilita el
+  post hoc) y para la cascada de supuestos. **Shapiro-Wilk sobre los residuos del
+  modelo conjunto** del gen×tejido (no por celda); Levene por celda a 0.05.
+- **Piso de celda = 5 detectados.** Si alguna de las 4 celdas `SEXO×TTO` tiene
+  <5 valores detectados tras descartar no-detectados, no se ajusta el modelo
+  factorial: vía `descriptivo_n_bajo` (solo n + descriptivo de `neg_ddCt`).
+- **D12: tres columnas BH** — BH entre los genes modelados de cada tejido, por
+  separado para `p_SEXO`, `p_TTO`, `p_SEXO×TTO`.
+
+### Qué se completó
+
+- **`python/05_qpcr_modelos.py` + `R/05_qpcr_modelos.R`** (equivalentes). Leen
+  `data/processed/qpcr_cuantificacion_long.tsv`. Una fila de clasificación por
+  gen×tejido (20). Vías: `modelo` / `D7_deteccion` / `descriptivo_n_bajo`.
+  - **Cascada D5 / §4.1**: modelo `neg_ddCt ~ SEXO * TTO` (OLS, contr.sum).
+    Shapiro≥.05 & Levene≥.05 → `anova3` (SS tipo III por comparación de modelos);
+    Shapiro≥.05 & Levene<.05 → `hc3` (Wald III 1 gl con sándwich HC3);
+    Shapiro<.05 → `art` (ART Wobbrock et al. 2011). La rama usada queda en
+    `rama_cascada` y en `procedencia.csv`.
+  - **Post hoc D6** (solo si interacción p<.05): 4 comparaciones fijas
+    (`♀C-♀L`, `♂C-♂L`, `♀L-♂L`, `♀C-♂C`), corrección **Holm** dentro de las 4.
+    `anova3` → contraste de medias marginales (vcov OLS); `hc3` → ídem con vcov
+    HC3; `art` → **ART-C** (Elkin et al. 2021), nunca `emmeans` directo sobre el
+    modelo ART.
+  - **D7** (`cuantificable == FALSE`, calibrador ♀Control 0/detectados):
+    `il6@BRAIN_E15` fuera del modelo → Fisher exacto 2×2 de detección Control vs
+    LPS dentro de cada sexo + tabla 2×4. Se detecta programáticamente.
+  - **D12**: columnas `p_*_BH` suplementarias, no dirigen la inferencia.
+  - **Núcleo numérico PROPIO idéntico R/Python**: solver 4×4 (Gauss-Jordan),
+    SS III por comparación de modelos, sándwich HC3, Levene (Brown-Forsythe,
+    centro = mediana), ART y ART-C, Holm, BH, Fisher 2×2 (misma regla que
+    `fisher.test`). **R cruza-verifica en corrida** cada rama contra
+    `car::Anova` / `emmeans` (vcov OLS o HC3) / `ARTool::art` + `art.con`
+    (`stopifnot`, tol 1e-6). **Única dependencia de librería en el resultado:**
+    Shapiro-Wilk (`shapiro.test` / `scipy.stats.shapiro`) — coinciden a ~1e-12.
+
+### Resultados (datos reales; NO se versionan)
+
+- Vías: 18 modelados, 1 D7 (`il6@BRAIN_E15`), 1 descriptivo
+  (`il6R@BRAIN_E15`, celdas 3/7/3/3 < 5).
+- Reparto de ramas: **anova3 = 5, hc3 = 6, art = 7**.
+- Interacción `SEXO×TTO` p<.05 en **7 gen×tejido, todos en BRAIN_E15**
+  (fatcd36, fatp1, fatp4, glut1, gp130, slc38a1, slc38a2); ninguna en placenta
+  (mín. gp130@PLA p=.085). Post hoc corrido en esos 7.
+- **D12**: dentro de BRAIN los **7/7** siguen p_BH<.05; en placenta no había
+  ninguna cruda significativa. **Ninguna conclusión cambia por la columna BH.**
+- `il6@BRAIN_E15` (D7): detectado solo bajo LPS (♀ 4/9, ♂ 3/9), 0/9 en ambos
+  Control. Fisher ♀ p=8.24e-02, ♂ p=2.06e-01 → **0/2 alcanzan p<.05**.
+- (Sobre sintético: 18 anova3, 0 hc3, 0 art; D7 y descriptivo_n_bajo iguales;
+  4 post hoc. Los números cambian con la fuente pero R==Python para cada fuente.)
+
+### Paridad y robustez verificadas
+
+- **R ↔ Python byte-idénticos** en `qpcr_modelos_clasificacion.csv` (× R/ y
+  python/), `qpcr_modelos_posthoc.csv`, `qpcr_modelos_nomodelo_descriptivo.csv`,
+  `qpcr_il6_brain_fisher.csv`, `qpcr_il6_brain_tabla2x4.csv`,
+  `qpcr_modelos_reporte.md`, `procedencia.csv`, `verificaciones.csv`,
+  `analisis_descartados.md`, y `data/processed/qpcr_modelos_clasificacion.tsv`
+  — **sobre datos reales y sobre sintético**.
+- Cruza-verificación R vs `car`/`emmeans`/`ARTool`: peor |dif| = 4.2e-14 (real),
+  7.9e-14 (sintético) — muy por debajo de 1e-6 (`stopifnot`).
+- Idempotente: 2ª corrida de cada implementación no cambia ningún archivo;
+  secuencia completa `R 02→05` seguida de `python 02→05` deja los merge files
+  (`verificaciones/procedencia/analisis_descartados`) byte-idénticos.
+- Truco de paridad: todo estadístico / p dependiente de trascendentes
+  (`pf`, `pt`, `lgamma`, W de Shapiro) se guarda como texto `%.6e` (igual que
+  T3); conteos, n y aritmética exacta con `%.10g`. Como el núcleo es el mismo
+  código en ambos lenguajes, en la práctica salen byte-idénticos y no solo
+  dentro de tolerancia.
+- `art.con` (ARTool) para el `SEXO:TTO` de un 2×2 se reduce a
+  `rank(round(y − media_global, 8))` → modelo de una vía sobre el factor de 4
+  celdas → contrastes t con MSE combinado (gl = n−4); verificado numéricamente
+  contra `ARTool::art.con` (rel < 5e-14).
+
+### Entorno
+
+- **Instalados en renv** (estaban en toolchain §8, no en la lock mínima):
+  `car` 3.1-5, `ARTool` 0.11.2, `emmeans` 2.0.4, `sandwich` 3.1-3,
+  `lmtest` 0.9-40 + deps (lme4, pbkrtest, quantreg, doBy, broom, dplyr, …).
+  `renv::snapshot()` corrido → `renv.lock` pasa de 38 a **104 paquetes**;
+  `renv::status()` limpio.
+
+### Cierre de T5
+
+- Tabla de estado en AGENTS.md/CLAUDE.md: **T5 → HECHO (2026-09-08)**.
+- **T5 cerrado. Conviene cerrar la sesión acá.**
+
+### Siguiente paso concreto
+
+- **T6** (`06_pstat3` + `07_figuras_acto1`): modelo pSTAT3
+  `PSTAT3 ~ SEXO * TTO + MEMBRANA` (D9, misma cascada D5 y mismo post hoc D6;
+  MEMBRANA = bloque fijo), con la limitación obligatoria del informe (abundancia
+  de fosfo-STAT3, no fracción). Después `07_figuras_acto1`: boxplots de
+  expresión por gen×tejido (FC = 2^(−ΔΔCt), eje Y log), boxplot de pSTAT3 y
+  figuras de ELISA reunidas, con **una sola función de brackets D11** (una en R,
+  una en Python) usada en todas. Anotar solo si interacción y post hoc
+  significativos. T6 **sí** cierra sesión.
+
+### Notas para la próxima sesión
+
+- El modelo de T5 reusa el núcleo hand-rolled (`anova3_terminos`, `hc3_terminos`,
+  `levene_bf`, `art_terminos`, `emmeans_pares`, `holm`, `bh`, `fila_diseno`,
+  `resolver`, `invertir`): para pSTAT3 en T6 basta agregar la columna `MEMBRANA`
+  al diseño (bloque fijo, 2 columnas contr.sum para 3 niveles) y repetir la
+  cascada. Conviene evaluar factorizar ese núcleo a un módulo compartido en T10.
+- La función de brackets D11 (T7) necesita, por figura, saber si la interacción
+  fue significativa y el `p_holm` de la comparación concreta: sale de
+  `qpcr_modelos_posthoc.csv` (`contraste`, `p_holm`) + `interaccion_significativa`
+  de `qpcr_modelos_clasificacion.csv`.
+- `run_all.ps1` ya lista `05_qpcr_modelos`. Las figuras las escriben ambas
+  implementaciones a la misma ruta; en `run_all` queda la de Python.
