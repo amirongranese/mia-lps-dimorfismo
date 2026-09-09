@@ -755,3 +755,117 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
 - El núcleo hand-rolled de 05/06 (`ajustar`, `resolver`, `anova3_terminos`,
   `emmeans_pares`, `holm`, …) puede reusarse si T8 modela pendientes; evaluar
   factorizarlo a un módulo compartido en T10 (ya anotado en T4/T5).
+
+---
+
+## Sesión 8 — 2026-09-09 — T7
+
+### Decisiones confirmadas con el usuario (fuera del menú fijado en AGENTS)
+
+- **Qué correlacionar**: `-ΔΔCt` por gen (9 genes: todos menos `il6`, que no tiene
+  `-ΔΔCt` en cerebro por D7) **y** el score compuesto de 7 transportadores (D8).
+- **Coeficiente**: **Spearman ρ** (no Pearson). Robusto a outliers de qPCR.
+- **Estratos**: `GLOBAL` (n≤36) + por `TTO` (`CONTROL` / `LPS`, n≤18). Las 4
+  celdas SEXO×TTO (n~9) NO se usan (IC inútiles).
+- **Pair plots**: SPLOM de co-expresión de los 7 transportadores por tejido +
+  grilla de dispersión placenta↔cerebro por gen (y score).
+
+### Qué se completó
+
+- **`python/08_acto2_correlaciones.py` + `R/08_acto2_correlaciones.R`**
+  (equivalentes). Leen `qpcr_cuantificacion_long.tsv` + `qpcr_score_compuesto_long.tsv`.
+  **T7 SOLO describe**: no compara correlaciones entre grupos (prohibición 4) ni
+  las interpreta como coordinación biológica sin descartar restricción de rango
+  (prohibición 5) — eso es **T8**. El reporte y `analisis_descartados.md` lo dicen
+  explícitamente.
+  - **Emparejamiento por FETO**: un par entra si el feto tiene `-ΔΔCt` (o score)
+    detectado en **ambos** tejidos (PLACENTA_E15 y BRAIN_E15).
+  - **Núcleo Spearman PROPIO** (idéntico R/Python): `ρ` = Pearson sobre rangos
+    promedio (corrige empates), con sumas de acumulador `double` explícito (mismo
+    orden). `p` por t-aproximación `t = ρ·√((n-2)/(1-ρ²))`, df = n-2, 2 colas —
+    **la misma fórmula que `cor.test(method="spearman", exact=FALSE)` y
+    `scipy.stats.spearmanr` por defecto**. IC 95% Bonett-Wright:
+    `SE_z = √((1+ρ²/2)/(n-3))`, `z = atanh(ρ)`, `IC = tanh(z ± 1.959963984540054·SE_z)`.
+    Piso: `n_par < 5` → solo `n` (sin ρ/IC/p).
+  - **`08_acto2_correlaciones.R` cruza-verifica** cada ρ y p contra
+    `cor.test(..., exact=FALSE)` (`stopifnot`, tol 1e-9). **Nunca** se llama al
+    método exacto de `cor.test` (AS 89): **segfaultea** en este build de R
+    (documentado en `analisis_descartados.md`).
+  - **Co-expresión**: ρ de Spearman entre los 7 transportadores dentro de cada
+    tejido (21 pares × 2 tejidos) → tabla + SPLOM.
+
+### Salidas
+
+- `outputs/tables/{R,python}/acto2_correlaciones.csv` (30 filas: 9 genes + score
+  × {GLOBAL, CONTROL, LPS}; `n_par`, `rho_spearman`, `ic95_low/high`, `p_valor`).
+- `outputs/tables/{R,python}/acto2_coexpresion_transportadores.csv` (42 filas).
+- `outputs/tables/acto2_correlaciones_reporte.md`; sección `08_acto2_correlaciones`
+  en `analisis_descartados.md`; filas en `procedencia.csv` y `verificaciones.csv`.
+- `outputs/figures/acto2_dispersion_placenta_cerebro.png` (10 paneles, ρ global
+  + IC y ρ por TTO anotados, coloreado por TTO, con el caveat de prohibición 4 en
+  el subtítulo); `acto2_coexpresion_SPLOM_{PLACENTA_E15,BRAIN_E15}.png` (7×7,
+  GGally::ggpairs con ρ overall/Control/LPS en el triángulo superior). 300 dpi.
+
+### Resultados (datos reales; NO se versionan)
+
+- Correlación placenta↔cerebro **GLOBAL** (Spearman ρ): score compuesto ρ = 0.24
+  [-0.10, 0.53] p = 0.17; por gen todas débiles-moderadas y **solo `slc38a1`
+  alcanza p < .05** (ρ = 0.47 [0.13, 0.71] p = 6.4e-3); `gp130` ρ = 0.32 p = .058.
+- Por TTO (descriptivo, **NO se compara**): en varios genes y en el score la ρ
+  de Control es mayor que la de LPS (p. ej. score Control ρ = 0.48 vs LPS
+  ρ = -0.14; fatcd36 0.47 vs -0.13; fatp4 0.42 vs -0.11). **Interpretar esa
+  diferencia es T8** (test formal + restricción de rango).
+- Co-expresión intra-tejido de los transportadores: fuerte en ambos tejidos
+  (ρ ~ 0.5–0.87), contexto para la restricción de rango de T8.
+- (Sobre sintético: R == Python para cada fuente; los números cambian.)
+
+### Paridad y robustez verificadas
+
+- **R ↔ Python byte-idénticos** en `acto2_correlaciones.csv`,
+  `acto2_coexpresion_transportadores.csv` (× R/ y python/),
+  `acto2_correlaciones_reporte.md`, y las filas nuevas de `procedencia.csv` /
+  `verificaciones.csv` / `analisis_descartados.md` — **sobre datos reales y
+  sobre sintético**. Idempotente.
+- Cruza-verificación R vs `cor.test(exact=FALSE)`: peor `|dif|` = **8.9e-16**
+  (real) — muy por debajo de 1e-9 (`stopifnot`). Además el núcleo PROPIO de
+  Python reproduce `scipy.stats.spearmanr` a `%.10g` / `%.6e`.
+- Truco de paridad: ρ y sumas con acumulador `double` explícito → `%.10g`
+  bit-idéntico; `p` (vía `pt`) e IC (vía `tanh`/`atanh`) → texto `%.6e`.
+- Figuras PNG: equivalentes, no byte-idénticas (ggplot2/GGally vs matplotlib).
+
+### Entorno
+
+- **`GGally` 2.4.0** instalado en renv (+ `forcats` 1.0.1, `ggstats` 0.14.0,
+  `patchwork` 1.3.2). `renv::snapshot()` → `renv.lock` pasa a **111 paquetes**;
+  `renv::status()` limpio. Python: `seaborn` / `scipy` ya estaban.
+- `run_all.ps1` ya listaba `08_acto2_correlaciones`: sin cambios.
+
+### Cierre de T7
+
+- Tabla de estado en AGENTS.md/CLAUDE.md: **T7 → HECHO (2026-09-09)**.
+- **T7 cerrado. Conviene cerrar la sesión acá.**
+
+### Siguiente paso concreto
+
+- **T8** (`09_acto2_dispersion` + `10_acto2_simulacion` + test de pendientes):
+  Acto 2.3–2.5. (a) Comparar formalmente las correlaciones placenta↔cerebro
+  entre Control y LPS con un test que **es el que se reporta** (Fisher z sobre
+  Spearman, interacción de pendientes en un modelo, o permutación — elegir con el
+  usuario). (b) **Antes** de interpretar cualquier cambio de correlación como
+  cambio de coordinación biológica, descartar cambio de dispersión / restricción
+  de rango: `10_acto2_simulacion` (Sección 8.4 del brief) genera datos con la
+  misma correlación verdadera pero distinta dispersión por grupo y muestra cuánto
+  se mueve la ρ observada. T8 **sí** cierra sesión.
+
+### Notas para la próxima sesión
+
+- La entrada de T8 son los mismos pares por feto de T7 (`_pares(D, item, estrato)`
+  en Python / `pares()` en R) — conviene factorizar esa construcción y el núcleo
+  Spearman a un helper compartido si T8 los reusa mucho.
+- Para el Fisher z sobre Spearman: usar `z = atanh(ρ)`, `SE = 1/√(n-3)` (o la
+  variante Bonett-Wright ya implementada en `spearman_ci`), y el estadístico
+  `(z1 - z2)/√(SE1² + SE2²)`. Confirmar con el usuario cuál de las tres vías
+  (Fisher z / pendientes / permutación) es **la** que se reporta (prohibición 4).
+- `il6R@BRAIN` tiene `n_par` chico por estrato (Control 6, LPS 9): el test de
+  diferencia para ese gen tendrá potencia casi nula — dejarlo explícito, no
+  omitirlo en silencio.
