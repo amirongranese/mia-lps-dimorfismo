@@ -612,3 +612,146 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
   de `qpcr_modelos_clasificacion.csv`.
 - `run_all.ps1` ya lista `05_qpcr_modelos`. Las figuras las escriben ambas
   implementaciones a la misma ruta; en `run_all` queda la de Python.
+
+---
+
+## Sesión 7 — 2026-09-09 — T6
+
+### Decisiones confirmadas con el usuario (fuera del menú fijado en AGENTS)
+
+- **Boxplots de expresión**: un PNG por tejido, faceteado por gen (no un PNG por
+  gen×tejido).
+- **Figura de pSTAT3**: valores **crudos** por SEXO×TTO, con la MEMBRANA como
+  **forma de punto** (no residualizar por membrana).
+- **il6 @ BRAIN_E15** en el Acto 1: panel de **proporción de detección** Control
+  vs LPS por sexo (desde `qpcr_il6_brain_tabla2x4.csv` + p de Fisher), no un
+  boxplot de FC (no es cuantificable, D7).
+- **Rama `art` de la cascada D5 para pSTAT3**: `ARTool::art()` **rechaza**
+  `y ~ SEXO*TTO + MEMBRANA` (`parse.art.formula` exige diseño completamente
+  cruzado). Fallback fijado: **ART aditivo hand-rolled** (alinear cada término
+  restando el ajuste OLS de los demás términos —incl. efecto principal de
+  MEMBRANA—, rankear, ANOVA III sobre los rangos con el diseño completo; post hoc
+  ART-C hand-rolled). Sobre datos **reales y sintéticos** la cascada cae en
+  `anova3` → **la rama `art` no se ejecuta**; queda definida y auto-verificada
+  (R recomputa el alineado por dos vías con `stopifnot`).
+
+### Qué se completó
+
+- **`python/06_pstat3.py` + `R/06_pstat3.R`** (equivalentes). Leen
+  `data/processed/pstat3_long.tsv`. Una fila de clasificación (pSTAT3 @
+  PLACENTA_E15). Modelo D9 `PSTAT3 ~ SEXO * TTO + MEMBRANA`, OLS contr.sum,
+  **diseño de 6 columnas** `[1, s, t, s*t, m1, m2]` (MEMBRANA = bloque fijo, 3
+  niveles → 2 columnas contr.sum), `df_resid = n − 6`.
+  - **Núcleo numérico PROPIO** generalizado a `p = 6` (Gauss-Jordan, SS tipo III
+    por comparación de modelos, sándwich HC3 con Wald de `k` gl por término,
+    Levene BF sobre las 4 celdas SEXO×TTO, ART y ART-C aditivos, Holm).
+  - **Cascada D5** (α = 0.05): Shapiro-Wilk sobre los **residuos del modelo
+    conjunto** (con MEMBRANA); Levene BF sobre las 4 celdas. `anova3` si ambos
+    ≥ .05; `hc3` si falla Levene; `art` (aditivo hand-rolled) si falla Shapiro.
+  - **Post hoc D6** (solo si interacción `SEXO×TTO` p < .05): 4 comparaciones
+    fijas, Holm. `anova3`/`hc3` → contraste de medias marginales promediando
+    sobre MEMBRANA (vcov OLS / HC3); `art` → ART-C hand-rolled.
+  - **F_MEMBRANA / p_MEMBRANA** se reportan como diagnóstico del bloque (2 gl),
+    no gatean nada.
+  - **Limitación obligatoria D9** escrita en `pstat3_reporte.md` (§6) y en
+    `analisis_descartados.md`: pSTAT3 normalizado a proteína total sin STAT3
+    total → **abundancia de fosfo-STAT3, no fracción fosforilada**.
+- **`python/07_figuras_acto1.py` + `R/07_figuras_acto1.R`**. **UNA función de
+  anotación D11** (`d11_anotacion(p, interaccion_sig)`, idéntica en R y Python)
+  + `anotar_comparaciones` / `brackets_df` (una por lenguaje), usada en las 3
+  figuras. Se anota una comparación solo si la interacción del gen×tejido es
+  significativa **y** su `p_holm` cruza el umbral D11
+  (`***`<.001, `**`<.01, `*`<.05 sólido; `.05≤p<.1` punteado + `p = 0.NNN`;
+  `p≥.1` nada). 4 comparaciones D6 → pares de cajas (0=HC,1=HL,2=MC,3=ML).
+  - `acto1_expresion_PLACENTA_E15.png`: 10 paneles FC = 2^(−ΔΔCt), eje log,
+    4 cajas SEXO×TTO + puntos, línea en FC = 1. Sin brackets (placenta no tiene
+    interacciones significativas, T5).
+  - `acto1_expresion_BRAIN_E15.png`: 9 paneles FC + panel de **detección** de
+    il6 (barras % detectado + p de Fisher). Brackets D11: `fatp1` (♀C–♀L `*`,
+    ♀L–♂L `*`), `fatp4` (♀L–♂L tendencia `p = 0.074`), `glut1` (♀C–♀L `***`,
+    ♀L–♂L `*`), `slc38a2` (♀C–♀L `**`, ♀L–♂L `**`).
+  - `acto1_pstat3.png`: 4 cajas SEXO×TTO, PSTAT3 **crudo** (eje lineal), forma
+    de punto = membrana; brackets `pSTAT3` ♀C–♀L `***`, ♀L–♂L `***`.
+  - Las figuras de ELISA (`acto1_elisa_ms.png`, `acto1_elisa_la.png`) las hizo
+    T3; 07 **no las regenera**, solo completan el set del Acto 1.
+  - R: figura de BRAIN compuesta con `cowplot::ggdraw` + `draw_plot` (el panel
+    de detección de il6 va en el hueco libre de la 3ª fila del facet).
+
+### Salidas
+
+- `data/processed/pstat3_modelo_clasificacion.tsv` (1 fila).
+- `outputs/tables/{R,python}/`: `pstat3_modelo_clasificacion.csv` (F/p de
+  SEXO/TTO/SEXOxTTO/MEMBRANA, rama, flags), `pstat3_posthoc.csv` (4 filas si hay
+  interacción), `pstat3_descriptivo.csv` (n/media/sd/mediana por grupo).
+- `outputs/tables/pstat3_reporte.md`; secciones `06_pstat3` y `07_figuras_acto1`
+  en `analisis_descartados.md`; filas en `procedencia.csv` y `verificaciones.csv`.
+- `outputs/figures/acto1_expresion_{PLACENTA_E15,BRAIN_E15}.png`,
+  `acto1_pstat3.png` (300 dpi).
+
+### Resultados (datos reales; NO se versionan)
+
+- pSTAT3: rama **`anova3`** (Shapiro p residuos = 0.1006, Levene p = 0.2686).
+  SEXO p = 1.98e-02 · TTO p = 9.30e-06 · **SEXO×TTO p = 1.68e-05** · MEMBRANA
+  (bloque) p = 4.14e-05. Interacción significativa → post hoc D6 (OLS marginal,
+  Holm): **♀Control–♀LPS `p_holm` = 1.27e-07 (`***`)**, ♂Control–♂LPS 0.883,
+  **♀LPS–♂LPS 2.55e-05 (`***`)**, ♀Control–♂Control 0.141. Medias: ♀Control 1.98,
+  ♀LPS 4.81, ♂Control 2.70, ♂LPS 2.75 → el efecto LPS sobre pSTAT3 es
+  **restringido a hembras**.
+- (Sobre sintético: rama `anova3`; SEXO×TTO p = 0.153 → **sin post hoc**;
+  0 brackets en las figuras. R == Python para cada fuente.)
+
+### Paridad y robustez verificadas
+
+- **R ↔ Python byte-idénticos** en `pstat3_modelo_clasificacion.csv` (× R/ y
+  python/), `pstat3_posthoc.csv`, `pstat3_descriptivo.csv`, `pstat3_reporte.md`,
+  `data/processed/pstat3_modelo_clasificacion.tsv`, y las filas nuevas de
+  `procedencia.csv` / `verificaciones.csv` / `analisis_descartados.md` (secciones
+  06 y 07) — **sobre datos reales y sobre sintético**. Idempotente.
+- **Cruza-verificación (solo `06_pstat3.R`)** contra `car::Anova(type=3)`,
+  `car::Anova(white.adjust="hc3")` y `emmeans` (vcov OLS / HC3): peor `|dif|` =
+  **9.99e-16** (real), 6.44e-15 (sintético) — muy por debajo de 1e-6
+  (`stopifnot`). ART/ART-C: auto-verificación (dos vías de alineado) porque
+  ARTool no ajusta el bloque aditivo; no se ejecuta con estos datos.
+- Truco de paridad igual que 03/05: estadísticos / p que pasan por trascendentes
+  (`pf`, `pt`, W de Shapiro) → texto `%.6e` (`p6e`); conteos y aritmética exacta
+  → `%.10g`. Núcleo idéntico en ambos lenguajes → en la práctica byte-idénticos.
+- La decisión D11 (`d11_anotacion`) produce **exactamente los mismos brackets**
+  en R y Python (7 en expresión + 2 en pSTAT3 sobre datos reales; 0 + 0 sobre
+  sintético) — verificado por la fila `figuras_d11_gate` de `verificaciones.csv`.
+- Figuras PNG: equivalentes, no byte-idénticas (ggplot2 vs matplotlib).
+
+### Entorno
+
+- **`cowplot` 1.2.0** ya estaba en `renv.lock` (entró como dependencia en el
+  snapshot de T5); `renv::status()` limpio, **no hizo falta re-snapshot**.
+  Python: `matplotlib` ya en `requirements.txt`.
+- `run_all.ps1` ya listaba `06_pstat3` y `07_figuras_acto1` en `$Steps` (T0):
+  sin cambios.
+
+### Cierre de T6
+
+- Tabla de estado en AGENTS.md/CLAUDE.md: **T6 → HECHO (2026-09-09)**.
+- **T6 cerrado. Conviene cerrar la sesión acá.**
+
+### Siguiente paso concreto
+
+- **T7** (`08_acto2_correlaciones`): sobre el score compuesto de T4
+  (`qpcr_score_compuesto_long.tsv`) y/o los `neg_ddCt` por gen, correlaciones
+  **placenta ↔ cerebro** por gen (y del score) con pair plots. Acto 2.1–2.2.
+  **Prohibición 4**: no reportar "significativo en Control y no en LPS" como
+  prueba de diferencia — para comparar correlaciones entre grupos hace falta un
+  test formal (Fisher z / interacción de pendientes / permutación) y **ese** es
+  el que se reporta (eso es T8). T7 **sí** cierra sesión.
+
+### Notas para la próxima sesión
+
+- El emparejamiento placenta–cerebro es **por feto** (`FETO`): cada uno tiene una
+  fila `PLACENTA_E15` y una `BRAIN_E15` en `qpcr_cuantificacion_long.tsv` y en
+  `qpcr_score_compuesto_long.tsv`. il6 no tiene `neg_ddCt` en cerebro (D7) → queda
+  fuera de las correlaciones por gen de ese tejido.
+- `GGally` (toolchain AGENTS §8) **no** está en la lockfile; instalarlo al abrir
+  T7 si se usa para los pair plots, y `renv::snapshot()`. Python: `seaborn` ya
+  está.
+- El núcleo hand-rolled de 05/06 (`ajustar`, `resolver`, `anova3_terminos`,
+  `emmeans_pares`, `holm`, …) puede reusarse si T8 modela pendientes; evaluar
+  factorizarlo a un módulo compartido en T10 (ya anotado en T4/T5).

@@ -185,7 +185,7 @@ MIA_LPS_reanalisis/
 | T3 | `03_elisa` + figura de validación | Acto 1.1 | No | **HECHO** (2026-09-08) |
 | T4 | `04_qpcr_cuantificacion`: ΔCt, calibrador, ΔΔCt, z-scores | tablas intermedias | Sí | **HECHO** (2026-09-08) |
 | T5 | `05_qpcr_modelos`: cascada D5, post hoc D6, Fisher para D7 | tabla de clasificación | Sí | **HECHO** (2026-09-08) |
-| T6 | `06_pstat3` + `07_figuras_acto1` (función de brackets D11) | Acto 1 completo | Sí | pendiente |
+| T6 | `06_pstat3` + `07_figuras_acto1` (función de brackets D11) | Acto 1 completo | Sí | **HECHO** (2026-09-09) |
 | T7 | `08_acto2_correlaciones`: correlaciones por gen + pair plots | Acto 2.1–2.2 | Sí | pendiente |
 | T8 | `09_acto2_dispersion` + `10_acto2_simulacion` + test de pendientes | Acto 2.3–2.5 | Sí | pendiente |
 | T9 | `11_sensibilidad`: eigengene y exclusión del extremo | Acto 2.6 | Sí | pendiente |
