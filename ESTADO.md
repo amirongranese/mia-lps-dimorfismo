@@ -869,3 +869,134 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
 - `il6R@BRAIN` tiene `n_par` chico por estrato (Control 6, LPS 9): el test de
   diferencia para ese gen tendrá potencia casi nula — dejarlo explícito, no
   omitirlo en silencio.
+
+---
+
+## Sesión 9 — 2026-09-10 — T8
+
+### Decisiones confirmadas con el usuario (fuera del menú fijado en AGENTS)
+
+- **Test reportado de diferencia de correlaciones (prohibición 4)**: **Fisher z
+  sobre ρ de Spearman**. `z = atanh(ρ)`; estadístico
+  `(z_control − z_lps)/√(SE_control² + SE_lps²)`; `p` normal a dos colas.
+- **Error estándar del Fisher z**: **Bonett-Wright primario**
+  `SE_i = √((1 + ρ_i²/2)/(n_i − 3))` (el mismo del IC de T7) **+** SE clásico
+  `1/√(n_i − 3)` como columna al lado (no cambia conclusiones). Además `p_bw_bh`
+  (BH entre ítems) como columna suplementaria en el espíritu de D12.
+- **Simulación de restricción de rango (prohibición 5)**: **normal bivariada en
+  −ΔΔCt**. `r` verdadera común a ambos grupos, SD marginales = SD observadas por
+  grupo. Inversión `r = 2·sin(π·ρ_S/6)` (exacta para la normal bivariada).
+  **Dos escenarios de `r` verdadera como rango**: `GLOBAL` (ρ de T7, pooled) y
+  `CONTROL` (ρ de Control); el Δρ observado se compara contra la distribución
+  simulada de cada uno. B = 2000, semilla 20260101, RNG PROPIO.
+
+### Qué se completó
+
+- **`python/09_acto2_dispersion.py` + `R/09_acto2_dispersion.R`** (Acto 2.3–2.4).
+  - **2.4 test reportado (prohibición 4)**: Fisher z sobre ρ de Spearman
+    Control vs LPS, sobre los mismos pares por feto de T7. Piso: se testea solo
+    si Control **y** LPS tienen `n_par ≥ 5`. Salida
+    `acto2_test_correlaciones.csv` (10 filas: 9 genes + score): `rho_control`,
+    `rho_lps`, `delta_rho`, `z_*`, `se_bw_*`, `stat_z_bw`, `p_bw`, `p_bw_bh`,
+    `se_clasico_*`, `stat_z_clasico`, `p_clasico`.
+  - **2.3 dispersión (insumo de la prohibición 5)**: `acto2_dispersion.csv`
+    (20 filas: ítem × tejido): `sd_control`, `sd_lps`, `ratio_var_lps_control`,
+    Levene Brown-Forsythe por lado (`levene_bf_F`, `levene_bf_p`). SD (n−1) sobre
+    los mismos pares por feto que la correlación.
+  - **09.R cruza-verifica** cada ρ contra `cor.test(exact=FALSE)` (`stopifnot`
+    tol 1e-9) y cada `F` de Levene contra `car::leveneTest(center=median)`
+    (tol 1e-8). Peores |dif| reales: ρ = 1.1e-16, F Levene = 5.1e-15.
+- **`python/10_acto2_simulacion.py` + `R/10_acto2_simulacion.R`** (Acto 2.5,
+  prohibición 5). `acto2_simulacion.csv` (20 filas: ítem × {GLOBAL, CONTROL}):
+  `rho_true`, `r_pearson_gen`, SD por grupo/lado, `delta_rho_obs`,
+  `sim_mean_delta_rho`, `sim_sd_delta_rho`, `sim_q025`, `sim_q975`,
+  `sim_frac_abs_ge_obs` (p de simulación), `sim_tasa_fisher_sig` (falsos
+  positivos del Fisher z de 09 bajo pura restricción de rango), `veredicto`
+  DENTRO/FUERA. Núcleo PROPIO: `cuantil_tipo7` (== `quantile` default de R),
+  `rho_s_a_r`, sorteos con `norm1()` del RNG de `00_config` (un único RNG
+  recorre ítems × escenarios en orden).
+
+### Salidas
+
+- `outputs/tables/{R,python}/acto2_dispersion.csv`,
+  `acto2_test_correlaciones.csv`, `acto2_simulacion.csv`.
+- `outputs/tables/acto2_dispersion_reporte.md`,
+  `acto2_simulacion_reporte.md`; secciones `09_acto2_dispersion` y
+  `10_acto2_simulacion` en `analisis_descartados.md`; filas en
+  `procedencia.csv` (8) y `verificaciones.csv` (17).
+- `outputs/figures/acto2_dispersion_sd.png`, `acto2_test_delta_rho.png`
+  (forest ρ_control vs ρ_lps con Δρ y `p_bw`), `acto2_simulacion_delta_rho.png`
+  (Δρ observado vs IC95 simulado por ítem y escenario). 300 dpi.
+
+### Resultados (datos reales; NO se versionan)
+
+- **Test formal (prohibición 4): NINGÚN ítem alcanza `p < .05`.** El más chico
+  es `score_compuesto` `p_bw = 0.079` (Δρ = 0.62), luego `fatcd36` `p_bw = 0.107`
+  (Δρ = 0.60) y `fatp4` `p_bw = 0.140` (Δρ = 0.53). Con BH entre ítems, el
+  mínimo `p_bw_bh = 0.47`. → **No hay evidencia formal de que las correlaciones
+  placenta↔cerebro difieran entre Control y LPS**; el patrón descriptivo de T7
+  (Control coordinado, LPS desacoplado) no se sostiene como diferencia.
+- **Simulación (prohibición 5): 18/20 celdas DENTRO del IC95 simulado.** Solo
+  `fatcd36` y `score_compuesto` caen FUERA, y únicamente bajo el escenario
+  `CONTROL` (más exigente), con `sim_frac_abs_ge_obs` ≈ 0.03–0.04 (bajo `GLOBAL`
+  están DENTRO). → **No se puede descartar restricción de rango**: la sola
+  diferencia de dispersión por grupo produce Δρ del tamaño observado.
+- La tasa de falsos positivos del Fisher z bajo pura restricción de rango es
+  ≈ 0.032–0.047 (bien calibrada al 5% nominal).
+- (Sobre sintético: R == Python byte a byte; los números cambian.)
+
+### Paridad y robustez verificadas
+
+- **R ↔ Python byte-idénticos** en `acto2_dispersion.csv`,
+  `acto2_test_correlaciones.csv`, `acto2_simulacion.csv` (× R/ y python/),
+  los dos `*_reporte.md`, y las filas nuevas de `procedencia.csv` /
+  `verificaciones.csv` / `analisis_descartados.md` — **sobre datos reales y
+  sobre sintético** (probado moviendo `data/raw/` y reprocesando 02→10).
+  Idempotente (R y Python, 2 corridas cada uno).
+- Truco de paridad: ρ, SD, cociente de varianzas, medias/SD/cuantiles de la
+  simulación y todos los conteos → acumulador `double` explícito, texto
+  `%.10g` bit-idéntico. `z` (atanh), `p` (normal), `F` de Levene (pf) y
+  `r_pearson_gen` (sin) → texto `%.6e`. Los sorteos de la simulación usan
+  `norm1()` (LCG + polar de Marsaglia de T1): byte-idéntico R/Python.
+- Figuras PNG: equivalentes, no byte-idénticas (ggplot2 vs matplotlib;
+  R usa ASCII en labels, Python usa Unicode).
+
+### Entorno
+
+- Sin dependencias nuevas: `09` usa `car` (ya en renv por 05) + `ggplot2`;
+  `10` usa `ggplot2`. `renv.lock` sin cambios (111 paquetes).
+- `run_all.ps1` ya listaba `09_acto2_dispersion` y `10_acto2_simulacion`:
+  sin cambios.
+
+### Cierre de T8
+
+- Tabla de estado en AGENTS.md/CLAUDE.md: **T8 → HECHO (2026-09-10)**.
+- **T8 cerrado. Conviene cerrar la sesión acá.**
+
+### Siguiente paso concreto
+
+- **T9** (`11_sensibilidad`, Acto 2.6): controles de sensibilidad de la
+  correlación / del test — (a) **eigengene** (variante PCA del score compuesto,
+  D8) en lugar del score promedio de z, rehaciendo la correlación
+  placenta↔cerebro y el Fisher z; (b) **exclusión del feto extremo** (el más
+  influyente por distancia de Cook o por |Δρ| al quitarlo, uno por ítem) y ver
+  si mueve ρ y el veredicto. Doble implementación R/Python byte-idéntica.
+  Confirmar con el usuario el criterio exacto de "feto extremo" (Cook vs
+  leave-one-out sobre ρ) antes de implementar. T9 cierra sesión.
+
+### Notas para la próxima sesión
+
+- El núcleo Spearman + `pares()` + `cargar()` está ahora replicado en 08, 09 y
+  10 (idéntico). Si T9 lo vuelve a usar, sigue siendo preferible re-inlinear
+  (la convención del repo es que cada script importe solo `00_config`) antes que
+  tocar `00_config` y arriesgar sus salidas.
+- El eigengene de T9 necesita PCA PROPIO (no `prcomp`/`sklearn` en el resultado)
+  para paridad byte a byte: eigendescomposición de la matriz de correlación
+  7×7 por Jacobi, o SVD hand-rolled. Verificar signo del PC1 (convención:
+  cargas mayoritariamente positivas) igual que en `informe-e15-reproducible`.
+- `10_acto2_simulacion` tarda ~15 s en R (B=2000 × 20 celdas × ~30 `norm1`).
+  Si T9 simula encima, considerar bajar B o reusar las corridas de 10.
+- La conclusión sustantiva del Acto 2 para el informe: la coordinación
+  placenta↔cerebro **no cambia de forma demostrable** entre Control y LPS —
+  ni el test formal (prohibición 4) ni la simulación (prohibición 5) permiten
+  afirmar una diferencia. Es un resultado negativo limpio.
