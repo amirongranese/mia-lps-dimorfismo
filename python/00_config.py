@@ -57,18 +57,28 @@ ARCHIVO_PSTAT3 = "pstat3 placenta.xlsx"
 HOJA_PSTAT3 = "Sheet1"
 
 
+def _forzar_sintetico() -> bool:
+    """run_all.ps1 -FromSynthetic exporta MIA_LPS_FORZAR_SINTETICO=1 para correr
+    el pipeline sobre data/synthetic/ aunque existan los crudos (util para el
+    chequeo de reproducibilidad 'corre de punta a punta sin datos reales')."""
+    import os
+    return os.environ.get("MIA_LPS_FORZAR_SINTETICO", "").strip() not in ("", "0")
+
+
 def ruta_datos(nombre_archivo: str) -> Path:
     """Devuelve el archivo de datos a usar: el crudo real de data/raw/ si existe,
     y si no el sintetico versionado de data/synthetic/. Nunca escribe en data/raw/.
     Un clon limpio (sin datos crudos) cae automaticamente al sintetico."""
     real = RUTA_DATOS_RAW / nombre_archivo
-    if real.is_file():
+    if real.is_file() and not _forzar_sintetico():
         return real
     return RUTA_DATOS_SINT / nombre_archivo
 
 
 def fuente_datos(nombre_archivo: str) -> str:
     """'real' si se usaria el crudo, 'sintetico' si se usaria el generado."""
+    if _forzar_sintetico():
+        return "sintetico"
     return "real" if (RUTA_DATOS_RAW / nombre_archivo).is_file() else "sintetico"
 
 

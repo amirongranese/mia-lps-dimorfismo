@@ -20,6 +20,15 @@ outputs/tables/python/*
 outputs/figures/*
 !outputs/figures/.gitkeep
 
+# --- Informe generado y log de corrida ---
+# Los regenera 12_informe / 99_verificar. Sobre datos reales dejarian numeros
+# ineditos en git (misma logica que outputs/). El formato de docs/informe.html
+# es "listo para GitHub Pages", pero el archivo en si no se versiona.
+docs/*
+!docs/.gitkeep
+logs/*
+!logs/.gitkeep
+
 # --- Excel: nunca se versiona ---
 # Los crudos son ineditos. Los sinteticos .xlsx los regenera 01_generar_sinteticos
 # y NO son byte-deterministas (openpyxl escribe timestamps en el zip). La forma

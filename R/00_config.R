@@ -59,16 +59,24 @@ ARCHIVO_ELISA  <- "ELISA IL6 2026 Dosis 100.xlsx";  HOJA_ELISA  <- "Sueros y LA"
 HOJA_CURVA     <- "CURVA IL6"
 ARCHIVO_PSTAT3 <- "pstat3 placenta.xlsx";           HOJA_PSTAT3 <- "Sheet1"
 
+# run_all.ps1 -FromSynthetic exporta MIA_LPS_FORZAR_SINTETICO=1 para correr el
+# pipeline sobre data/synthetic/ aunque existan los crudos (util para el chequeo
+# de reproducibilidad "corre de punta a punta sin datos reales").
+.forzar_sintetico <- function() {
+  !(trimws(Sys.getenv("MIA_LPS_FORZAR_SINTETICO", "")) %in% c("", "0"))
+}
+
 # ruta_datos(): usa el crudo real de data/raw/ si existe; si no, el sintetico
 # versionado de data/synthetic/. Nunca escribe en data/raw/. Un clon limpio
 # (sin datos crudos) cae automaticamente al sintetico.
 ruta_datos <- function(nombre_archivo) {
   real <- file.path(RUTA_DATOS_RAW, nombre_archivo)
-  if (file.exists(real)) return(real)
+  if (file.exists(real) && !.forzar_sintetico()) return(real)
   file.path(RUTA_DATOS_SINT, nombre_archivo)
 }
 
 fuente_datos <- function(nombre_archivo) {
+  if (.forzar_sintetico()) return("sintetico")
   if (file.exists(file.path(RUTA_DATOS_RAW, nombre_archivo))) "real" else "sintetico"
 }
 

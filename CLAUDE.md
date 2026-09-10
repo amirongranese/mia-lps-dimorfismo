@@ -16,20 +16,20 @@ las salidas listadas abajo, y `R/99_verificar.R` (o `python/99_verificar.py`) im
 
 Checklist (el script `99_verificar` chequea existencia **y no-vacuidad** de cada ítem):
 
-- [ ] `AGENTS.md` y `CLAUDE.md` en la raíz, con convenciones y decisiones fijas.
-- [ ] `README.md` con instalación del entorno y ejecución completa desde cero.
-- [ ] `ESTADO.md` con el registro de avance entre sesiones.
-- [ ] Scripts numerados en `R/` y en `python/`, funcionalmente equivalentes.
-- [ ] Generador de datos sintéticos que reproduce la estructura exacta de los tres archivos de entrada.
-- [ ] Figuras del ACTO 1: boxplots de expresión (por gen × tejido), boxplot de pSTAT3, figuras de ELISA.
-- [ ] Figuras del ACTO 2: correlaciones placenta–cerebro por gen, pair plots, figuras de dispersión, figura de la simulación.
-- [ ] `outputs/tables/procedencia.csv` — una fila por figura y por tabla.
-- [ ] `outputs/tables/verificaciones.csv` — una fila por resultado principal.
-- [ ] `outputs/tables/analisis_descartados.md` — qué se probó, por qué no funcionó, qué se hizo en su lugar.
-- [ ] `outputs/tables/comparacion_R_python.csv` — concordancia numérica entre ambas implementaciones.
-- [ ] `docs/informe.html` — informe completo autocontenido.
-- [ ] `docs/informe.pdf` — versión imprimible del informe.
-- [ ] `logs/corrida_<fecha>.txt` — fecha, entorno, versiones de paquetes, cuántas verificaciones pasaron.
+- [x] `AGENTS.md` y `CLAUDE.md` en la raíz, con convenciones y decisiones fijas.
+- [x] `README.md` con instalación del entorno y ejecución completa desde cero.
+- [x] `ESTADO.md` con el registro de avance entre sesiones.
+- [x] Scripts numerados en `R/` y en `python/`, funcionalmente equivalentes.
+- [x] Generador de datos sintéticos que reproduce la estructura exacta de los tres archivos de entrada.
+- [x] Figuras del ACTO 1: boxplots de expresión (por gen × tejido), boxplot de pSTAT3, figuras de ELISA.
+- [x] Figuras del ACTO 2: correlaciones placenta–cerebro por gen, pair plots, figuras de dispersión, figura de la simulación.
+- [x] `outputs/tables/procedencia.csv` — una fila por figura y por tabla.
+- [x] `outputs/tables/verificaciones.csv` — una fila por resultado principal.
+- [x] `outputs/tables/analisis_descartados.md` — qué se probó, por qué no funcionó, qué se hizo en su lugar.
+- [x] `outputs/tables/comparacion_R_python.csv` — concordancia numérica entre ambas implementaciones.
+- [x] `docs/informe.html` — informe completo autocontenido.
+- [x] `docs/informe.pdf` — versión imprimible del informe.
+- [x] `logs/corrida_<fecha>.txt` — fecha, entorno, versiones de paquetes, cuántas verificaciones pasaron.
 
 Estado de avance del checklist: ver la tabla de la Sección 6 (plan de tareas).
 
@@ -190,7 +190,17 @@ MIA_LPS_reanalisis/
 | T8 | `09_acto2_dispersion` + `10_acto2_simulacion` + test de pendientes | Acto 2.3–2.5 | Sí | **HECHO** (2026-09-10) |
 | T9 | `11_sensibilidad`: eigengene y exclusión del extremo | Acto 2.6 | Sí | **HECHO** (2026-09-10) |
 | T10 | Procedencia, verificaciones, análisis descartados, comparación R/Python | tablas de auditoría | Sí | **HECHO** (2026-09-10) |
-| T11 | `12_informe` + `99_verificar` + `run_all.ps1` + log de corrida | informe HTML y PDF | — | pendiente |
+| T11 | `12_informe` + `99_verificar` + `run_all.ps1` + log de corrida | informe HTML y PDF | — | **HECHO** (2026-09-10) |
+
+> **T11 cierra el proyecto.** `run_all.ps1` corre en pasadas separadas por lenguaje
+> (PRIME python 00–11 → R 00–11/98/12 → Python 00–11/98/12 → VERIFY R/99 y python/99):
+> es la única forma de que `12_informe` deje en disco los `.md` y el `informe.html`
+> de CADA lenguaje para que `99_verificar` los byte-compare. `12_informe` arma el
+> HTML a mano (sin rmarkdown/pandoc: no están en el toolchain y no darían salida
+> byte-idéntica); las figuras van incrustadas en base64, así que `informe.html` NO
+> es byte-idéntico R/Python (los PNG difieren, ver §7) y la paridad se chequea sobre
+> `informe.textonly.html` (sin los `data:`). El PDF es best-effort por Edge/Chrome
+> headless y **nunca** frena el pipeline.
 
 **Antes de empezar cada tarea:** decir en dos líneas qué se va a hacer y esperar
 confirmación si implica una decisión no fijada acá. **Al terminar cada tarea:**

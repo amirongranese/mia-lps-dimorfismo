@@ -37,11 +37,10 @@ Si todavía no hay `renv.lock` (se genera al cerrar T1), instalar a mano:
 & "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" -e "install.packages(c('car','ARTool','emmeans','NADA','survival','sandwich','lmtest','nlme','rmarkdown','ggplot2','GGally','readxl','writexl','jsonlite'))"
 ```
 
-Pandoc (para renderizar el informe):
-
-```powershell
-& "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" -e "install.packages('installr'); installr::install.pandoc()"
-```
+**No hace falta pandoc ni `rmarkdown`.** `12_informe` arma `docs/informe.html` a
+mano (misma lógica de strings en R y Python → salida comparable byte a byte). Para
+`docs/informe.pdf` alcanza con tener Edge o Chrome instalado (impresión headless);
+si no hay ninguno, el pipeline deja el HTML y sigue.
 
 ### 2.2 Python (≥ 3.11; probado con 3.13)
 
@@ -75,24 +74,39 @@ que replica estructura, nombres de columna, tipos y patologías de los reales.
 .\run_all.ps1
 ```
 
-Corre, en orden: `00_config` → `01_generar_sinteticos` → `02_ingesta_qc` → `03_elisa` →
+Corre `00_config` → `01_generar_sinteticos` → `02_ingesta_qc` → `03_elisa` →
 `04_qpcr_cuantificacion` → `05_qpcr_modelos` → `06_pstat3` → `07_figuras_acto1` →
 `08_acto2_correlaciones` → `09_acto2_dispersion` → `10_acto2_simulacion` →
-`11_sensibilidad` → `12_informe` → `99_verificar`, en R y en Python.
+`11_sensibilidad` → `98_comparacion` → `12_informe` → `99_verificar`.
 
-`run_all.ps1` acepta flags (ver cabecera del script): `-Only R|python`, `-FromSynthetic`,
-`-SkipReport`.
+En modo `both` (el default) lo hace en **pasadas separadas por lenguaje**: primero
+Python 00–11 (prime), después R 00–11/98/12, después Python 00–11/98/12, y al final
+`99_verificar` en R y en Python. Es la única forma de que `12_informe` deje en disco
+los `.md` y el `informe.html` de cada lenguaje para que `99_verificar` los
+byte-compare. Toma ~3 min.
 
-### PDF del informe sin LaTeX
+`run_all.ps1` acepta flags (ver cabecera del script): `-Only R|python` (una sola
+pasada, sin `98`/`99`), `-FromSynthetic` (fuerza `data/synthetic/` aunque haya
+crudos), `-SkipReport`, `-SkipVerify`.
 
-Si `12_informe` no encuentra LaTeX, genera `docs/informe.pdf` imprimiendo el HTML con
-Chrome/Edge headless:
+`99_verificar` imprime `TODAS LAS VERIFICACIONES PASARON` cuando (a) existe y no
+está vacío cada ítem del checklist de `AGENTS.md` §1, (b) los 31 CSV de
+`outputs/tables/{R,python}/` concuerdan celda a celda, (c) los `.md` y el
+`informe.html` sin figuras son byte-idénticos entre la corrida R y la Python, y
+(d) ninguna fila de `verificaciones.csv` quedó distinta de `TRUE`.
+
+### PDF del informe
+
+`12_informe` genera `docs/informe.pdf` imprimiendo el HTML con Chrome/Edge headless
+(busca `msedge.exe` / `chrome.exe` en las rutas habituales; se puede fijar otro con
+la variable de entorno `MIA_LPS_PDF_ENGINE`). Equivale a:
 
 ```powershell
-& "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe" --headless --disable-gpu --print-to-pdf="docs\informe.pdf" --no-pdf-header-footer "docs\informe.html"
+& "$env:ProgramFiles (x86)\Microsoft\Edge\Application\msedge.exe" --headless --disable-gpu --print-to-pdf="docs\informe.pdf" --no-pdf-header-footer "docs\informe.html"
 ```
 
-El pipeline **no falla** si el PDF no se puede generar: deja el HTML y avisa.
+El pipeline **no falla** si el PDF no se puede generar: deja el HTML y avisa. En ese
+caso `99_verificar` trata la ausencia del PDF como aviso, no como falla.
 
 ---
 
@@ -106,10 +120,8 @@ El pipeline **no falla** si el PDF no se puede generar: deja el HTML y avisa.
 | `outputs/tables/verificaciones.csv` | Una fila por resultado principal (resultado, verificación, cómo, qué mostró, pasó) |
 | `outputs/tables/analisis_descartados.md` | Qué se probó, por qué no funcionó, qué se hizo en su lugar |
 | `outputs/tables/comparacion_R_python.csv` | Concordancia numérica R vs Python con tolerancia declarada |
-| `docs/informe.html`, `docs/informe.pdf` | Informe completo autocontenido (Acto 1 + Acto 2 + conclusión comparada) |
-| `logs/corrida_<fecha>.txt` | Fecha, SO, versiones de R/Python y paquetes, semilla, tiempo, verificaciones pasadas/totales |
-
-`99_verificar` imprime `TODAS LAS VERIFICACIONES PASARON` cuando el proyecto está completo.
+| `docs/informe.html`, `docs/informe.pdf` | Informe completo autocontenido (Acto 1 + Acto 2 + reproducibilidad + análisis descartados + limitaciones + procedencia/verificaciones); figuras en base64. No versionado (`.gitignore`), regenerable |
+| `logs/corrida_<fecha>.txt` | Fecha, SO, versiones de R/Python y paquetes, semilla, fuente, concordancia R↔Python, paridad de render, verificaciones pasadas/totales — una sección por lenguaje |
 
 ---
 

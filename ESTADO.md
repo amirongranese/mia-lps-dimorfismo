@@ -1250,3 +1250,131 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
   conclusión negativa robusta), y `comparacion_R_python.csv` para la sección de
   reproducibilidad. Var. expl. PC1 76/82 %; MNAR descartada con números en
   `analisis_descartados.md`.
+
+---
+
+## Sesión 12 — 2026-09-10 — T11 (cierre del proyecto)
+
+### Decisiones tomadas (ninguna toca D1–D12)
+
+- **Informe a mano, sin rmarkdown/pandoc.** No están en el toolchain (`rmarkdown`
+  ni siquiera se instala en este build de R) y un motor intermedio nunca daría
+  salida byte-comparable. `12_informe` arma `docs/informe.html` con la misma
+  lógica de strings en R y Python: un mini Markdown→HTML propio (encabezados,
+  párrafos, listas con anidado, tablas `| … |`, `**negrita**`/`` `código` ``/
+  `*énfasis*`/`[t](u)`), un CSS inline y `<section>` por bloque.
+- **Figuras incrustadas en base64** → informe **autocontenido**, pero como los
+  PNG **no** son byte-idénticos ggplot2↔matplotlib, `informe.html` tampoco lo es.
+  La paridad R/Python se chequea sobre `informe.textonly.html` (los `data:` →
+  `src="[png]"`). base64 en R: implementación propia RFC 4648 (no hay paquete en
+  renv), misma salida que `base64.b64encode`.
+- **Sin marca de tiempo en el HTML** (rompería la paridad). La fecha va en
+  `logs/corrida_<fecha>.txt`.
+- **`run_all.ps1` en pasadas separadas por lenguaje** (modo `both`): PRIME
+  python 00–11 → R 00–11/98/12 → python 00–11/98/12 → VERIFY R/99 + python/99.
+  La pasada intercalada (R, luego Python, por paso) hacía que Python pisara
+  siempre los `.md` de R antes de que `12_informe` R los viera → el byte-compare
+  de `.md` entre lenguajes era trivial (Python vs Python). El PRIME (sin `98`)
+  puebla `outputs/tables/python/` para que `R/98` tenga contraparte en frío.
+  `-Only R|python` = una pasada, sin `98`/`99`.
+- **El bloque de auditoría del informe excluye las filas `script == 12_informe`**
+  de `procedencia.csv`/`verificaciones.csv` (`leer_csv_sin_este`): así queda
+  idéntico R/Python e idempotente entre corridas (12 no se cuenta a sí mismo).
+- **`docs/*` y `logs/*` a `.gitignore`** (misma lógica que `outputs/`: regenerable
+  y una corrida real dejaría números inéditos). El formato del HTML es
+  "listo para GitHub Pages", el archivo no se versiona.
+- **`-FromSynthetic` cableado**: `run_all.ps1` exporta
+  `MIA_LPS_FORZAR_SINTETICO=1` y `00_config` (R y Python) lo respeta en
+  `ruta_datos()`/`fuente_datos()` (cambio aditivo, no toca salidas).
+- **`run_all.ps1` fuerza UTF-8** (`PYTHONUTF8=1`, `[Console]::OutputEncoding`):
+  con la salida redirigida, `00_config.py` caía en cp1252 al imprimir `♀`.
+- **Bug preexistente de `run_all.ps1` arreglado**: `Get-Command` se guarda en una
+  variable antes de leer `.Source` (bajo `Set-StrictMode` explotaba si faltaba).
+
+### Qué se completó
+
+- **`python/12_informe.py` + `R/12_informe.R`** (equivalentes). Leen los 11 `.md`
+  de copia única de `outputs/tables/`, unos CSV de `outputs/tables/<lang>/` para
+  los números del resumen, y los 13 PNG de `outputs/figures/`. Producen:
+  - `docs/informe.html` — 8 secciones: 1 Resumen (números parseados de los CSV),
+    2 Diseño y métodos (D1–D12 + cascada + `qc_reporte.md`), 3 Acto 1 (ELISA,
+    cuantificación, modelos qPCR, pSTAT3), 4 Acto 2 (correlaciones, dispersión +
+    test Δρ, simulación, sensibilidad), 5 Reproducibilidad
+    (`comparacion_reporte.md`), 6 Análisis descartados (`analisis_descartados.md`),
+    7 Limitaciones (D9, censura ELISA, il6 cerebro, sintético≠real, BRAIN_P1,
+    baja potencia Acto 2), 8 Procedencia y verificaciones (tablas embebidas).
+  - `docs/informe.pdf` — Edge headless (`--print-to-pdf`), best-effort. Motor:
+    env `MIA_LPS_PDF_ENGINE` o búsqueda de `msedge.exe`/`chrome.exe`. En esta
+    máquina: `C:\Program Files (x86)\…\msedge.exe` → PDF de ~4.2 MB, `pdf_status=ok`.
+  - `outputs/intermediate/render/<lang>/` — snapshot para la paridad de `99`:
+    `informe.html`, `informe.textonly.html`, `pdf_status.txt`, `tables/*.md`.
+  - Filas en `procedencia.csv` (2) y `verificaciones.csv` (5, todas TRUE).
+- **`python/99_verificar.py` + `R/99_verificar.R`** (equivalentes). Compuerta
+  final. 77 chequeos duros: checklist de AGENTS §1 (raíz, 15 scripts × 2, 5
+  sintéticos, 13 figuras, 11 reportes, 3 tablas de auditoría, `informe.html`),
+  `informe.pdf` **blando** si `pdf_status != ok`; re-corre la concordancia
+  numérica de los 31 CSV `outputs/tables/{R,python}/` en proceso (helpers copiados
+  de `98`); byte-compara `render/R/` vs `render/python/` (`informe.textonly.html`
+  + `tables/*.md` + disco==snapshot); `verificaciones.csv` todas TRUE. Escribe
+  `logs/corrida_<fecha>.txt` (una sección por lenguaje, marcadores
+  `<!-- R:inicio -->` / `<!-- python:inicio -->`). Imprime
+  `TODAS LAS VERIFICACIONES PASARON` y sale 0; si algo duro falla, imprime los
+  fallos y sale 1.
+- **`run_all.ps1`** reescrito (cuerpo real, 4 pasadas, UTF-8, bug de
+  `Get-Command`, flags `-SkipVerify`).
+- **`00_config.{R,py}`**: `_forzar_sintetico()` / `.forzar_sintetico()` +
+  `-FromSynthetic`.
+- **`.gitignore`**: `docs/*`, `logs/*`.
+- **AGENTS.md / CLAUDE.md** (md5 idéntico): checklist §1 todo a `[x]`; §6
+  **T11 → HECHO (2026-09-10)** + nota de la estructura de `run_all`.
+- **README.md**: §2 sin pandoc; §4 pasadas separadas + qué chequea `99`; §5 PDF.
+
+### Resultados (datos reales; NO se versionan)
+
+- **`.\run_all.ps1` de punta a punta: ~2.9 min, ambos `99_verificar` imprimen
+  `TODAS LAS VERIFICACIONES PASARON`.** 77/77 chequeos duros; 31/31 CSV
+  byte-idénticos R↔Python; 0 celdas fuera de tolerancia; paridad de render OK
+  (`informe.textonly.html` + los 11 `.md` byte-idénticos entre la pasada R y la
+  Python); `informe.pdf` presente (~4.2 MB).
+- El informe recoge los números de la corrida real: pSTAT3 SEXO×TTO
+  p = 1.68e-05 (post hoc ♀ Holm p = 1.27e-07); qPCR 7/7 interacciones en cerebro
+  (0/7 en placenta), las 7 sobreviven BH; Acto 2 mínimo `p_bw` = 0.079
+  (`score_compuesto`), simulación 2/20 FUERA (solo CONTROL), eigengene
+  `p_bw` = 0.109, 0/11 fetos extremos cambian el veredicto.
+
+### Paridad y robustez verificadas
+
+- `12_informe`: `informe.textonly.html` y los 11 `.md` snapshot **byte-idénticos**
+  R↔Python (probado con la secuencia python→R→python que replica `run_all`).
+- `99_verificar`: mismo resultado en R y Python (77/77, log con ambas secciones).
+- Idempotente: `run_all` corrido dos veces → mismos `verificaciones.csv` /
+  `procedencia.csv` / `comparacion_R_python.csv` (el bloque de auditoría del
+  informe excluye a `12_informe`, así que no crece entre corridas).
+- Pendiente de confirmar en esta sesión: `.\run_all.ps1 -FromSynthetic`
+  (corriendo; los números cambian, la estructura y las verificaciones no).
+
+### Entorno
+
+- Sin dependencias nuevas. `12_informe`: sólo stdlib de Python / base de R
+  (`base64` propio en R). `99_verificar`: stdlib / base. `renv.lock` y
+  `requirements.txt` sin cambios.
+
+### Cierre de T11 — PROYECTO TERMINADO
+
+- Checklist de AGENTS §1 completo y verificado por `.\run_all.ps1`.
+- **T11 cerrado. El proyecto está terminado.** No queda tarea pendiente en la
+  tabla de la Sección 6.
+
+### Notas para una eventual sesión futura
+
+- Si se agrega/renombra una figura o un `.md` de reporte, actualizar las listas
+  `SECCIONES` (12) y `FIG_ACTO1`/`FIG_ACTO2`/`REPORTES_MD` (99) en **los dos**
+  lenguajes.
+- Si `12_informe` toca el texto fijo (D1–D12, limitaciones, CSS), el cambio va
+  idéntico en `.py` y `.R` o rompe la paridad de `informe.textonly.html`.
+- El mini Markdown→HTML de `12_informe` cubre lo que hoy usan los `.md`; si un
+  reporte futuro usa sintaxis nueva (blockquotes, código con fence, listas
+  con `+`), hay que extender el conversor en ambos lenguajes a la vez.
+- `docs/` y `logs/` están en `.gitignore`: para publicar el informe en GitHub
+  Pages hay que forzar el add (`git add -f docs/informe.html`) y aceptar que
+  lleva números de datos reales.
