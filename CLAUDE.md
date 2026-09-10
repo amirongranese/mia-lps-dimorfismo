@@ -188,7 +188,7 @@ MIA_LPS_reanalisis/
 | T6 | `06_pstat3` + `07_figuras_acto1` (función de brackets D11) | Acto 1 completo | Sí | **HECHO** (2026-09-09) |
 | T7 | `08_acto2_correlaciones`: correlaciones por gen + pair plots | Acto 2.1–2.2 | Sí | **HECHO** (2026-09-09) |
 | T8 | `09_acto2_dispersion` + `10_acto2_simulacion` + test de pendientes | Acto 2.3–2.5 | Sí | **HECHO** (2026-09-10) |
-| T9 | `11_sensibilidad`: eigengene y exclusión del extremo | Acto 2.6 | Sí | pendiente |
+| T9 | `11_sensibilidad`: eigengene y exclusión del extremo | Acto 2.6 | Sí | **HECHO** (2026-09-10) |
 | T10 | Procedencia, verificaciones, análisis descartados, comparación R/Python | tablas de auditoría | Sí | pendiente |
 | T11 | `12_informe` + `99_verificar` + `run_all.ps1` + log de corrida | informe HTML y PDF | — | pendiente |
 

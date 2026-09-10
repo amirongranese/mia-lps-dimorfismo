@@ -1000,3 +1000,138 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
   placenta↔cerebro **no cambia de forma demostrable** entre Control y LPS —
   ni el test formal (prohibición 4) ni la simulación (prohibición 5) permiten
   afirmar una diferencia. Es un resultado negativo limpio.
+
+---
+
+## Sesión 10 — 2026-09-10 — T9
+
+### Decisiones confirmadas con el usuario (fuera del menú fijado en AGENTS)
+
+- **Feto extremo (control B)**: **leave-one-out sobre ρ**, no distancia de Cook
+  (Cook mide influencia sobre un ajuste lineal; el estadístico del Acto 2 es de
+  rango). **Blanco = ρ GLOBAL por ítem**: el feto de mayor
+  `|ρ_full − ρ_sin_i|` sobre la ρ pooled; se lo excluye de los 3 estratos y se
+  rehacen ρ + IC + Fisher z.
+- **Eigengene con fetos incompletos (<7 transportadores detectados)**:
+  **proyectar con los z disponibles** y reescalar por `sqrt(Σ carga_g²)` de las
+  cargas usadas (análogo al "promedio de los z disponibles" de D8). No casos
+  completos (descartaría 4–6 fetos y cambiaría el módulo para todos).
+
+### Qué se completó
+
+- **`python/11_sensibilidad.py` + `R/11_sensibilidad.R`** (equivalentes). Leen
+  `qpcr_cuantificacion_long.tsv` (columna `z`, D8) + `qpcr_score_compuesto_long.tsv`.
+  Dos controles de sensibilidad del Acto 2, cada uno rehaciendo la correlación
+  placenta↔cerebro (Spearman ρ, GLOBAL/CONTROL/LPS) y el Fisher z Control vs LPS
+  de T8:
+  - **(A) Eigengene** = proyección sobre **PC1 PROPIO** del módulo de 7
+    transportadores, **por tejido**. Matriz de entrada: correlación de Pearson
+    pairwise-complete de las 7 columnas `z` (se documenta el descarte de la
+    matriz de Spearman y de casos completos). **Jacobi clásico SIN
+    trigonometría** (`t = 1/(θ ± √(θ²+1))`, `c = 1/√(t²+1)`, `s = t·c` → sólo
+    `+ − × ÷ √`; barrido cíclico p<q, umbral `1e-15`, ≤100 sweeps) → **bit-idéntico
+    R/Python**, mismo truco que el RNG polar de `00_config`. Signo de PC1 fijado
+    a `Σ cargas > 0`. `R` cruza-verifica contra `eigen()` (tol 1e-8), Python
+    contra `numpy.linalg.eigh` (tol 1e-6): peor |dif| = 4.0e-13.
+  - **(B) Exclusión del feto extremo** (LOO sobre ρ GLOBAL, uno por ítem) para
+    **11 ítems** (9 genes de T7/T8 + score compuesto + eigengene). Se excluye de
+    los 3 estratos y se rehace ρ (IC Bonett-Wright) + Fisher z; `veredicto_cambia`
+    marca si `p_bw<.05` cambia. **NO se re-estima PC1** al quitar el feto (cargas
+    fijas sobre los 36). `R` cruza-verifica cada ρ de estrato vs
+    `cor.test(exact=FALSE)` (tol 1e-9): peor |dif| = 1.1e-16.
+
+### Salidas
+
+- `outputs/tables/{R,python}/`: `acto2_sensibilidad_eigengene_correlacion.csv`
+  (6 filas: eigengene + score × 3 estratos), `acto2_sensibilidad_eigengene_test.csv`
+  (2 filas: Fisher z eigengene vs score), `acto2_sensibilidad_pca_loadings.csv`
+  (14 filas: carga PC1 × 7 genes × 2 tejidos), `acto2_sensibilidad_pca_varianza.csv`
+  (14 filas: autovalor/prop_var de los 7 PC × 2 tejidos),
+  `acto2_sensibilidad_excl_extremo.csv` (11 filas).
+- `outputs/tables/acto2_sensibilidad_reporte.md`; sección `11_sensibilidad` en
+  `analisis_descartados.md`; **8 filas** en `procedencia.csv` y **11** en
+  `verificaciones.csv` (todas TRUE).
+- `outputs/figures/acto2_sensibilidad_eigengene.png` (cargas PC1 por tejido +
+  dispersión eigengene + ρ score vs eigengene por estrato),
+  `acto2_sensibilidad_excl_extremo.png` (ρ GLOBAL con/sin feto extremo por ítem,
+  con el cambio de `p_bw`). 300 dpi.
+
+### Resultados (datos reales; NO se versionan)
+
+- **(A) Eigengene**: PC1 explica **76.3 %** (placenta) / **81.6 %** (cerebro) de
+  la varianza, **7/7 cargas positivas** en ambos tejidos → eje de "tono de
+  expresión". El eigengene **replica el resultado del score compuesto**: ρ GLOBAL
+  placenta↔cerebro = 0.244 (n.s., score 0.236); Fisher z Control vs LPS
+  `p_bw` = 0.109 (eigengene) vs 0.079 (score) → **ninguno alcanza `p<.05`**,
+  consistente con T8.
+- **(B) Exclusión del feto extremo**: **0/11 ítems cambian el veredicto**
+  `p_bw<.05`. El feto más influyente para el score, el eigengene y varios genes
+  es `L_091025_2.08` (LPS); excluirlo no vuelve significativo ningún test
+  (p. ej. score `p_bw` 0.079 → 0.175). `il6R` sí llega al piso n≥5/grupo (Control
+  6, LPS 9), se testea.
+- **Nota de método**: la matriz de correlación pairwise-complete es levemente
+  indefinida (7º autovalor en cerebro ≈ −0.11 sobre traza 7); PC1 domina y
+  coincide con `eigen()` a 1e-13 → no afecta el eigengene. Registrado en
+  `verificaciones.csv` (`sens_eigengene_matriz_psd`) y `analisis_descartados.md`.
+- **Conclusión del Acto 2 reforzada**: el resultado negativo (sin diferencia
+  demostrable en la coordinación placenta↔cerebro entre Control y LPS) es
+  **robusto** al resumen elegido (promedio-de-z vs eigengene PC1) y al feto
+  individual más influyente.
+- (Sobre sintético: R == Python byte a byte; PC1 var. expl. 88.1 % / 80.9 %;
+  0/11 cambian veredicto. Los números cambian con la fuente.)
+
+### Paridad y robustez verificadas
+
+- **R ↔ Python byte-idénticos** en los 5 `acto2_sensibilidad_*.csv` (× `R/` y
+  `python/`), `acto2_sensibilidad_reporte.md`, y las filas nuevas de
+  `procedencia.csv` / `verificaciones.csv` / `analisis_descartados.md` — **sobre
+  datos reales y sobre sintético** (probado moviendo `data/raw/` y reprocesando
+  02→11). Idempotente (R y Python, 2 corridas cada uno).
+- Cadena completa **R 02→11** vs **Python 02→11**: los 3 merge files quedan
+  byte-idénticos.
+- Truco de paridad: Jacobi sin trig + Spearman/Pearson/SD/normas con acumulador
+  `double` explícito → `%.10g` bit-idéntico para ρ, cargas, autovalores y
+  eigengene; `p` (pt), IC (tanh/atanh) y `p` del Fisher z (normal) → texto
+  `%.6e`. Las filas `score_compuesto` de las tablas (A) **reproducen T7/T8**
+  exactamente (ρ, IC, z, SE, stat, p) — chequeo de consistencia interna.
+- Figuras PNG: equivalentes, no byte-idénticas (ggplot2/patchwork vs matplotlib).
+
+### Entorno
+
+- Sin dependencias nuevas: `11` usa `ggplot2` + `patchwork` (ya en `renv.lock`
+  desde T7) y, sólo en la cruza-verificación, `eigen()` base. Python:
+  `numpy` (ya en `requirements.txt`). `renv.lock` sin cambios (111 paquetes).
+- `run_all.ps1` ya listaba `11_sensibilidad` en `$Steps` (T0): sin cambios.
+  **Nota para T11**: `run_all.ps1` tiene un bug preexistente — bajo
+  `Set-StrictMode -Version Latest`, `(Get-Command Rscript.exe -EA
+  SilentlyContinue).Source` explota si el comando no está. Arreglar al finalizar
+  `run_all` en T11 (guardar el resultado de `Get-Command` antes de `.Source`).
+
+### Cierre de T9
+
+- Tabla de estado en AGENTS.md/CLAUDE.md: **T9 → HECHO (2026-09-10)** (md5 de
+  ambos idéntico tras el cambio).
+- **T9 cerrado. Conviene cerrar la sesión acá.**
+
+### Siguiente paso concreto
+
+- **T10** (tablas de auditoría): consolidar `procedencia.csv`,
+  `verificaciones.csv`, `analisis_descartados.md` y generar
+  `comparacion_R_python.csv` (concordancia numérica automática cruzando
+  `outputs/tables/R/` vs `outputs/tables/python/` archivo por archivo, con las
+  tolerancias declaradas 1e-6 / 1e-4). Evaluar factorizar a un módulo compartido
+  el núcleo hand-rolled (`spearman_rho`, `pares`/`cargar`, merges) hoy replicado
+  en 08–11. T10 cierra sesión.
+
+### Notas para la próxima sesión
+
+- El núcleo Spearman + `pares()` + `cargar()` está replicado idéntico en 08, 09,
+  10 y 11; `11` agrega Jacobi sin trig + `pearson_pairwise`. Si T10 factoriza,
+  mantener la regla del repo (cada script importa sólo `00_config`) o mover el
+  núcleo a `00_config` con mucho cuidado de no tocar sus salidas.
+- `comparacion_R_python.csv` de T10 debería cruzar TODOS los
+  `outputs/tables/{R,python}/*.csv` (ya son byte-idénticos por construcción en
+  02–11; el archivo lo deja documentado y lo chequea `99_verificar`).
+- La conclusión del Acto 2 para el informe (T11) ya está firme: negativo limpio
+  y **robusto** (T9). Mencionar var. expl. de PC1 (76/82 %) y que el eigengene
+  no cambia nada.
