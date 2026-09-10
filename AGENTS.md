@@ -102,12 +102,12 @@ MIA_LPS_reanalisis/
 ├─ R/    00_config.R 01_generar_sinteticos.R 02_ingesta_qc.R 03_elisa.R
 │        04_qpcr_cuantificacion.R 05_qpcr_modelos.R 06_pstat3.R 07_figuras_acto1.R
 │        08_acto2_correlaciones.R 09_acto2_dispersion.R 10_acto2_simulacion.R
-│        11_sensibilidad.R 12_informe.R 99_verificar.R
+│        11_sensibilidad.R 98_comparacion.R 12_informe.R 99_verificar.R
 ├─ python/  <- mismos números y nombres, extensión .py
 ├─ outputs/
 │  ├─ figures/       <- <fig>_<detalle>.png (300 dpi)
 │  ├─ tables/        <- procedencia.csv, verificaciones.csv, comparacion_R_python.csv,
-│  │                    analisis_descartados.md, y CSV de resultados
+│  │                    comparacion_reporte.md, analisis_descartados.md, y CSV de resultados
 │  │  ├─ R/          <- salidas numéricas de la implementación R (nombres idénticos a python/)
 │  │  └─ python/     <- salidas numéricas de la implementación Python
 │  └─ intermediate/  <- CONTENIDO IGNORADO por git
@@ -189,7 +189,7 @@ MIA_LPS_reanalisis/
 | T7 | `08_acto2_correlaciones`: correlaciones por gen + pair plots | Acto 2.1–2.2 | Sí | **HECHO** (2026-09-09) |
 | T8 | `09_acto2_dispersion` + `10_acto2_simulacion` + test de pendientes | Acto 2.3–2.5 | Sí | **HECHO** (2026-09-10) |
 | T9 | `11_sensibilidad`: eigengene y exclusión del extremo | Acto 2.6 | Sí | **HECHO** (2026-09-10) |
-| T10 | Procedencia, verificaciones, análisis descartados, comparación R/Python | tablas de auditoría | Sí | pendiente |
+| T10 | Procedencia, verificaciones, análisis descartados, comparación R/Python | tablas de auditoría | Sí | **HECHO** (2026-09-10) |
 | T11 | `12_informe` + `99_verificar` + `run_all.ps1` + log de corrida | informe HTML y PDF | — | pendiente |
 
 **Antes de empezar cada tarea:** decir en dos líneas qué se va a hacer y esperar

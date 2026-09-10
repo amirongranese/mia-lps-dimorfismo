@@ -54,6 +54,7 @@ $Steps = @(
     '09_acto2_dispersion',
     '10_acto2_simulacion',
     '11_sensibilidad',
+    '98_comparacion',
     '12_informe',
     '99_verificar'
 )

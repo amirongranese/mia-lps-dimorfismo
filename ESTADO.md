@@ -1135,3 +1135,118 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
 - La conclusión del Acto 2 para el informe (T11) ya está firme: negativo limpio
   y **robusto** (T9). Mencionar var. expl. de PC1 (76/82 %) y que el eigengene
   no cambia nada.
+
+---
+
+## Sesión 11 — 2026-09-10 — T10
+
+### Decisiones tomadas (ninguna toca D1–D12 ni salidas existentes)
+
+- **Script nuevo `98_comparacion` (R y Python)**, numerado 98 = utilitario
+  hermano de `99_verificar`. En `run_all.ps1` va **después de `11_sensibilidad`
+  y antes de `12_informe`** (el informe podrá citar sus tablas). Ambos lenguajes
+  producen EL MISMO `comparacion_R_python.csv` + `comparacion_reporte.md` (control
+  cruzado uno del otro).
+- **No se factoriza** el núcleo hand-rolled de 08–11 (`spearman_rho` /
+  `rangos_promedio` / `pares()` / `cargar()`). Se evaluó mover a `00_config` /
+  módulo compartido y se descartó: rompe la regla "cada script importa sólo
+  `00_config`", arriesga perturbar salidas byte-idénticas ya cerradas justo antes
+  del informe, y la réplica ya está verificada byte a byte + cruzada contra
+  `cor.test`/`car`/`eigen()` en cada script. Registrado en
+  `analisis_descartados.md` (sección `98_comparacion`). Revisable post-T11.
+- `procedencia.csv` columna `entradas` → `data/real/…` **no es un bug**: es
+  `data/<fuente>/<archivo>` con `fuente ∈ {real, sintetico}` (de
+  `cfg.fuente_datos`), etiqueta de procedencia, no ruta de FS. Sin cambios.
+
+### Qué se completó
+
+- **`python/98_comparacion.py` + `R/98_comparacion.R`** (equivalentes):
+  1. **Concordancia numérica R↔Python** archivo por archivo de los 31 CSV de
+     `outputs/tables/{R,python}/`. Cada celda que parsea a número finito en ambos
+     lados: `|a−b| ≤ 1e-6` **o** `|a−b|/max(|a|,|b|) ≤ 1e-6` (columna `tol` pasa a
+     `1e-4` si alguna celda necesita el margen laxo — reservado a `p` de tests
+     iterativos); el resto, texto exacto. Salida
+     `outputs/tables/comparacion_R_python.csv` (31 filas + fila `__TOTAL__`),
+     columnas: `filas_R/py`, `cols_R/py`, `header_igual`, `celdas`,
+     `celdas_numericas/texto`, `n_dif_texto`, `max_dif_abs/rel`, `peor_celda`,
+     `tol`, `n_fuera_tol`, `byte_identico`, `ok`.
+  2. **Auditoría de las 3 tablas** → 7 filas en `verificaciones.csv`
+     (script `98_comparacion`): cobertura de gemelos R/python (0 huérfanos),
+     headers iguales (31/31), dentro de tolerancia (0 fuera), toda figura con
+     fila en `procedencia.csv` (13/13), toda tabla `{R,python}/*.csv` con fila
+     (31/31), sección en `analisis_descartados.md` por script 02–11 (10/10),
+     ninguna `verificacion` distinta de TRUE (79/79). El conteo de
+     `verificaciones` **excluye las propias filas de `98_comparacion`** para ser
+     estable ante el orden de ejecución (R antes/después de Python) y re-corridas.
+  3. **Sección `98_comparacion` en `analisis_descartados.md`** con las
+     justificaciones que 02/03/04 diferían a T10:
+     - **Descarte de imputación MNAR** (D3), con números de la corrida: 77/720
+       obs. no detectadas (10.7 %); celdas D7 (calibrador ♀Control 0/n en
+       il6@BRAIN_E15). Tres razones: ancla inexistente en celdas D7 → FC contra
+       valor inventado (prohibición 10); estructura artificial en el baseline
+       Control (exploración previa); y no hace falta (D1/D8 sólo sobre
+       detectados, D7 analiza detección).
+     - **LOD alternativo del ELISA** (menor estándar de `CURVA IL6`): **no
+       aplicado**. Mover el LOD de 0 al menor estándar no reordena los empates
+       (censura = `Conc < 0`, no el valor del LOD) → no puede cambiar la
+       conclusión del Peto-Peto/Fisher por construcción. Se documenta, no se
+       corre.
+     - **No factorizar** el núcleo 08–11 (arriba).
+  4. **`outputs/tables/comparacion_reporte.md`**: reporte legible (tabla de las
+     31 comparaciones + resultados de las 4 auditorías).
+  5. **5 filas en `procedencia.csv`** (script `98_comparacion`):
+     `comparacion_R_python.csv`, `comparacion_reporte.md` y las 3 tablas de
+     auditoría registradas como `tipo = auditoria`.
+- **`run_all.ps1`**: `'98_comparacion'` agregado a `$Steps` entre
+  `11_sensibilidad` y `12_informe`.
+- **AGENTS.md / CLAUDE.md** (md5 idéntico, `6bd87dee…`): §3 árbol de carpetas
+  (`98_comparacion.R` en `R/`, `comparacion_reporte.md` en `tables/`); §6 tabla:
+  **T10 → HECHO (2026-09-10)**.
+
+### Resultados (datos reales; NO se versionan — `outputs/tables/*` está en .gitignore)
+
+- **31/31 CSV byte-idénticos** R↔Python; peor |dif| absoluta = 0; 0 celdas fuera
+  de tolerancia; 0 diferencias de texto; `tol = 1e-6` en todos (nunca hizo falta
+  el fallback 1e-4).
+- **Auditoría**: 0 figuras sin fila (13), 0 tablas sin fila (31), 0 scripts sin
+  sección en `analisis_descartados.md` (10/10), 79/79 `verificaciones` en TRUE.
+- `comparacion_R_python.csv`, `comparacion_reporte.md`, `procedencia.csv`,
+  `verificaciones.csv` y `analisis_descartados.md` quedan **byte-idénticos**
+  tras correr Python y después R (probado), y **estables ante re-corridas**
+  (2×Python, 2×R → mismos md5).
+
+### Entorno
+
+- Sin dependencias nuevas. `98_comparacion` sólo usa base R / stdlib de Python
+  (parser CSV propio, ya en 02–11). `renv.lock` sin cambios. `requirements.txt`
+  sin cambios.
+
+### Cierre de T10
+
+- **T10 cerrado. Conviene cerrar la sesión acá.**
+
+### Siguiente paso concreto
+
+- **T11** (último): `R/12_informe.R` + `python/12_informe.py` (informe HTML
+  autocontenido + PDF por impresión headless si no hay LaTeX; el pipeline no debe
+  fallar por el PDF), `R/99_verificar.R` + `python/99_verificar.py` (chequea
+  existencia y no-vacuidad de todo el checklist de AGENTS §1, re-corre la
+  comparación R↔Python de `comparacion_R_python.csv`, y además **byte-compara los
+  10 `.md` de copia única** de `outputs/tables/` entre una corrida R y una
+  Python), completar el cuerpo real de `run_all.ps1` y dejar
+  `logs/corrida_<fecha>.txt`. `99_verificar` debe imprimir
+  `TODAS LAS VERIFICACIONES PASARON`.
+
+### Notas para la próxima sesión
+
+- **Bug preexistente de `run_all.ps1`** (ya anotado en T9): bajo
+  `Set-StrictMode -Version Latest`, `(Get-Command Rscript.exe -EA
+  SilentlyContinue).Source` explota si el comando no existe. Guardar el resultado
+  de `Get-Command` antes de `.Source`. Arreglar al completar `run_all` en T11.
+- `99_verificar` puede reusar `comparar_archivo()` / `leer_csv()` de
+  `98_comparacion` (misma lógica); mantener la regla de importar sólo
+  `00_config` — copiar el helper, no cross-importar entre scripts numerados.
+- El informe (T11) ya tiene todo el material: Acto 1 (T3–T6), Acto 2 (T7–T9,
+  conclusión negativa robusta), y `comparacion_R_python.csv` para la sección de
+  reproducibilidad. Var. expl. PC1 76/82 %; MNAR descartada con números en
+  `analisis_descartados.md`.
