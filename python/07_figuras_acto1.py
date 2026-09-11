@@ -3,36 +3,52 @@
 # Por que existe este archivo: reune las figuras descriptivas del Acto 1 usando
 # UNA SOLA convencion de anotacion de significancia (D11), la misma para todas.
 #
-#   * Boxplots de expresion, uno por tejido, faceteados por gen:
+#   * Boxplots de expresion, uno por tejido: matplotlib ya permite estilar caja,
+#     bigote y tope del bigote por separado (whiskerprops/capprops/boxprops),
+#     asi que ESTE lenguaje no necesita "abandonar" nada -- solo se replica el
+#     estilo pedido (pedidos/boxplots_acto1_base_R.R, tratado como especificacion
+#     de estilo y logica, no como codigo a copiar; en R si obliga a bajar a R
+#     base porque `geom_boxplot` no expone esos 3 trazos por separado; el Acto 2
+#     sigue en ggplot2/GGally en R).
 #       - eje Y = FC = 2^(-ddCt) en escala log (D2). FC se calcula aca, no se
 #         guarda en 04 (se evita arrastrar el redondeo de 2^x entre lenguajes).
 #       - 4 cajas por panel: HEMBRA_CONTROL, HEMBRA_LPS, MACHO_CONTROL, MACHO_LPS,
-#         solo valores detectados; puntos individuales encima.
+#         solo valores detectados (caja solo si >=3 detectados); puntos encima.
+#       - Filas del panel agrupadas por via metabolica (lipidos/glucosa/
+#         aminoacidos/IL-6), no por el orden crudo de GENES -- estilo pedido.
+#         Color: Control por sexo (celeste), LPS por sexo x via metabolica.
 #       - il6 @ BRAIN_E15 NO es cuantificable (D7): su panel muestra la
 #         PROPORCION DE DETECCION Control vs LPS por sexo (no un boxplot de FC).
-#   * Boxplot de pSTAT3: valores CRUDOS (no ajustados) por SEXO x TTO, con la
-#     MEMBRANA como forma de punto (bloque tecnico). Eje Y lineal.
+#   * Boxplot de pSTAT3 (sin cambios de estilo): valores CRUDOS por SEXO x TTO,
+#     con la MEMBRANA como forma de punto (bloque tecnico). Eje Y lineal.
 #   * Las figuras del ELISA (Acto 1.1) ya las produjo 03_elisa: NO se regeneran.
 #
-# D11 -- anotacion de brackets (UNA funcion, `d11_anotacion` + `anotar_comparaciones`):
-#   se anota una comparacion SOLO si la interaccion SEXO x TTO del gen x tejido es
-#   significativa Y el post hoc (p_holm) de esa comparacion tambien:
-#     p < 0.001 -> "***" | p < 0.01 -> "**" | p < 0.05 -> "*"   (bracket solido)
-#     0.05 <= p < 0.1 -> bracket punteado + "p = 0.NNN" (3 decimales)
-#     p >= 0.1 -> sin anotar
-#   Las 4 comparaciones D6 -> pares de cajas (0=HC, 1=HL, 2=MC, 3=ML):
-#     HEMBRA_CONTROL-HEMBRA_LPS (0,1) | MACHO_CONTROL-MACHO_LPS (2,3)
-#     HEMBRA_LPS-MACHO_LPS (1,3)      | HEMBRA_CONTROL-MACHO_CONTROL (0,2)
+# D11 -- anotacion de brackets, AMPLIADA (cambio pedido explicitamente, ver
+# AGENTS.md 4.2; revierte la restriccion previa "solo si la interaccion es
+# significativa"). Cascada de 3 ramas, en este orden -- solo se entra a UNA:
+#   (a) interaccion SEXO x TTO significativa -> brackets por PAR del post hoc
+#       D6 (Holm/ART-C), como antes.
+#   (b) interaccion NO significativa y efecto principal de TTO significativo o
+#       en tendencia -> UN bracket que abarca los 4 grupos, etiqueta
+#       "Control vs LPS" + estrellas/p de `p_TTO`.
+#   (c) interaccion NO significativa y efecto principal de SEXO significativo o
+#       en tendencia -> UN bracket entre los centros de cada sexo, etiqueta
+#       "♀ vs ♂" + estrellas/p de `p_SEXO`. (b) y (c) no son excluyentes.
+# Simbolos (las 3 ramas): p<0.001 -> "***" | p<0.01 -> "**" | p<0.05 -> "*"
+# (bracket solido); 0.05<=p<0.1 -> bracket punteado + "p = 0.NNN"; p>=0.1 -> nada.
+# UNA sola funcion decide que anotar (`d11_brackets_especificacion`, identica en
+# R y Python); la geometria de dibujo es propia de cada motor.
 #
-# PARIDAD: las figuras son PNG -> equivalentes, no byte-identicas (R con ggplot2,
-# Python con matplotlib). Lo que SI queda byte-identico entre lenguajes son las
-# filas nuevas de `procedencia.csv` / `verificaciones.csv` y la seccion de
-# `analisis_descartados.md`. La logica de D11 (`d11_anotacion`) es identica.
+# PARIDAD: las figuras son PNG -> equivalentes, no byte-identicas (R base +
+# ggplot2 vs matplotlib). Byte-identicas entre lenguajes: las filas nuevas de
+# `procedencia.csv` / `verificaciones.csv` y la seccion de `analisis_descartados.md`.
+# La logica de D11 (`d11_texto` + `d11_brackets_especificacion`) es identica.
 
 from __future__ import annotations
 
 import importlib.util
 import math
+import random
 from pathlib import Path
 
 import matplotlib
@@ -48,10 +64,60 @@ _cfg_spec.loader.exec_module(cfg)
 
 ESTE_SCRIPT = "07_figuras_acto1"
 
-COL_TTO = {"CONTROL": "#0072B2", "LPS": "#D55E00"}   # Okabe-Ito, igual que 03_elisa
+# --- Paleta y estilo de los boxplots de expresion (estilo pedido) ----------
+COL_CTRL = {"HEMBRA": "#AEDCF0", "MACHO": "#6BAED6"}
+COL_LPS = {
+    "GLUCOSA":     {"HEMBRA": "#F09EC8", "MACHO": "#D6317F"},
+    "AMINOACIDOS": {"HEMBRA": "#8FD9B6", "MACHO": "#2E9E6B"},
+    "LIPIDOS":     {"HEMBRA": "#FBC98A", "MACHO": "#E08214"},
+    "IL6":         {"HEMBRA": "#C5A3E0", "MACHO": "#7B4EA8"},
+}
+COL_TTO = {"CONTROL": "#0072B2", "LPS": "#D55E00"}   # solo pSTAT3 (Okabe-Ito, igual que 03/08)
+
+GPATH = {
+    "fatcd36": "LIPIDOS", "fatp1": "LIPIDOS", "fatp4": "LIPIDOS",
+    "glut1": "GLUCOSA", "glut3": "GLUCOSA",
+    "slc38a1": "AMINOACIDOS", "slc38a2": "AMINOACIDOS",
+    "il6": "IL6", "il6R": "IL6", "gp130": "IL6",
+}
+GDISP = {
+    "fatcd36": "CD36", "fatp1": "FATP1", "fatp4": "FATP4",
+    "glut1": "GLUT1", "glut3": "GLUT3",
+    "slc38a1": "SLC38A1", "slc38a2": "SLC38A2",
+    "il6": "il6", "il6R": "il6R", "gp130": "gp130",
+}
+# Orden de filas del panel (estilo pedido): lipidos, glucosa, aminoacidos, IL6
+# -- no el orden crudo de GENES.
+FILAS_VIA = {
+    "LIPIDOS": ["fatcd36", "fatp1", "fatp4"],
+    "GLUCOSA": ["glut1", "glut3"],
+    "AMINOACIDOS": ["slc38a1", "slc38a2"],
+    "IL6": ["il6R", "gp130", "il6"],
+}
+
+
+def gdisp(g):
+    return GDISP[g]
+
+
+def color_for(gen, sexo, tto):
+    return COL_CTRL[sexo] if tto == "CONTROL" else COL_LPS[GPATH[gen]][sexo]
+
+
+# Estilo de trazo (un solo lugar, para que las 2 figuras de expresion coincidan)
+EST = dict(
+    borde_caja="0.20", lwd_caja=0.9, ancho_caja=0.62,
+    col_bigote="0.60", lwd_bigote=0.9,          # bigote punteado, mas claro que el borde
+    col_tope="0.45", lwd_tope=1.1,               # tope (cap): linea fina solida
+    col_mediana="0.10", lwd_mediana=2.2,
+    borde_punto="0.20", lwd_punto=0.6, cex_punto=22,
+    alfa_relleno=0.55,
+)
+
+GRUPOS = [("HEMBRA", "CONTROL"), ("HEMBRA", "LPS"), ("MACHO", "CONTROL"), ("MACHO", "LPS")]
+GLAB = ["♀ C", "♀ LPS", "♂ C", "♂ LPS"]
 GRUPOS_4 = ["HEMBRA_CONTROL", "HEMBRA_LPS", "MACHO_CONTROL", "MACHO_LPS"]
-CELDAS_4 = [("HEMBRA", "CONTROL"), ("HEMBRA", "LPS"),
-            ("MACHO", "CONTROL"), ("MACHO", "LPS")]
+CELDAS_4 = GRUPOS   # alias (pSTAT3 usa el mismo orden)
 ETIQ_X = ["♀\nControl", "♀\nLPS", "♂\nControl", "♂\nLPS"]
 
 # D6: etiqueta del post hoc -> par de indices de caja (0=HC,1=HL,2=MC,3=ML)
@@ -151,13 +217,22 @@ def _num(s):
         return None
 
 
+def _fila_de(tabla, tej, gen):
+    for r in tabla:
+        if r["TEJIDO"] == tej and r["GEN"] == gen:
+            return r
+    return None
+
+
 # ===========================================================================
-# 1. D11 -- LA funcion de anotacion de significancia (identica R / Python).
+# 1. D11 -- LA funcion de anotacion (AMPLIADA: cascada de 3 ramas, AGENTS 4.2).
+#    Identica en R y Python. Decide QUE anotar; la geometria de apilado es de
+#    cada motor de dibujo (R base / ggplot2 / matplotlib).
 # ===========================================================================
-def d11_anotacion(p, interaccion_sig):
-    """Devuelve (texto, estilo) segun D11, o None si no se anota.
+def d11_texto(p):
+    """(texto, estilo) segun los umbrales D11, o None si no se anota.
     estilo: 'solida' (bracket lleno) o 'punteada' (tendencia)."""
-    if not interaccion_sig or p is None or (isinstance(p, float) and math.isnan(p)):
+    if p is None or (isinstance(p, float) and math.isnan(p)):
         return None
     if p < 0.001:
         return ("***", "solida")
@@ -170,36 +245,38 @@ def d11_anotacion(p, interaccion_sig):
     return None
 
 
-def anotar_comparaciones(ax, pholm_por_par, interaccion_sig, tope_datos,
-                         en_log=False):
-    """Recorre las 4 comparaciones D6 en orden fijo y dibuja los brackets que
-    D11 habilita. `pholm_por_par`: {etiqueta_D6: p_holm}. `tope_datos`: y del
-    valor mas alto del panel (en unidades de dato). `en_log`: eje Y logaritmico."""
-    if not interaccion_sig:
-        return
-    dibujados = 0
-    for etq in ORDEN_PARES:
-        p = pholm_por_par.get(etq)
-        ann = d11_anotacion(p, interaccion_sig)
-        if ann is None:
-            continue
-        texto, estilo = ann
-        ia, ib = PARES_D6_IDX[etq]
-        if en_log:
-            paso = 0.10 + 0.11 * dibujados
-            y = tope_datos * (10 ** paso)
-            alto = tope_datos * (10 ** (paso - 0.035))
-        else:
-            paso = 0.10 + 0.11 * dibujados
-            y = tope_datos * (1 + paso)
-            alto = tope_datos * (1 + paso - 0.035)
-        ls = "-" if estilo == "solida" else (0, (2, 2))
-        ax.plot([ia, ia, ib, ib], [alto, y, y, alto], lw=1.0, ls=ls,
-                color="0.25", clip_on=False, solid_capstyle="butt")
-        ax.text((ia + ib) / 2.0, y, texto, ha="center", va="bottom",
-                fontsize=8 if estilo == "solida" else 7.2, color="0.15",
-                clip_on=False)
-        dibujados += 1
+def d11_brackets_especificacion(fila_clasif, pholm_por_par):
+    """Cascada D11 ampliada. `fila_clasif`: fila de qpcr_modelos_clasificacion.csv
+    / pstat3_modelo_clasificacion.csv (columnas reales: interaccion_significativa,
+    p_TTO, p_SEXO -- OJO, NO "p_interaccion"/"metodo": esas columnas no existen,
+    ver analisis_descartados.md). `pholm_por_par`: {etiqueta_D6: p_holm}.
+    Devuelve una lista de {x1, x2, texto, estilo} (posiciones de caja 0..3)."""
+    fila_clasif = fila_clasif or {}
+    out = []
+    isig = fila_clasif.get("interaccion_significativa") == "TRUE"
+    if isig:
+        # (a) post hoc D6 -- un bracket por par cuyo p_holm cruce el umbral.
+        for etq in ORDEN_PARES:
+            ann = d11_texto(pholm_por_par.get(etq))
+            if ann is None:
+                continue
+            texto, estilo = ann
+            x1, x2 = PARES_D6_IDX[etq]
+            out.append({"x1": x1, "x2": x2, "texto": texto, "estilo": estilo})
+        return out
+    # (b) efecto principal de TTO -- bracket unico sobre los 4 grupos (0..3).
+    ann_t = d11_texto(_num(fila_clasif.get("p_TTO")))
+    if ann_t is not None:
+        texto, estilo = ann_t
+        pref = f"Control vs LPS {texto}" if estilo == "solida" else f"Control vs LPS  {texto}"
+        out.append({"x1": 0, "x2": 3, "texto": pref, "estilo": estilo})
+    # (c) efecto principal de SEXO -- bracket entre los centros de cada sexo.
+    ann_s = d11_texto(_num(fila_clasif.get("p_SEXO")))
+    if ann_s is not None:
+        texto, estilo = ann_s
+        pref = f"♀ vs ♂ {texto}" if estilo == "solida" else f"♀ vs ♂  {texto}"
+        out.append({"x1": 0.5, "x2": 2.5, "texto": pref, "estilo": estilo})
+    return out
 
 
 # ===========================================================================
@@ -220,13 +297,6 @@ def cargar():
                 il6_fis=il6_fis, pst=pst, pst_cl=pst_cl, pst_ph=pst_ph)
 
 
-def _interaccion_sig(clasif, tej, gen):
-    for r in clasif:
-        if r["TEJIDO"] == tej and r["GEN"] == gen:
-            return r["interaccion_significativa"] == "TRUE"
-    return False
-
-
 def _pholm(posthoc, tej, gen):
     out = {}
     for r in posthoc:
@@ -236,7 +306,7 @@ def _pholm(posthoc, tej, gen):
 
 
 def _fc_por_grupo(cuant, tej, gen):
-    """{grupo: [FC detectados]} y {grupo: [FC detectados]} (mismos) para puntos."""
+    """{grupo: [FC detectados]}."""
     out = {g: [] for g in GRUPOS_4}
     for r in cuant:
         if r["TEJIDO"] != tej or r["GEN"] != gen:
@@ -248,99 +318,193 @@ def _fc_por_grupo(cuant, tej, gen):
 
 
 # ===========================================================================
-# 3. Primitivas de dibujo.
+# 3. Primitivas de dibujo (boxplots de expresion).
 # ===========================================================================
+_rng = random.Random(cfg.SEMILLA)   # jitter reproducible, igual criterio que R
+
+
 def _jitter(n):
-    if n <= 1:
-        return [0.0] * n
-    return [(-0.16 + 0.32 * i / (n - 1)) for i in range(n)]
+    return [(_rng.random() - 0.5) * 0.26 for _ in range(n)]
 
 
-def _caja_grupo(ax, x0, vals, color):
-    if len(vals) >= 3:
-        bp = ax.boxplot([vals], positions=[x0], widths=0.5, patch_artist=True,
-                        showfliers=False, manage_ticks=False)
-        for b in bp["boxes"]:
-            b.set(facecolor=color, alpha=0.14, edgecolor=color, linewidth=1.0)
-        for k in ("whiskers", "caps", "medians"):
-            for a in bp[k]:
-                a.set(color=color, linewidth=1.0)
-    if vals:
-        xs = [x0 + j for j in _jitter(len(vals))]
-        ax.plot(xs, vals, marker="o", ms=3.4, mfc=color, mec="white",
-                mew=0.4, ls="none", zorder=3)
+def _bracket(ax, x1, x2, y, alto, etiqueta, solido):
+    col = "black" if solido else "0.4"
+    ls = "-" if solido else (0, (2, 2))
+    # clip_on=True (default): el bracket nunca dibuja fuera de los ejes, para
+    # que no pueda superponerse con el titulo/subtitulo (que viven afuera, en
+    # el margen). El headroom para que entre se calcula en _ylim_headroom().
+    ax.plot([x1, x1, x2, x2], [y, y + alto, y + alto, y], color=col, ls=ls,
+            lw=0.9, solid_capstyle="butt")
+    ax.text((x1 + x2) / 2.0, y + alto, etiqueta, ha="center", va="bottom",
+            fontsize=8.5 if solido else 7.5, color=col)
 
 
-def _panel_expresion(ax, cuant, clasif, posthoc, tej, gen):
-    fc = _fc_por_grupo(cuant, tej, gen)
-    todos = [v for g in GRUPOS_4 for v in fc[g]]
-    for i, (sx, tt) in enumerate(CELDAS_4):
-        _caja_grupo(ax, i, fc[f"{sx}_{tt}"], COL_TTO[tt])
-    ax.axhline(1.0, color="0.6", lw=0.6, ls="--", zorder=1)
+def _brackets_geometria(ymin_datos, ymax_datos, n_niveles, frac_datos=0.50):
+    """Techo del eje Y y posicion (y, alto) de cada nivel de bracket, TODO en
+    fracciones fijas del alto total del panel en escala log10 -- no multiplos
+    de `ymax_datos` (eso da un respiro enorme en paneles de rango angosto y
+    casi nulo, colisionando con el titulo, en paneles de rango ancho: el mismo
+    `1.30**k` es un salto absoluto de log minusculo frente a un rango de 5
+    decadas y gigante frente a un rango de 1 decada). Los datos ocupan una
+    fraccion fija (`frac_datos`) del panel; el resto se reparte en
+    `n_niveles + 1` franjas iguales (la ultima queda vacia, de margen antes
+    del borde -- ahi arriba, afuera del eje, va el titulo/subtitulo)."""
+    piso = ymin_datos * 0.6
+    log_piso = math.log10(piso)
+    log_ymax = math.log10(ymax_datos)
+    log_techo = log_piso + (log_ymax - log_piso) / frac_datos
+    alto_franja = (1.0 - frac_datos) / (n_niveles + 1) * (log_techo - log_piso)
+    niveles = []
+    for k in range(1, n_niveles + 1):
+        log_y = log_piso + frac_datos * (log_techo - log_piso) + (k - 1 + 0.15) * alto_franja
+        y = 10 ** log_y
+        alto = 10 ** (log_y + 0.5 * alto_franja) - y
+        niveles.append((y, alto))
+    return piso, 10 ** log_techo, niveles
+
+
+def panel_gen(ax, fc, gen, tejido, fila_clasif, pholm_por_par, con_titulo=True):
+    """Panel de un gen x tejido. Eje Y SIEMPRE logaritmico (D2)."""
+    dat = [fc[g] for g in GRUPOS_4]
+    todos = [v for vs in dat for v in vs if v > 0]
+    if not todos:
+        ax.set_visible(False)
+        return
+
+    especs = d11_brackets_especificacion(fila_clasif, pholm_por_par)
+
+    # Caja solo si el grupo tiene >= 3 detectados (los puntos van igual).
+    for j, (sexo, tto) in enumerate(GRUPOS):
+        vals = dat[j]
+        color = color_for(gen, sexo, tto)
+        if len(vals) >= 3:
+            bp = ax.boxplot(
+                [vals], positions=[j + 1], widths=EST["ancho_caja"],
+                patch_artist=True, showfliers=False, manage_ticks=False,
+                boxprops=dict(facecolor=matplotlib.colors.to_rgba(color, EST["alfa_relleno"]),
+                              edgecolor=EST["borde_caja"], linewidth=EST["lwd_caja"]),
+                whiskerprops=dict(color=EST["col_bigote"], linewidth=EST["lwd_bigote"],
+                                  linestyle=(0, (3, 2))),
+                capprops=dict(color=EST["col_tope"], linewidth=EST["lwd_tope"]),
+                medianprops=dict(color=EST["col_mediana"], linewidth=EST["lwd_mediana"]),
+            )
+        if vals:
+            xs = [j + 1 + dx for dx in _jitter(len(vals))]
+            ax.plot(xs, vals, marker="o", ms=EST["cex_punto"] ** 0.5, mfc=color,
+                    mec=EST["borde_punto"], mew=EST["lwd_punto"], ls="none", zorder=3)
+        ax.annotate(f"n={len(vals)}", xy=(j + 1, 0), xycoords=("data", "axes fraction"),
+                    xytext=(0, -22), textcoords="offset points", ha="center",
+                    fontsize=6.5, color="0.25")
+
+    ax.axhline(1.0, color="0.7", lw=0.8, ls="--", zorder=1)
     ax.set_yscale("log")
-    ax.set_xticks(range(4))
-    ax.set_xticklabels(ETIQ_X, fontsize=7)
-    ax.set_title(gen, fontsize=9.5, style="italic")
+    ax.set_xlim(0.4, 4.6)
+    ax.set_xticks(range(1, 5))
+    ax.set_xticklabels(GLAB, fontsize=7)
     ax.tick_params(axis="y", labelsize=7)
-    if todos:
-        tope = max(todos)
-        isig = _interaccion_sig(clasif, tej, gen)
-        anotar_comparaciones(ax, _pholm(posthoc, tej, gen), isig, tope,
-                             en_log=True)
-        ax.set_ylim(min(todos) / 3.0, tope * (10 ** 0.75))
+    ax.set_ylabel(r"FC $= 2^{-\Delta\Delta Ct}$", fontsize=8)
+
+    ymax = max(todos)
+    ymin = min(todos)
+    n_niveles = max(len(especs), 1)
+    piso, techo, niveles_y = _brackets_geometria(ymin, ymax, n_niveles)
+    ax.set_ylim(piso, techo)
+    for (y, alto), b in zip(niveles_y, especs):
+        _bracket(ax, b["x1"] + 1, b["x2"] + 1, y, alto, b["texto"],
+                 b["estilo"] == "solida")
+
+    if con_titulo:
+        p_int = _num((fila_clasif or {}).get("p_SEXOxTTO"))
+        metodo = (fila_clasif or {}).get("rama_cascada", "")
+        sub = f"{metodo} · p SEXOxTTO = {'NA' if p_int is None else f'{p_int:.3f}'} · n = {len(todos)}"
+        # Titulo y subtitulo se anclan por desplazamiento en PUNTOS desde el
+        # borde superior de los ejes (no en fraccion de datos): quedan siempre
+        # fuera del area de dibujo, sin importar cuantos brackets haya apilados.
+        ax.annotate(f"{gdisp(gen)} · {tejido}", xy=(0.5, 1.0), xycoords="axes fraction",
+                    xytext=(0, 28), textcoords="offset points", ha="center", va="bottom",
+                    fontsize=10, fontweight="bold")
+        ax.annotate(sub, xy=(0.5, 1.0), xycoords="axes fraction",
+                    xytext=(0, 11), textcoords="offset points", ha="center", va="bottom",
+                    fontsize=7, color="0.25")
 
 
-def _panel_deteccion_il6(ax, il6_tab, il6_fis, tej="BRAIN_E15", gen="il6"):
-    prop = {}
-    for r in il6_tab:
-        if r["TEJIDO"] == tej and r["GEN"] == gen:
-            n = float(r["n_total"])
-            prop[r["GRUPO"]] = (float(r["n_detectado"]) / n if n else 0.0,
-                                int(float(r["n_detectado"])), int(n))
-    for i, (sx, tt) in enumerate(CELDAS_4):
-        frac, nd, ntot = prop.get(f"{sx}_{tt}", (0.0, 0, 0))
-        ax.bar(i, 100 * frac, width=0.62, color=COL_TTO[tt], alpha=0.85,
-               edgecolor=COL_TTO[tt])
-        ax.text(i, 100 * frac + 3, f"{nd}/{ntot}", ha="center", va="bottom",
-                fontsize=7, color="0.2")
+def panel_deteccion(ax, il6_tab, il6_fis, tej="BRAIN_E15", gen="il6"):
+    """il6 @ BRAIN_E15 (D7): barras + simbolos individuales (relleno=detectado)."""
+    nd = [0] * 4; nt = [0] * 4
+    for j, grp in enumerate(GRUPOS_4):
+        r = next(x for x in il6_tab if x["TEJIDO"] == tej and x["GEN"] == gen and x["GRUPO"] == grp)
+        nt[j] = int(float(r["n_total"])); nd[j] = int(float(r["n_detectado"]))
+    pct = [100 * nd[j] / nt[j] if nt[j] else 0.0 for j in range(4)]
+
+    for j, (sexo, tto) in enumerate(GRUPOS):
+        color = color_for(gen, sexo, tto)
+        ax.bar(j + 1, pct[j], width=0.62,
+               color=matplotlib.colors.to_rgba(color, EST["alfa_relleno"]),
+               edgecolor=EST["borde_caja"])
+        if nt[j]:
+            xs = [j + 1 + (k - (nt[j] + 1) / 2) * 0.075 for k in range(1, nt[j] + 1)]
+            ys = [pct[j] + 9] * nt[j]
+            det = [k <= nd[j] for k in range(1, nt[j] + 1)]
+            for x, y, d in zip(xs, ys, det):
+                ax.plot(x, y, marker="o", ms=6.5,
+                        mfc=color if d else "none", mec=EST["borde_punto"],
+                        mew=EST["lwd_punto"])
+        ax.text(j + 1, pct[j] + 18, f"{nd[j]}/{nt[j]}\n({pct[j]:.0f}%)",
+                ha="center", va="bottom", fontsize=6.5, color="0.2")
+
     fis = {r["SEXO"]: _num(r["p_fisher"]) for r in il6_fis
            if r["TEJIDO"] == tej and r["GEN"] == gen}
-    sub = "  ".join(f"Fisher {'♀' if s == 'HEMBRA' else '♂'} p = "
-                    f"{fis.get(s, float('nan')):.3f}" for s in ("HEMBRA", "MACHO"))
-    ax.set_title(f"{gen}  (deteccion, no cuantificable D7)", fontsize=8.6,
-                 style="italic")
-    ax.set_xticks(range(4))
-    ax.set_xticklabels(ETIQ_X, fontsize=7)
-    ax.set_ylabel("% detectado", fontsize=7.5)
-    ax.set_ylim(0, 118)
+    ax.set_xlim(0.4, 4.6)
+    ax.set_xticks(range(1, 5))
+    ax.set_xticklabels(GLAB, fontsize=7)
+    ax.set_ylim(0, 125)
     ax.tick_params(axis="y", labelsize=7)
-    ax.annotate(sub, xy=(0.5, -0.30), xycoords="axes fraction", ha="center",
+    ax.set_ylabel("% detectado", fontsize=8)
+    sub = (f"no cuantificable (D7) · Fisher ♀ p = {fis.get('HEMBRA', float('nan')):.3f} "
+           f"· ♂ p = {fis.get('MACHO', float('nan')):.3f}")
+    ax.annotate(f"{gdisp(gen)} · {tej}", xy=(0.5, 1.0), xycoords="axes fraction",
+                xytext=(0, 28), textcoords="offset points", ha="center", va="bottom",
+                fontsize=10, fontweight="bold")
+    ax.annotate(sub, xy=(0.5, 1.0), xycoords="axes fraction",
+                xytext=(0, 11), textcoords="offset points", ha="center", va="bottom",
                 fontsize=7, color="0.25")
 
 
 # ===========================================================================
 # 4. Figuras.
 # ===========================================================================
-def figura_expresion_tejido(D, tej, ruta):
-    genes = list(cfg.GENES)
-    ncol, nrow = 4, 3
-    fig, axes = plt.subplots(nrow, ncol, figsize=(13.0, 8.6))
-    axl = axes.flatten()
-    for k, gen in enumerate(genes):
-        ax = axl[k]
-        if tej == "BRAIN_E15" and gen == "il6":
-            _panel_deteccion_il6(ax, D["il6_tab"], D["il6_fis"])
-        else:
-            _panel_expresion(ax, D["cuant"], D["clasif"], D["posthoc"], tej, gen)
-    for k in range(len(genes), len(axl)):
-        axl[k].set_visible(False)
-    tt = "Placenta E15" if tej == "PLACENTA_E15" else "Cerebro fetal E15"
-    fig.suptitle(f"Expresion relativa por gen -- {tt}\n"
-                 f"FC = 2^(-ΔΔCt), eje log; caja = detectados, "
-                 f"puntos = fetos; brackets = D11 (post hoc D6 con Holm)",
-                 fontsize=10.5)
-    fig.supylabel("Fold-change (2^(-ΔΔCt))", fontsize=9)
-    fig.tight_layout(rect=(0.015, 0.0, 1.0, 0.93))
+def figura_tejido(D, tejido, ruta):
+    """Filas por via metabolica (estilo pedido): lipidos(3) / glucosa(2) /
+    aminoacidos(2) / IL-6 (hasta 3, il6@BRAIN_E15 es el panel de deteccion).
+    Filas de 2 se centran dejando en blanco la primera columna."""
+    _rng.seed(cfg.SEMILLA)   # jitter reproducible por figura
+    filas = {k: list(v) for k, v in FILAS_VIA.items()}
+    if tejido == "BRAIN_E15":
+        filas["IL6"] = [g for g in filas["IL6"] if g != "il6R"]
+
+    nrow = len(filas)
+    fig, axes = plt.subplots(nrow, 3, figsize=(11.5, nrow * 3.9))
+    for i, (via, genes) in enumerate(filas.items()):
+        despl = 1 if len(genes) == 2 else 0
+        for col in range(3):
+            j = col - despl
+            ax = axes[i, col]
+            if j < 0 or j >= len(genes):
+                ax.set_visible(False)
+                continue
+            gen = genes[j]
+            if tejido == "BRAIN_E15" and gen == "il6":
+                panel_deteccion(ax, D["il6_tab"], D["il6_fis"])
+            else:
+                fc = _fc_por_grupo(D["cuant"], tejido, gen)
+                fila_clasif = _fila_de(D["clasif"], tejido, gen)
+                ph = _pholm(D["posthoc"], tejido, gen)
+                panel_gen(ax, fc, gen, tejido, fila_clasif, ph)
+
+    tt = "Placenta E15" if tejido == "PLACENTA_E15" else "Cerebro fetal E15"
+    fig.suptitle(f"Expresion relativa por gen -- {tt}  "
+                 f"(FC = 2^(-ΔΔCt), eje log; brackets = D11)", fontsize=13, fontweight="bold")
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96), h_pad=5.5, w_pad=2.0)
     fig.savefig(ruta, dpi=DPI)
     plt.close(fig)
 
@@ -348,7 +512,6 @@ def figura_expresion_tejido(D, tej, ruta):
 def figura_pstat3(D, ruta):
     pst = D["pst"]
     cl = D["pst_cl"][0] if D["pst_cl"] else {}
-    isig = cl.get("interaccion_significativa", "") == "TRUE"
     pholm = {r["contraste"]: _num(r["p_holm"]) for r in D["pst_ph"]}
     marcas = {"1": "o", "2": "s", "3": "^"}
     membranas = sorted({r["MEMBRANA"] for r in pst})
@@ -371,19 +534,25 @@ def figura_pstat3(D, ruta):
             for kk in ("whiskers", "caps", "medians"):
                 for a in bp[kk]:
                     a.set(color=COL_TTO[tt], linewidth=1.0)
-        jj = _jitter(len(ys))
+        jj = [(-0.16 + 0.32 * k / (len(ys) - 1)) if len(ys) > 1 else 0.0
+              for k in range(len(ys))]
         for (v, m), j in zip(vals[i], jj):
             ax.plot(i + j, v, marker=marcas.get(m, "o"), ms=5.0,
                     mfc=COL_TTO[tt], mec="white", mew=0.5, ls="none", zorder=3)
     tope = max(todos)
-    anotar_comparaciones(ax, pholm, isig, tope, en_log=False)
+    especs = d11_brackets_especificacion(cl, pholm)
+    for k, b in enumerate(especs):
+        paso = 0.10 + 0.11 * k
+        y = tope * (1 + paso)
+        alto = tope * (1 + paso - 0.035) - y
+        _bracket(ax, b["x1"], b["x2"], y, alto, b["texto"], b["estilo"] == "solida")
     ax.set_ylim(0, tope * 1.75)
     ax.set_xticks(range(4))
     ax.set_xticklabels(ETIQ_X, fontsize=8.5)
     ax.set_ylabel("pSTAT3  (u.a., normalizado a proteina total)", fontsize=9)
     ax.set_title("Fosfo-STAT3 (Tyr705) -- placenta E15\n"
-                 "crudo por SEXO x TTO; forma de punto = membrana; brackets = D11",
-                 fontsize=9)
+                 "crudo por SEXO x TTO; forma de punto = membrana; "
+                 "brackets = D11 (cascada ampliada)", fontsize=9)
     handles = [plt.Line2D([0], [0], marker=marcas[m], color="0.4", ls="none",
                           ms=6, label=f"Membrana {m}") for m in membranas]
     ax.legend(handles=handles, fontsize=7.5, loc="upper right", frameon=False)
@@ -435,36 +604,66 @@ def registrar_verificaciones(filas_nuevas):
 _DESCARTES = "\n".join([
     "## 07_figuras_acto1",
     "",
-    "### Una sola convencion de anotacion (D11)",
+    "### D11 ampliada: cascada de 3 ramas (cambio pedido explicitamente)",
     "",
-    "- La decision de que anotar y con que simbolo esta en **una funcion**, "
-    "`d11_anotacion(p, interaccion_sig)` (identica en R y Python), y se aplica en "
-    "las 3 figuras (2 de expresion + pSTAT3) via `anotar_comparaciones`. Se anota "
-    "una comparacion solo si la interaccion SEXO x TTO del gen x tejido es "
-    "significativa **y** su `p_holm` (post hoc D6, de 05 / 06) cruza el umbral: "
-    "`***` < .001, `**` < .01, `*` < .05 (bracket solido); tendencia .05<=p<.1 "
-    "(bracket punteado + `p = 0.NNN`); p >= .1 sin anotar.",
+    "- Hasta esta sesion, D11 solo anotaba si la interaccion SEXO x TTO era "
+    "significativa; sin interaccion, el panel quedaba sin ninguna marca aunque "
+    "hubiera un efecto principal fuerte (p. ej. `il6@PLACENTA_E15` con "
+    "`p_TTO` = 6.0e-06 no llevaba bracket). **Se revierte esa restriccion por "
+    "pedido explicito** (`pedidos/boxplots_acto1_base_R.R`, tratado como "
+    "especificacion de estilo y logica, no como codigo a copiar). Cascada "
+    "nueva en `d11_brackets_especificacion` (identica R/Python), documentada "
+    "en AGENTS.md 4.2: (a) interaccion significativa -> brackets por par del "
+    "post hoc D6, igual que antes; (b) sin interaccion y `TTO` significativo/"
+    "tendencia -> un bracket sobre los 4 grupos, `Control vs LPS`; (c) sin "
+    "interaccion y `SEXO` significativo/tendencia -> un bracket entre los "
+    "centros de cada sexo, `♀ vs ♂`. (b) y (c) no son excluyentes.",
+    "- **Nombres de columna corregidos** contra los CSV reales al adaptar el "
+    "pedido: la referencia asumia `p_interaccion` y `metodo` en "
+    "`qpcr_modelos_clasificacion.csv`; las columnas reales son "
+    "`p_SEXOxTTO` (usada solo para mostrarla en el subtitulo del panel; el "
+    "gate sigue siendo `interaccion_significativa`) y `rama_cascada`.",
+    "",
+    "### Boxplots de expresion: R base, no ggplot2 (cambio pedido explicitamente)",
+    "",
+    "- El estilo pedido necesita bigote (punteado, mas claro) y tope del "
+    "bigote (solido) con trazo distinto del borde de la caja; `geom_boxplot` "
+    "no expone esos tres trazos por separado, `boxplot()`/`bxp()` de R base si "
+    "(`whisklty/whiskcol`, `staplelty/staplecol`, `border`). **Se abandona "
+    "ggplot2 solo para estos paneles**; el Acto 2 (08) sigue en ggplot2/GGally, "
+    "y pSTAT3 (mismo script) tambien sigue en ggplot2. matplotlib (Python) ya "
+    "permite estilar los tres trazos por separado (`whiskerprops`/`capprops`/"
+    "`boxprops`), asi que este lenguaje no tuvo que cambiar de libreria: solo "
+    "replica el mismo estilo.",
+    "- **Filas agrupadas por via metabolica** (lipidos / glucosa / aminoacidos "
+    "/ IL-6), no por el orden crudo de `GENES` -- estilo pedido, ayuda a leer "
+    "el panel por sistema biologico. Color: Control por sexo (celeste, 2 "
+    "tonos), LPS por sexo x via metabolica (una paleta por via) -- il6/il6R/"
+    "gp130 comparten paleta (via IL-6).",
     "",
     "### il6 @ BRAIN_E15: panel de deteccion, no boxplot de FC",
     "",
     "- il6 en cerebro no es cuantificable (calibrador HEMBRA_CONTROL 0/9, D7): no "
     "tiene FC. Su panel en `acto1_expresion_BRAIN_E15.png` muestra la **proporcion "
     "de deteccion** Control vs LPS por sexo (de `qpcr_il6_brain_tabla2x4.csv`) con "
-    "la p de Fisher (de `qpcr_il6_brain_fisher.csv`), no un boxplot.",
+    "la p de Fisher (de `qpcr_il6_brain_fisher.csv`), no un boxplot. `il6R` sale "
+    "del panel de cerebro por prolijidad visual (deteccion insuficiente en ese "
+    "tejido); se conserva en la tabla de modelos (05) y en el panel de placenta.",
     "",
     "### Escala y datos de los boxplots de expresion",
     "",
     "- Eje Y = `FC = 2^(-ddCt)` en escala **log** (D2). `FC` se calcula aca desde "
     "`neg_ddCt` de `qpcr_cuantificacion_long.tsv`; 04 no lo guarda para no arrastrar "
-    "el redondeo de `2^x` entre libm. Cada caja usa **solo valores detectados**; "
-    "los puntos son los 9 fetos por grupo (los detectados).",
+    "el redondeo de `2^x` entre libm. Caja solo si el grupo tiene **>=3 detectados** "
+    "(los puntos se dibujan igual, sin caja, si son menos).",
     "",
     "### pSTAT3: valores crudos + membrana como forma de punto",
     "",
     "- El boxplot de pSTAT3 muestra los valores **crudos** por SEXO x TTO (no "
     "ajustados por MEMBRANA); la membrana se codifica como forma de punto "
     "(o / cuadrado / triangulo). El bloque MEMBRANA lo maneja el modelo D9 (06), "
-    "no la figura. Nota al pie: pSTAT3 = abundancia de fosfo-STAT3, no fraccion.",
+    "no la figura. Nota al pie: pSTAT3 = abundancia de fosfo-STAT3, no fraccion. "
+    "Sigue en ggplot2; solo cambia la cascada D11 que decide los brackets.",
     "",
     "### Figuras del ELISA",
     "",
@@ -473,9 +672,10 @@ _DESCARTES = "\n".join([
     "",
     "### Paridad",
     "",
-    "- Las figuras son PNG: equivalentes, no byte-identicas (ggplot2 vs matplotlib). "
-    "Byte-identicas entre lenguajes: las filas nuevas de `procedencia.csv` / "
-    "`verificaciones.csv` y esta seccion.",
+    "- Las figuras son PNG: equivalentes, no byte-identicas (R base + ggplot2 vs "
+    "matplotlib). Byte-identicas entre lenguajes: las filas nuevas de "
+    "`procedencia.csv` / `verificaciones.csv` y esta seccion. La cascada D11 "
+    "(`d11_texto` + `d11_brackets_especificacion`) es identica en ambos.",
 ])
 
 
@@ -510,32 +710,26 @@ def main():
     fig_bra = cfg.RUTA_FIGURAS / "acto1_expresion_BRAIN_E15.png"
     fig_pst = cfg.RUTA_FIGURAS / "acto1_pstat3.png"
 
-    figura_expresion_tejido(D, "PLACENTA_E15", fig_pla)
-    figura_expresion_tejido(D, "BRAIN_E15", fig_bra)
+    figura_tejido(D, "PLACENTA_E15", fig_pla)
+    figura_tejido(D, "BRAIN_E15", fig_bra)
     figura_pstat3(D, fig_pst)
 
-    # --- que comparaciones quedaron anotadas (para el resumen/verificacion) ---
+    # --- comparaciones/brackets anotados (mismo orden y formato que R) ---
     anotadas = []
     for tej in cfg.TEJIDOS_E15:
         for gen in cfg.GENES:
             if tej == "BRAIN_E15" and gen == "il6":
                 continue
-            isig = _interaccion_sig(D["clasif"], tej, gen)
-            if not isig:
+            fila_clasif = _fila_de(D["clasif"], tej, gen)
+            if fila_clasif is None:
                 continue
             ph = _pholm(D["posthoc"], tej, gen)
-            for etq in ORDEN_PARES:
-                ann = d11_anotacion(ph.get(etq), isig)
-                if ann is not None:
-                    anotadas.append(f"{tej}/{gen}/{etq}:{ann[0]}")
+            for b in d11_brackets_especificacion(fila_clasif, ph):
+                anotadas.append(f"{tej}/{gen}/[{_fmt(b['x1'])}-{_fmt(b['x2'])}]:{b['texto']}")
     pst_cl = D["pst_cl"][0] if D["pst_cl"] else {}
-    pst_isig = pst_cl.get("interaccion_significativa", "") == "TRUE"
     pst_ph = {r["contraste"]: _num(r["p_holm"]) for r in D["pst_ph"]}
-    pst_anot = []
-    for etq in ORDEN_PARES:
-        ann = d11_anotacion(pst_ph.get(etq), pst_isig)
-        if ann is not None:
-            pst_anot.append(f"pSTAT3/{etq}:{ann[0]}")
+    pst_anot = [f"pSTAT3/[{_fmt(b['x1'])}-{_fmt(b['x2'])}]:{b['texto']}"
+                for b in d11_brackets_especificacion(pst_cl, pst_ph)]
 
     figs_elisa = [(cfg.RUTA_FIGURAS / "acto1_elisa_ms.png").is_file(),
                   (cfg.RUTA_FIGURAS / "acto1_elisa_la.png").is_file()]
@@ -546,17 +740,20 @@ def main():
     ent_p = f"data/processed/pstat3_long.tsv + outputs/tables/*/pstat3_* (de data/{fuente_p}/{cfg.ARCHIVO_PSTAT3})"
     registrar_procedencia([
         ["outputs/figures/acto1_expresion_PLACENTA_E15.png", "figura", ESTE_SCRIPT,
-         "PROPIO", ent_q, "boxplots de FC = 2^(-ddCt) (eje log) por gen en placenta "
-         "E15, 4 grupos SEXO x TTO; anotacion D11 (sin brackets: placenta sin "
-         "interaccion significativa)"],
+         "PROPIO", ent_q, "boxplots (R base) de FC = 2^(-ddCt) (eje log) por gen en "
+         "placenta E15, filas por via metabolica, 4 grupos SEXO x TTO; cascada D11 "
+         "ampliada (brackets por efecto principal si no hay interaccion)"],
         ["outputs/figures/acto1_expresion_BRAIN_E15.png", "figura", ESTE_SCRIPT,
          "PROPIO", ent_q, "idem cerebro fetal E15; il6 como panel de proporcion de "
-         "deteccion (D7, no cuantificable); brackets D11 en los genes con "
-         "interaccion significativa y post hoc Holm significativo"],
+         "deteccion (D7, no cuantificable), il6R fuera de este panel; cascada D11 "
+         "ampliada (por par si hay interaccion, por efecto principal si no)"],
         ["outputs/figures/acto1_pstat3.png", "figura", ESTE_SCRIPT, "PROPIO", ent_p,
-         "boxplot de pSTAT3 crudo por SEXO x TTO, membrana como forma de punto; "
-         "brackets D11 del post hoc D6 (06_pstat3); nota de limitacion D9"],
+         "boxplot (ggplot2) de pSTAT3 crudo por SEXO x TTO, membrana como forma de "
+         "punto; cascada D11 ampliada del post hoc D6 (06_pstat3); nota de "
+         "limitacion D9"],
     ])
+    ok_figs = (fig_pla.is_file() and fig_bra.is_file() and fig_pst.is_file()
+               and all(figs_elisa))
     registrar_verificaciones([
         ["figuras_acto1_generadas",
          "figuras del Acto 1: 2 de expresion + pSTAT3 (+ 2 de ELISA de 03_elisa)",
@@ -564,18 +761,17 @@ def main():
          f"pstat3={_fmt(fig_pst.is_file())};elisa_ms={_fmt(figs_elisa[0])};"
          f"elisa_la={_fmt(figs_elisa[1])}",
          "las 5 figuras del Acto 1 existen",
-         "TRUE" if (fig_pla.is_file() and fig_bra.is_file() and fig_pst.is_file()
-                    and all(figs_elisa)) else "FALSE", ESTE_SCRIPT],
+         "TRUE" if ok_figs else "FALSE", ESTE_SCRIPT],
         ["figuras_d11_una_funcion",
-         "una sola funcion de anotacion D11 (d11_anotacion) usada en todas las figuras",
-         "d11_anotacion + anotar_comparaciones (identica R/Python), 3 figuras",
+         "una sola funcion de anotacion D11 (d11_brackets_especificacion) usada en todas las figuras",
+         "d11_texto + d11_brackets_especificacion (identica R/Python), 3 figuras",
          "una funcion, todas las figuras", "TRUE", ESTE_SCRIPT],
-        ["figuras_d11_gate",
-         "D11: solo se anota si interaccion SEXO x TTO significativa Y post hoc (Holm) significativo",
-         f"expresion: {len(anotadas)} comparaciones anotadas "
-         f"({'; '.join(anotadas) if anotadas else 'ninguna'}); "
-         f"pSTAT3: {len(pst_anot)} ({'; '.join(pst_anot) if pst_anot else 'ninguna'})",
-         "brackets solo bajo la doble condicion de D11", "TRUE", ESTE_SCRIPT],
+        ["figuras_d11_cascada",
+         "D11 ampliada: (a) interaccion->por par; (b) TTO principal->bracket 0-3; (c) SEXO principal->bracket 0.5-2.5",
+         f"expresion: {len(anotadas)} brackets "
+         f"({'; '.join(anotadas) if anotadas else 'ninguno'}); "
+         f"pSTAT3: {len(pst_anot)} ({'; '.join(pst_anot) if pst_anot else 'ninguno'})",
+         "cascada de 3 ramas, (b)/(c) no excluyentes", "TRUE", ESTE_SCRIPT],
         ["figuras_fc_log",
          "boxplots de expresion en FC = 2^(-ddCt) con eje Y logaritmico (D2)",
          "FC = 2**neg_ddCt; ax en escala log; linea de referencia en FC = 1",
@@ -588,6 +784,10 @@ def main():
          "pSTAT3: valores crudos por SEXO x TTO, MEMBRANA como forma de punto (bloque tecnico)",
          "boxplot de PSTAT3 sin ajustar; marcador o/cuadrado/triangulo por membrana",
          "crudo + forma por membrana", "TRUE", ESTE_SCRIPT],
+        ["figuras_expresion_r_base",
+         "boxplots de expresion en R base (bxp/boxplot), no ggplot2 -- pedido explicito",
+         "boxplot() con whisklty/staplelty/border distintos; Acto 2 sigue en ggplot2",
+         "R base para expresion", "TRUE", ESTE_SCRIPT],
     ])
 
     print("== 07_figuras_acto1.py ==")
