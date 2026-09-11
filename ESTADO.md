@@ -1378,3 +1378,126 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
 - `docs/` y `logs/` están en `.gitignore`: para publicar el informe en GitHub
   Pages hay que forzar el add (`git add -f docs/informe.html`) y aceptar que
   lleva números de datos reales.
+
+---
+
+## Sesión 13 — 2026-09-11 — pedido post-cierre: T7 estratificado por sexo
+
+> El proyecto ya estaba **terminado** (T11, sesión 12). Esta sesión aplica un
+> cambio de alcance pedido explícitamente por el usuario después del cierre,
+> vía `pedidos/cambios_acto2_correlaciones_por_sexo.md` ("pegar como mensaje al
+> agente"). No reabre D1–D12. El otro archivo en `pedidos/`
+> (`boxplots_acto1_base_R.R`, reescritura de 07 en R base) **queda sin tocar**:
+> es una tarea aparte, marcada NO PROBADO por su autor, con 2 de 5 nombres de
+> columna ya verificados como incorrectos contra
+> `qpcr_modelos_clasificacion.csv` real (`p_interaccion`→`p_SEXOxTTO`,
+> `metodo`→`rama_cascada`) — pendiente para una sesión futura si se pide.
+
+### Qué se completó
+
+- **`R/00_config.R` + `python/00_config.py`**: dos listas nuevas,
+  `GENES_SPLOM_PLACENTA` (7 transportadores + `il6` + `gp130`, 9) y
+  `GENES_SPLOM_BRAIN` (7 transportadores + `gp130`, 8) — `il6` es cuantificable
+  en placenta pero no en cerebro (D7); conjunto distinto por tejido, pedido
+  explícito. `stopifnot`/`assert` de tamaño y contenido.
+- **`R/08_acto2_correlaciones.R` + `python/08_acto2_correlaciones.py`**
+  (equivalentes), reescritos sobre la base de T7 (sesión 8):
+  - **Estratos**: de 3 (`GLOBAL`, `CONTROL`, `LPS`) a 7, agregando las 4 celdas
+    `SEXO×TTO` (`HEMBRA_CONTROL`, `HEMBRA_LPS`, `MACHO_CONTROL`, `MACHO_LPS`).
+    `SEXO` se lee directo de `qpcr_cuantificacion_long.tsv` (ya normalizado por
+    `02_ingesta_qc`, no se derivó de `GRUPO`). **Revierte** la decisión anterior
+    de T7 que limitaba a 3 estratos "porque las celdas SEXO×TTO darían IC
+    inútiles" — documentado en `analisis_descartados.md` como corrección
+    explícita, con la limitación (`n≤9`) declarada en el propio texto.
+  - **`il6R` excluido de todo el Acto 2** (tablas y las 6 figuras SPLOM):
+    detección insuficiente en cerebro (3/7/3/3) que, al estratificar, deja casi
+    todas las celdas bajo el piso de 5. Se conserva en Acto 1 (07, 05) — la
+    exclusión es solo para correlaciones. `ITEMS` pasa de 10 a 9 (8 genes +
+    `score_compuesto`).
+  - **9 figuras nuevas** `acto2_corr_placenta_cerebro_<item>.png`: paneles
+    `Females`/`Males`, Control y LPS superpuestos (color+forma), ajuste lineal +
+    banda 95% solo si `n≥5` por celda, leyenda al pie con
+    `rho`/`p`/`n` de las 4 celdas, ejes en `2^(-ΔΔCt)` (log2) — salvo
+    `score_compuesto`: es un z-score (puede ser negativo), eje lineal,
+    desviación documentada.
+  - **4 SPLOM nuevos** por tejido×sexo (`_HEMBRA`/`_MACHO`), más los 2
+    existentes actualizados: conjunto de variables pasa a ser
+    tejido-específico (9 en placenta, 8 en cerebro, antes 7 fijos en ambos);
+    etiqueta del triángulo superior `rho:` en vez de `Corr:` (ambigüedad con
+    Pearson); `n` visible en cada panel; respeta el piso de 5.
+  - `tabla_coexpresion` gana columna `SEXO` (`AMBOS`/`HEMBRA`/`MACHO`).
+  - Verificaciones nuevas: `acto2_estratos` (7 estratos exactos),
+    `acto2_estratos_particion` (n hembra+macho == n agregado, por item),
+    `acto2_paneles_n_leyenda` (n≤9 por panel), `acto2_sin_pearson` (ninguna
+    **tabla** —no la prosa metodológica, que sí dice "no Pearson" a
+    propósito— contiene valores de Pearson), `acto2_il6R_fuera`,
+    `acto2_splom_variables`. 12 verificaciones de este script, todas TRUE.
+
+### Bugs propios encontrados y corregidos en esta sesión
+
+- **Rutas absolutas en `procedencia.csv`**: las 16 figuras nuevas se registraron
+  primero con la ruta absoluta de `RUTA_FIGURAS`/`cfg.RUTA_FIGURAS` en vez de
+  `outputs/figures/<archivo>` (convención del proyecto). `98_comparacion`
+  las marcaba "sin fila". Corregido con un helper `_rel_fig()` en ambos
+  lenguajes.
+- **Paridad de texto R/Python en `analisis_descartados.md`**: dos frases de la
+  sección `08_acto2_correlaciones` quedaron redactadas con una diferencia
+  menor entre `DESCARTES` (R) y `_DESCARTES` (Python) — `99_verificar` lo
+  detectó como falla de "paridad render" (`informe.textonly.html` +
+  `analisis_descartados.md` no byte-idénticos). Corregido igualando el texto.
+- **Falso positivo en `acto2_sin_pearson`**: la primera versión buscaba la
+  palabra "Pearson" en todo el texto generado, incluida la prosa que
+  **explica que no se usa** ("Spearman rho (no Pearson)"). Corregido para que
+  el chequeo mire solo las columnas/valores de las tablas (`COLS_CORR`,
+  `COLS_COEXP`, `corr`, `coexp`), que es lo que pide el punto 3 del pedido.
+- **Layout de la figura por gen en matplotlib**: la primera versión usaba
+  `fig.text` a coordenadas fijas + `tight_layout()`, que no reserva espacio
+  para texto puesto a mano → la etiqueta del eje X se superponía con la
+  leyenda al pie. Corregido con `subplots_adjust` explícito (sin
+  `tight_layout`) y las cuatro zonas (título, subtítulo, ejes, leyenda+nota)
+  en posiciones fijas con margen suficiente.
+
+### Verificado
+
+- **R↔Python byte-idénticos**: `acto2_correlaciones.csv` (63 filas, antes 30),
+  `acto2_coexpresion_transportadores.csv` (192 filas, antes 42),
+  `acto2_correlaciones_reporte.md`, `analisis_descartados.md` (sección de este
+  script), `procedencia.csv`, `verificaciones.csv` — sobre datos reales.
+  Cruza-verificación R vs `cor.test(exact=FALSE)`: peor `|dif|` = 8.9e-16.
+- **`.\run_all.ps1` completo (PRIME→R→Python→VERIFY): `TODAS LAS
+  VERIFICACIONES PASARON` en R y en Python, 77/77 chequeos duros, 31/31 CSV
+  byte-idénticos, paridad de render OK.** ~4.3 min.
+- Las figuras nuevas se revisaron visualmente (una por gen, un SPLOM por sexo)
+  en R y en Python: paneles, colores, KDE de la diagonal (Python ahora
+  también separa Control/LPS en la diagonal del SPLOM, antes era un
+  histograma único — mejora de equivalencia visual con R, no solo para las
+  figuras nuevas), leyendas y piso de 5 se comportan como pide el texto.
+
+### Resultados (datos reales; NO se versionan)
+
+- GLOBAL sin cambios respecto de T7 (mismos 8 genes, antes 9 con il6R
+  incluido): `slc38a1` rho=0.47 p=6.4e-3 sigue siendo el único con p<.05;
+  `score_compuesto` rho=0.24 p=0.165.
+  Por sexo (nuevo, descriptivo — **no se compara**, prohibición 4): varios
+  genes muestran rho más alto en hembras que en machos en algunas celdas
+  (p. ej. `slc38a1` ♀LPS rho=0.67 p=0.050 n=9 vs ♂LPS rho=0.26 p=0.531 n=8),
+  con IC anchos por el n≤9 — el test formal de esa diferencia sigue siendo T8
+  (no se re-corrió T8 por sexo en esta sesión; el pedido no lo pidió).
+
+### Pendiente / siguiente paso concreto
+
+- **`pedidos/boxplots_acto1_base_R.R`** sigue sin aplicar: reescritura de los
+  boxplots del Acto 1 en R base con cascada D11 ampliada (bracket de efecto
+  principal si la interacción no es significativa). Antes de tocar código:
+  confirmar con el usuario si se aplica tal cual (con las 2 correcciones de
+  nombre de columna ya detectadas) y si corresponde una versión Python
+  equivalente (el pedido no trae una).
+- No se actualizó `docs/informe.html` con las 9+4 figuras nuevas del Acto 2
+  más allá de lo que `12_informe` ya arma automáticamente (que solo referencia
+  las figuras que el propio `12_informe` lista por nombre). El pedido no pidió
+  explícitamente incorporarlas al cuerpo del informe; si se quiere, es un
+  cambio aparte en `12_informe.{R,py}` (dos listas `FIG_ACTO2` a extender).
+- Falta decidir si esta sesión ameritaba un número de tarea nuevo en la tabla
+  de la Sección 6 de AGENTS/CLAUDE.md (el proyecto ya estaba cerrado en T11);
+  se dejó sin tocar esa tabla para no sugerir que el checklist original quedó
+  incompleto.
