@@ -110,9 +110,20 @@ GENES_TRANSPORTADORES = [
 GENES_VIA_IL6 = ["gp130", "il6", "il6R"]  # 3 de la via IL-6
 GEN_HOUSEKEEPING = "rsp29"
 
+# Conjuntos de variables para los SPLOM de co-expresion del Acto 2 (T7,
+# extension pedida en pedidos/cambios_acto2_correlaciones_por_sexo.md): el
+# conjunto es distinto por tejido porque il6 es cuantificable en placenta pero
+# no en cerebro (calibrador HEMBRA_CONTROL 0/9, D7); il6R no entra en ningun
+# SPLOM (deteccion insuficiente: 3/7/3/3 en cerebro).
+GENES_SPLOM_PLACENTA = GENES_TRANSPORTADORES + ["il6", "gp130"]  # 9 variables
+GENES_SPLOM_BRAIN = GENES_TRANSPORTADORES + ["gp130"]  # 8 variables
+
 assert set(GENES) == set(GENES_TRANSPORTADORES) | set(GENES_VIA_IL6)
 assert len(GENES_TRANSPORTADORES) == 7 and len(GENES_VIA_IL6) == 3
 assert len(set(GENES)) == 10
+assert len(GENES_SPLOM_PLACENTA) == 9 and len(GENES_SPLOM_BRAIN) == 8
+assert set(GENES_SPLOM_PLACENTA) == set(GENES_TRANSPORTADORES) | {"il6", "gp130"}
+assert set(GENES_SPLOM_BRAIN) == set(GENES_TRANSPORTADORES) | {"gp130"}
 
 # --- Tejidos ----------------------------------------------------------
 TEJIDOS_E15 = ["PLACENTA_E15", "BRAIN_E15"]

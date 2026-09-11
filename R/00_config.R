@@ -91,11 +91,22 @@ GENES_TRANSPORTADORES <- c("fatcd36", "fatp1", "fatp4", "glut1", "glut3",
 GENES_VIA_IL6 <- c("gp130", "il6", "il6R")         # 3 de la via IL-6
 GEN_HOUSEKEEPING <- "rsp29"
 
+# Conjuntos de variables para los SPLOM de co-expresion del Acto 2 (T7,
+# extension pedida en pedidos/cambios_acto2_correlaciones_por_sexo.md): el
+# conjunto es distinto por tejido porque il6 es cuantificable en placenta pero
+# no en cerebro (calibrador HEMBRA_CONTROL 0/9, D7); il6R no entra en ningun
+# SPLOM (deteccion insuficiente: 3/7/3/3 en cerebro).
+GENES_SPLOM_PLACENTA <- c(GENES_TRANSPORTADORES, "il6", "gp130")   # 9 variables
+GENES_SPLOM_BRAIN    <- c(GENES_TRANSPORTADORES, "gp130")          # 8 variables
+
 stopifnot(
   setequal(GENES, c(GENES_TRANSPORTADORES, GENES_VIA_IL6)),
   length(GENES_TRANSPORTADORES) == 7L,
   length(GENES_VIA_IL6) == 3L,
-  length(unique(GENES)) == 10L
+  length(unique(GENES)) == 10L,
+  length(GENES_SPLOM_PLACENTA) == 9L, length(GENES_SPLOM_BRAIN) == 8L,
+  setequal(GENES_SPLOM_PLACENTA, c(GENES_TRANSPORTADORES, "il6", "gp130")),
+  setequal(GENES_SPLOM_BRAIN, c(GENES_TRANSPORTADORES, "gp130"))
 )
 
 # --- Tejidos ----------------------------------------------------------
