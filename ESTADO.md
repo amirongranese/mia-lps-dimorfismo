@@ -1501,3 +1501,122 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
   de la Sección 6 de AGENTS/CLAUDE.md (el proyecto ya estaba cerrado en T11);
   se dejó sin tocar esa tabla para no sugerir que el checklist original quedó
   incompleto.
+
+---
+
+## Sesión 14 — 2026-09-11 — pedido post-cierre: boxplots Acto 1 + D11 ampliada
+
+> Segundo pedido pendiente de la sesión 13, ahora aplicado: `pedidos/
+> boxplots_acto1_base_R.R`, tratado como **especificación de estilo y de
+> lógica de anotación, no como código a copiar** (instrucción explícita del
+> usuario). Cambia D11 (protegida por la prohibición 9) por **pedido explícito
+> del usuario** — no es una reapertura por cuenta propia.
+
+### Qué se completó
+
+- **AGENTS.md / CLAUDE.md** (vueltos a copiar byte a byte): fila **D11**
+  reescrita (cascada de 3 ramas) + nueva **sección 4.2** ("Cascada de
+  anotación de brackets, D11 ampliada") con la tabla de las 3 situaciones, la
+  aclaración de que (b)/(c) no son excluyentes, y la nota de por qué 07 pasa a
+  R base para los boxplots de expresión.
+- **`R/07_figuras_acto1.R`**: reescrito.
+  - **D11 ampliada** (`d11_texto` + `d11_brackets_especificacion`, UNA función
+    para las 3 ramas, compartida por los paneles de expresión y por pSTAT3):
+    (a) interacción significativa → brackets por par (post hoc D6, sin
+    cambios); (b) sin interacción y `p_TTO` <0.1 → bracket único 0–3,
+    `Control vs LPS`; (c) sin interacción y `p_SEXO` <0.1 → bracket 0.5–2.5,
+    `♀ vs ♂`. (b)/(c) se apilan si ambos aplican.
+  - **2 nombres de columna corregidos** contra `qpcr_modelos_clasificacion.csv`
+    real (detectados en la sesión 13, aplicados ahora): `p_interaccion`
+    (no existe) → **`p_SEXOxTTO`** (solo para mostrarla en el subtítulo del
+    panel; el gate sigue siendo `interaccion_significativa`); `metodo` (no
+    existe en esa tabla) → **`rama_cascada`**.
+  - **Boxplots de expresión pasan de ggplot2 a R base** (`boxplot()`), único
+    cambio de motor gráfico pedido explícitamente: el estilo necesita bigote
+    punteado más claro y tope del bigote sólido con trazo distinto del borde
+    de la caja, algo que `geom_boxplot` no expone (`whisklty/whiskcol`,
+    `staplelty/staplecol`, `border` sí lo permiten en `boxplot()`/`bxp()`).
+    **El Acto 2 (08) sigue en ggplot2/GGally**; pSTAT3 (mismo script) también
+    sigue en ggplot2 — el pedido de estilo aplicaba solo a las figuras de
+    expresión.
+  - **Paleta y layout nuevos** (estilo pedido): filas del panel agrupadas por
+    vía metabólica (lipídos 3 / glucosa 2 / aminoácidos 2 / IL-6 hasta 3, no
+    el orden crudo de `GENES`), color Control por sexo (celeste) y LPS por
+    sexo × vía metabólica (una paleta por vía). `il6R` sale del panel de
+    cerebro por prolijidad visual (se conserva en la tabla de modelos y en el
+    panel de placenta). Subtítulo por panel: `rama_cascada · p SEXOxTTO · n`.
+    Caja solo si el grupo tiene ≥3 detectados (sin cambios respecto de antes).
+  - pSTAT3 (ggplot2) sin cambios de estilo, solo cambia la cascada que decide
+    los brackets (en los datos reales cae igual en la rama (a), sin cambios
+    visibles: interacción ya era significativa).
+- **`python/07_figuras_acto1.py`**: espejado funcionalmente.
+  - matplotlib **ya** permite estilar caja/bigote/tope por separado
+    (`boxprops`/`whiskerprops`/`capprops`): este lenguaje **no** tuvo que
+    cambiar de librería, solo replica el mismo estilo (paleta por vía,
+    bigote punteado, tope sólido, filas agrupadas por vía metabólica).
+  - Misma cascada D11 (`d11_texto` + `d11_brackets_especificacion`, texto
+    idéntico a R carácter por carácter donde corresponde).
+
+### Bugs propios encontrados y corregidos en esta sesión
+
+- **Bug real preexistente en `leer_tabla`/`split_keep` (R), desde T6
+  (2026-09-09), nunca disparado hasta ahora**: al retipear la función se
+  reemplazó sin querer un carácter de control invisible (`\001`, centinela
+  usado para evitar que `strsplit` descarte la última columna) por una cadena
+  vacía `""`. Con `""` la función **siempre** pierde la última columna de
+  cualquier TSV leído con `leer_tabla(...,"\t")`. Nunca se notó antes porque
+  la única vez que la última columna importa es `PSTAT3` en
+  `pstat3_long.tsv` — y ahí crasheaba (`data.frame(...)`: "argumentos implican
+  un número diferente de filas: 1, 0"). Diagnosticado comparando byte a byte
+  contra `git show HEAD:R/07_figuras_acto1.R`. Corregido restaurando el
+  centinela como `"\001"` (escape octal, en vez de un byte crudo invisible en
+  el fuente). **Se recomienda revisar si este patrón (`leer_tabla`/
+  `split_keep`) se reutiliza en algún otro script** — por ahora solo lo usa
+  07, y con el fix ya verificado extremo a extremo.
+- **Layout de matplotlib**: los brackets apilados con espaciado multiplicativo
+  fijo (`ymax * 1.30**k`) colisionaban con el título/subtítulo del panel en
+  paneles de rango de datos angosto (el margen queda enorme) o con más de un
+  nivel de bracket en paneles de rango ancho (el margen entre niveles queda
+  minúsculo) — el mismo salto absoluto en escala log es una fracción muy
+  distinta del alto visible según cuánto rango cubran los datos. Corregido
+  con `_brackets_geometria()`: techo del eje y posición de cada nivel como
+  **fracciones fijas del alto total del panel en log10** (los datos ocupan
+  una fracción fija, el resto se reparte en franjas iguales por nivel + un
+  margen), consistente sin importar el rango de cada gen; título/subtítulo
+  quedan afuera de los ejes vía `annotate` con offset en puntos, y los
+  brackets con `clip_on=True` para que nunca puedan dibujar sobre ese margen.
+
+### Verificado
+
+- **R↔Python**: mismos 21 brackets de expresión + 2 de pSTAT3, con el mismo
+  texto exacto (`Control vs LPS *`, `♀ vs ♂ **`, etc.) en ambos lenguajes —
+  comparado por stdout, no solo por CSV. `analisis_descartados.md` (sección
+  `07_figuras_acto1`) byte-idéntica R↔Python.
+  Figuras revisadas visualmente (ambos lenguajes, PLACENTA_E15 y BRAIN_E15):
+  filas por vía metabólica, paleta, bigote/tope diferenciados, brackets
+  nuevos en placenta (antes 0 brackets ahí, ahora 13) sin superposiciones.
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, paridad de render
+  OK, ~4.3 min.**
+
+### Resultados (datos reales; NO se versionan)
+
+- **Placenta E15 pasa de 0 a 13 brackets** (0/10 genes marcados → 9/10, todos
+  vía efecto principal: ninguna interacción SEXO×TTO es significativa en
+  placenta, pero varios genes tienen `p_TTO` y/o `p_SEXO` <0.1). Ejemplos:
+  `il6` `Control vs LPS ***` (`p_TTO`=6.0e-06); `glut1` con **ambos**
+  brackets apilados (`Control vs LPS *` y `♀ vs ♂ **`); `il6R` sigue sin
+  marca (ni interacción ni efectos principales cruzan 0.1).
+- **Cerebro E15**: los 7 genes con interacción significativa (T5) mantienen
+  sus brackets por par sin cambios; `glut3` (interacción no significativa,
+  `p_TTO`=0.0178) gana un bracket nuevo `Control vs LPS *` que antes no
+  existía.
+- pSTAT3: sin cambios (interacción ya significativa, cae en la rama (a)).
+
+### Pendiente / siguiente paso concreto
+
+- Ninguna tarea pendiente conocida de los dos pedidos post-cierre (sesión 13
+  y esta). Si aparece un pedido nuevo, seguir el mismo patrón: leer AGENTS.md
+  + ESTADO.md, avisar en dos líneas antes de escribir código, adaptar nombres
+  de columna contra los CSV reales (no asumir los de la especificación), y
+  cerrar con `.\run_all.ps1` completo antes de dar por terminado.
