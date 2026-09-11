@@ -142,7 +142,7 @@ MIA_LPS_reanalisis/
 | **D8** | Score compuesto de transportadores: **z-score de cada gen por separado** (dentro de cada tejido, sobre los 36 fetos) y **promedio de los 7 z por feto** (usando los z disponibles si el feto tiene <7 detectados). Nombre: *composite z-score / module score / gene set score*; variante PCA = *eigengene*. **Prohibido llamarlo "TONE"** en cualquier archivo, gráfico o texto. | Score robusto y estándar; "TONE" es nomenclatura interna no publicable. |
 | **D9** | pSTAT3: `PSTAT3 ~ SEXO * TTO + MEMBRANA` (MEMBRANA = bloque fijo; diseño balanceado). Misma cascada D5 y mismo post hoc D6. **Limitación obligatoria en el informe:** normalizado a proteína total sin STAT3 total → refleja **abundancia de fosfo-STAT3**, no fracción fosforilada. | El bloque absorbe la variación entre membranas; sin STAT3 total no hay fracción. |
 | **D10** | ELISA con censura a izquierda: columna indicadora `censurado = TRUE`, valor guardado como `NA`, `LOD` registrado aparte. Reportar **% de censura por grupo antes** de cualquier estadístico. Métodos que manejan censura: KM/ROS (`NADA` en R) o no paramétricos con censurados como empates en el rango más bajo (Peto-Peto / Gehan). Si un grupo tiene censura tan alta que ningún estimador es defendible, decirlo y reportar solo proporción de detección. | Un valor "< blanco" no es un número negativo ni un 0; es información parcial. |
-| **D11** | Anotación de boxplots de expresión: **solo si `SEXO×TTO` significativa y el post hoc de esa comparación lo es.** `p<0.001` → `***`; `p<0.01` → `**`; `p<0.05` → `*` (bracket línea llena). `0.05<p<0.1` → tendencia: bracket punteado + valor numérico de `p` (3 decimales). `p≥0.1` → sin anotar. **Una sola función de brackets** (una en R, una en Python), usada en todas las figuras. | La convención no se re-implementa por gráfico; evita anotaciones inconsistentes. |
+| **D11** | Anotación de boxplots de expresión y de pSTAT3, en **cascada de 3 ramas** (ver 4.2 — **ampliada por pedido explícito del usuario, 2026-09-11**, revierte la restricción previa "solo si la interacción es significativa"): (a) `SEXO×TTO` significativa → brackets por par del post hoc D6, como antes. (b) interacción NO significativa y efecto principal de `TTO` significativo/tendencia → **un solo bracket** que abarca los 4 grupos, etiqueta `Control vs LPS` + estrellas/`p`. (c) interacción NO significativa y efecto principal de `SEXO` significativo/tendencia → bracket entre los centros de cada sexo, etiqueta `♀ vs ♂` + estrellas/`p`. (b) y (c) no son excluyentes entre sí. Símbolos (las 3 ramas): `p<0.001` → `***`; `p<0.01` → `**`; `p<0.05` → `*` (bracket línea llena); `0.05≤p<0.1` → tendencia: bracket punteado + `p` (3 decimales); `p≥0.1` → sin anotar. **Una sola función decide qué anotar** (una en R, una en Python), usada en todas las figuras. | El modelo no sostiene que el efecto difiera entre sexos cuando la interacción no es significativa: marcar los 4 pares sugeriría un dimorfismo no sostenido; el efecto principal es la conclusión que el modelo sí sostiene. |
 | **D12** | Corrección entre genes: criterio **primario = sin corrección**. Agregar igualmente, como **columna suplementaria rotulada**, el `p` ajustado por **Benjamini-Hochberg dentro de cada tejido** a través de los genes. **No cambiar ninguna conclusión** por esa columna; mencionar en el informe cuántos resultados sobreviven. | Decisión abierta declarada; la columna BH queda disponible sin dirigir la inferencia. |
 
 ### 4.1 Cascada de supuestos (D5)
@@ -155,6 +155,30 @@ MIA_LPS_reanalisis/
 
 - Post hoc de ART: **ART-C** (`art.con`), **nunca `emmeans` directo** sobre el modelo ART (infla el error tipo I).
 - El orden de la cascada es: normalidad y homocedasticidad OK → ANOVA-III; si falla solo Levene → HC3; si falla Shapiro (con o sin Levene) → ART.
+
+### 4.2 Cascada de anotación de brackets (D11 ampliada)
+
+| Situación | Anotación |
+|---|---|
+| `SEXO×TTO` significativa (post hoc D6 corrido) | Un bracket por cada comparación de D6 cuyo `p_holm` cruce el umbral (como antes de esta sesión) |
+| `SEXO×TTO` NO significativa y `TTO` (efecto principal) significativo/tendencia | Un único bracket que abarca los 4 grupos, etiqueta `Control vs LPS` |
+| `SEXO×TTO` NO significativa y `SEXO` (efecto principal) significativo/tendencia | Un único bracket entre los centros de ♀ y ♂, etiqueta `♀ vs ♂` |
+
+- Los dos brackets de efecto principal **no son excluyentes entre sí**: si `TTO` y `SEXO`
+  cruzan el umbral a la vez (sin interacción significativa), se apilan ambos.
+- Símbolos: mismo criterio en las 3 filas — `p<0.001` → `***`, `p<0.01` → `**`, `p<0.05` →
+  `*` (bracket sólido); `0.05≤p<0.1` → bracket punteado + `p = 0.NNN`; `p≥0.1` → sin anotar.
+- **Cambio del 2026-09-11** (pedido explícito del usuario, tratando
+  `pedidos/boxplots_acto1_base_R.R` como especificación de estilo y de lógica de
+  anotación, no como código a copiar): antes, sin interacción significativa, el panel
+  quedaba sin ninguna marca — aunque hubiera un efecto principal fuerte (p. ej.
+  `il6@PLACENTA_E15` con `p_TTO` = 6.0e-06). Esa restricción se revierte con esta cascada.
+- Los boxplots de expresión (`07_figuras_acto1`) pasan a **R base** (no `ggplot2`) porque
+  el estilo pedido necesita bigote y tope del bigote con trazo distinto del borde de la
+  caja, algo que `geom_boxplot` no expone y `boxplot()`/`bxp()` de R base sí. El Acto 2
+  (08) sigue en ggplot2/GGally, y pSTAT3 (mismo script que los boxplots de expresión)
+  también sigue en ggplot2. matplotlib (Python) ya permitía estilar los tres trazos por
+  separado, así que ese lenguaje no cambió de librería.
 
 ---
 
