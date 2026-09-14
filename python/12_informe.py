@@ -47,29 +47,33 @@ ESTE_SCRIPT = "12_informe"
 LANG = "python"
 
 # --- Reportes .md de copia unica -> seccion del informe --------------------
-# (titulo de seccion, archivo .md en outputs/tables/, [figuras en outputs/figures/])
+# (titulo de seccion, archivo .md en outputs/tables/, criterio de figuras)
+#
+# El 3er elemento YA NO es una lista de PNG escrita a mano (se desincronizaba
+# cada vez que un script agregaba figuras -- ver ESTADO.md, sesion del
+# bugfix): es un CRITERIO que filtra `procedencia.csv` (clave
+# "script", mas "patron" opcional de nombre para separar los dos usos de
+# 07_figuras_acto1 -- expresion vs pSTAT3). Las figuras de cada seccion se
+# derivan solas en `figuras_de_seccion()`.
 SECCIONES = [
     ("Acto 1.1 -- ELISA de IL-6 (validacion del modelo)", "elisa_reporte.md",
-     ["acto1_elisa_ms.png", "acto1_elisa_la.png"]),
+     {"script": "03_elisa"}),
     ("Acto 1.2 -- Cuantificacion relativa (qPCR)", "qpcr_cuantificacion_reporte.md",
-     []),
+     {"script": "04_qpcr_cuantificacion"}),
     ("Acto 1.3 -- Modelos de expresion (qPCR)", "qpcr_modelos_reporte.md",
-     ["acto1_expresion_PLACENTA_E15.png", "acto1_expresion_BRAIN_E15.png"]),
+     {"script": "07_figuras_acto1", "patron": r"^acto1_expresion_"}),
     ("Acto 1.4 -- pSTAT3 en placenta", "pstat3_reporte.md",
-     ["acto1_pstat3.png"]),
+     {"script": "07_figuras_acto1", "patron": r"^acto1_pstat3"}),
     ("Acto 2.1-2.2 -- Correlacion placenta<->cerebro y co-expresion",
      "acto2_correlaciones_reporte.md",
-     ["acto2_dispersion_placenta_cerebro.png",
-      "acto2_coexpresion_SPLOM_PLACENTA_E15.png",
-      "acto2_coexpresion_SPLOM_BRAIN_E15.png"]),
+     {"script": "08_acto2_correlaciones"}),
     ("Acto 2.3-2.4 -- Dispersion y test formal de Delta rho",
      "acto2_dispersion_reporte.md",
-     ["acto2_dispersion_sd.png", "acto2_test_delta_rho.png"]),
+     {"script": "09_acto2_dispersion"}),
     ("Acto 2.5 -- Simulacion de restriccion de rango",
-     "acto2_simulacion_reporte.md", ["acto2_simulacion_delta_rho.png"]),
+     "acto2_simulacion_reporte.md", {"script": "10_acto2_simulacion"}),
     ("Acto 2.6 -- Sensibilidad (eigengene, exclusion del feto extremo)",
-     "acto2_sensibilidad_reporte.md",
-     ["acto2_sensibilidad_eigengene.png", "acto2_sensibilidad_excl_extremo.png"]),
+     "acto2_sensibilidad_reporte.md", {"script": "11_sensibilidad"}),
 ]
 
 # Decisiones D1..D12 (texto fijo, identico en ambos lenguajes; espejo de AGENTS 4).
@@ -405,6 +409,41 @@ def _col(header, filas, nombre):
     return [f[j] if j < len(f) else "" for f in filas]
 
 
+# =========================================================================
+# Figuras por seccion -- DERIVADAS de procedencia.csv, no hardcodeadas (ver
+# comentario de SECCIONES). `figuras_procedencia()` es la unica lectura de
+# procedencia.csv para esto; `figuras_de_seccion()` filtra por script (y un
+# patron opcional de nombre) para una seccion puntual; `figuras_embebidas()`
+# junta lo que efectivamente se incrusta en el informe completo (usado tanto
+# para armar el HTML como para la verificacion de cobertura en main()).
+# =========================================================================
+def figuras_procedencia():
+    h, f = leer_csv_sin_este(cfg.RUTA_TABLAS / "procedencia.csv")
+    art = _col(h, f, "artefacto")
+    tipo = _col(h, f, "tipo")
+    scr = _col(h, f, "script")
+    filas = [(a, s) for a, t, s in zip(art, tipo, scr)
+             if t == "figura" and a.startswith("outputs/figures/")]
+    return filas
+
+
+def figuras_de_seccion(figs, criterio):
+    nombres = [Path(a).name for a, s in figs if s == criterio["script"]]
+    patron = criterio.get("patron")
+    if patron:
+        nombres = [n for n in nombres if re.match(patron, n)]
+    return nombres
+
+
+def figuras_embebidas(figs):
+    vistas = []
+    for _tit, _md, criterio in SECCIONES:
+        for n in figuras_de_seccion(figs, criterio):
+            if n not in vistas:
+                vistas.append(n)
+    return vistas
+
+
 def resumen_numeros():
     r = {}
 
@@ -672,13 +711,15 @@ def construir_html(fuente: str, num: dict) -> str:
     L.append(_seccion("metodos", "2. Diseno y metodos", "\n".join(met)))
 
     # --- 3. Acto 1 + 4. Acto 2 ---
+    figs = figuras_procedencia()
+
     def bloque_secciones(ids, titulo, indices):
         partes = []
         for k in indices:
-            tit, md, figs = SECCIONES[k]
+            tit, md, criterio = SECCIONES[k]
             partes.append("<h3>%s</h3>" % _esc(tit))
             partes.append(md_a_html(leer_texto(cfg.RUTA_TABLAS / md)))
-            for fg in figs:
+            for fg in figuras_de_seccion(figs, criterio):
                 partes.append(fig_html(fg))
         return _seccion(ids, titulo, "\n".join(partes))
 
@@ -848,11 +889,20 @@ def main():
     for md in sorted(cfg.RUTA_TABLAS.glob("*.md")):
         escribir_texto(snap / "tables" / md.name, leer_texto(md))
 
-    n_fig = sum(1 for _, _, fs in SECCIONES for _ in fs)
-    faltan = [fg for _, _, fs in SECCIONES for fg in fs
-              if not (cfg.RUTA_FIGURAS / fg).is_file()]
+    figs_proc = figuras_procedencia()
+    figs_todas = figuras_embebidas(figs_proc)
+    n_fig = len(figs_todas)
+    faltan = [fg for fg in figs_todas if not (cfg.RUTA_FIGURAS / fg).is_file()]
     md_faltan = [md for _, md, _ in SECCIONES
                  if not (cfg.RUTA_TABLAS / md).is_file()]
+
+    # Cobertura: toda figura con fila en procedencia.csv tiene que quedar
+    # incrustada en alguna seccion -- esta es la verificacion que habria
+    # detectado que acto2_corr_placenta_cerebro_* y los SPLOM por sexo no
+    # aparecian en el informe (quedaban en procedencia.csv pero fuera de
+    # cualquier SECCIONES a mano).
+    todas_en_procedencia = sorted({Path(a).name for a, _s in figs_proc})
+    sin_embeber = sorted(set(todas_en_procedencia) - set(figs_todas))
 
     ent = "outputs/tables/*.md + outputs/tables/{R,python}/*.csv + outputs/figures/*.png"
     registrar_procedencia([
@@ -882,6 +932,12 @@ def main():
          "secciones=%d; md_faltan=%s" % (len(SECCIONES), md_faltan or "[]"),
          "md_faltan = []",
          "TRUE" if not md_faltan else "FALSE", ESTE_SCRIPT],
+        ["informe_figuras_procedencia_embebidas",
+         "toda figura con fila en procedencia.csv esta incrustada en el informe",
+         "procedencia=%d; embebidas=%d; sin_embeber=%s" % (
+             len(todas_en_procedencia), len(figs_todas), sin_embeber or "[]"),
+         "sin_embeber = []",
+         "TRUE" if not sin_embeber else "FALSE", ESTE_SCRIPT],
         ["informe_pdf",
          "docs/informe.pdf generado, o degradado limpio si no hay motor de PDF",
          "estado=%s; existe=%s" % (
@@ -909,6 +965,8 @@ def main():
         n_fig, "" if not faltan else "  FALTAN: %s" % faltan))
     print("  secciones .md: %d%s" % (
         len(SECCIONES), "" if not md_faltan else "  FALTAN: %s" % md_faltan))
+    print("  figuras de procedencia.csv sin embeber: %s" % (
+        "ninguna" if not sin_embeber else ", ".join(sin_embeber)))
     print("  snapshot: outputs/intermediate/render/%s/" % LANG)
     if faltan or md_faltan:
         print("  *** faltan insumos: correr 02..11 y 07 antes de 12_informe ***")

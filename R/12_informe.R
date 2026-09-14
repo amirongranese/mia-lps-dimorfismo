@@ -37,28 +37,31 @@ ESTE_SCRIPT <- "12_informe"
 LANG <- "R"
 
 # --- Reportes .md de copia unica -> seccion del informe --------------------
+# El 3er elemento de cada entrada YA NO es una lista de PNG escrita a mano
+# (se desincronizaba cada vez que un script agregaba figuras -- ver ESTADO.md,
+# sesion del bugfix): es un CRITERIO que filtra
+# `procedencia.csv` (columna `script`, mas un patron de nombre opcional para
+# separar los dos usos de 07_figuras_acto1 -- expresion vs pSTAT3). Las
+# figuras de cada seccion se derivan solas en `figuras_de_seccion()`.
 SECCIONES <- list(
   list("Acto 1.1 -- ELISA de IL-6 (validacion del modelo)", "elisa_reporte.md",
-       c("acto1_elisa_ms.png", "acto1_elisa_la.png")),
+       list(script = "03_elisa")),
   list("Acto 1.2 -- Cuantificacion relativa (qPCR)", "qpcr_cuantificacion_reporte.md",
-       character(0)),
+       list(script = "04_qpcr_cuantificacion")),
   list("Acto 1.3 -- Modelos de expresion (qPCR)", "qpcr_modelos_reporte.md",
-       c("acto1_expresion_PLACENTA_E15.png", "acto1_expresion_BRAIN_E15.png")),
+       list(script = "07_figuras_acto1", patron = "^acto1_expresion_")),
   list("Acto 1.4 -- pSTAT3 en placenta", "pstat3_reporte.md",
-       c("acto1_pstat3.png")),
+       list(script = "07_figuras_acto1", patron = "^acto1_pstat3")),
   list("Acto 2.1-2.2 -- Correlacion placenta<->cerebro y co-expresion",
        "acto2_correlaciones_reporte.md",
-       c("acto2_dispersion_placenta_cerebro.png",
-         "acto2_coexpresion_SPLOM_PLACENTA_E15.png",
-         "acto2_coexpresion_SPLOM_BRAIN_E15.png")),
+       list(script = "08_acto2_correlaciones")),
   list("Acto 2.3-2.4 -- Dispersion y test formal de Delta rho",
        "acto2_dispersion_reporte.md",
-       c("acto2_dispersion_sd.png", "acto2_test_delta_rho.png")),
+       list(script = "09_acto2_dispersion")),
   list("Acto 2.5 -- Simulacion de restriccion de rango",
-       "acto2_simulacion_reporte.md", c("acto2_simulacion_delta_rho.png")),
+       "acto2_simulacion_reporte.md", list(script = "10_acto2_simulacion")),
   list("Acto 2.6 -- Sensibilidad (eigengene, exclusion del feto extremo)",
-       "acto2_sensibilidad_reporte.md",
-       c("acto2_sensibilidad_eigengene.png", "acto2_sensibilidad_excl_extremo.png"))
+       "acto2_sensibilidad_reporte.md", list(script = "11_sensibilidad"))
 )
 
 # Decisiones D1..D12 (texto fijo, identico en ambos lenguajes; espejo de AGENTS 4).
@@ -338,6 +341,29 @@ md_a_html <- function(texto, base_nivel = 3L) {
   j <- match(nombre, t$header)
   vapply(t$filas, function(f) if (j <= length(f)) f[[j]] else "", character(1))
 }
+# =========================================================================
+# Figuras por seccion -- DERIVADAS de procedencia.csv, no hardcodeadas (ver
+# comentario de SECCIONES). `figuras_procedencia()` es la unica lectura de
+# procedencia.csv para esto; `figuras_de_seccion()` filtra por script (y un
+# patron opcional de nombre) para una seccion puntual; `figuras_embebidas()`
+# junta lo que efectivamente se incrusta en el informe completo (usado tanto
+# para armar el HTML como para la verificacion de cobertura en main()).
+# =========================================================================
+figuras_procedencia <- function() {
+  t <- leer_csv_sin_este(file.path(RUTA_TABLAS, "procedencia.csv"))
+  art <- .col(t, "artefacto"); tipo <- .col(t, "tipo"); scr <- .col(t, "script")
+  es_fig <- tipo == "figura" & startsWith(art, "outputs/figures/")
+  list(artefacto = art[es_fig], script = scr[es_fig])
+}
+figuras_de_seccion <- function(figs, criterio) {
+  idx <- figs$script == criterio$script
+  nombres <- basename(figs$artefacto[idx])
+  if (!is.null(criterio$patron)) nombres <- nombres[grepl(criterio$patron, nombres)]
+  nombres
+}
+figuras_embebidas <- function(figs) unique(unlist(
+  lapply(SECCIONES, function(sec) figuras_de_seccion(figs, sec[[3]]))))
+
 resumen_numeros <- function() {
   r <- list()
 
@@ -614,13 +640,14 @@ construir_html <- function(fuente, num) {
     md_a_html(leer_texto(file.path(RUTA_TABLAS, "qc_reporte.md"))))
   L <- c(L, .seccion("metodos", "2. Diseno y metodos", paste(met, collapse = "\n")))
 
+  figs <- figuras_procedencia()
   bloque_secciones <- function(ids, titulo, indices) {
     partes <- character(0)
     for (k in indices) {
       sec <- SECCIONES[[k]]
       partes <- c(partes, sprintf("<h3>%s</h3>", .esc(sec[[1]])))
       partes <- c(partes, md_a_html(leer_texto(file.path(RUTA_TABLAS, sec[[2]]))))
-      for (fg in sec[[3]]) partes <- c(partes, fig_html(fg))
+      for (fg in figuras_de_seccion(figs, sec[[3]])) partes <- c(partes, fig_html(fg))
     }
     .seccion(ids, titulo, paste(partes, collapse = "\n"))
   }
@@ -770,11 +797,20 @@ main <- function() {
     escribir_texto(file.path(snap, "tables", md),
                    leer_texto(file.path(RUTA_TABLAS, md)))
 
-  figs_todas <- unlist(lapply(SECCIONES, `[[`, 3))
+  figs_proc <- figuras_procedencia()
+  figs_todas <- figuras_embebidas(figs_proc)
   n_fig <- length(figs_todas)
   faltan <- figs_todas[!file.exists(file.path(RUTA_FIGURAS, figs_todas))]
   md_sec <- vapply(SECCIONES, `[[`, character(1), 2)
   md_faltan <- md_sec[!file.exists(file.path(RUTA_TABLAS, md_sec))]
+
+  # Cobertura: toda figura con fila en procedencia.csv tiene que quedar
+  # incrustada en alguna seccion -- esta es la verificacion que habria
+  # detectado que acto2_corr_placenta_cerebro_* y los SPLOM por sexo no
+  # aparecian en el informe (quedaban en procedencia.csv pero fuera de
+  # cualquier SECCIONES a mano).
+  todas_en_procedencia <- unique(basename(figs_proc$artefacto))
+  sin_embeber <- sort(setdiff(todas_en_procedencia, figs_todas))
 
   n_sec <- length(gregexpr('<section id="', html, fixed = TRUE)[[1]])
 
@@ -807,6 +843,13 @@ main <- function() {
                  if (length(md_faltan)) paste(md_faltan, collapse = ", ") else "[]"),
          "md_faltan = []",
          if (!length(md_faltan)) "TRUE" else "FALSE", ESTE_SCRIPT),
+    list("informe_figuras_procedencia_embebidas",
+         "toda figura con fila en procedencia.csv esta incrustada en el informe",
+         sprintf("procedencia=%d; embebidas=%d; sin_embeber=%s",
+                 length(todas_en_procedencia), length(figs_todas),
+                 if (length(sin_embeber)) paste(sin_embeber, collapse = ", ") else "[]"),
+         "sin_embeber = []",
+         if (!length(sin_embeber)) "TRUE" else "FALSE", ESTE_SCRIPT),
     list("informe_pdf",
          "docs/informe.pdf generado, o degradado limpio si no hay motor de PDF",
          sprintf("estado=%s; existe=%s", pdf_status,
@@ -835,6 +878,8 @@ main <- function() {
   cat(sprintf("  secciones .md: %d%s\n", length(SECCIONES),
               if (!length(md_faltan)) "" else sprintf("  FALTAN: %s",
                 paste(md_faltan, collapse = ", "))))
+  cat(sprintf("  figuras de procedencia.csv sin embeber: %s\n",
+              if (!length(sin_embeber)) "ninguna" else paste(sin_embeber, collapse = ", ")))
   cat(sprintf("  snapshot: outputs/intermediate/render/%s/\n", LANG))
   if (length(faltan) || length(md_faltan)) {
     cat("  *** faltan insumos: correr 02..11 y 07 antes de 12_informe ***\n")

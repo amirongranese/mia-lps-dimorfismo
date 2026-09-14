@@ -1732,3 +1732,60 @@ tomados de `00_config`, no reescritos a mano en el script de figuras.
   quedaron aplicados y verificados, un commit por cambio). Si aparece un
   pedido nuevo: leer AGENTS.md + ESTADO.md, avisar en dos líneas antes de
   escribir código, y cerrar con `.\run_all.ps1` completo.
+
+---
+
+## Sesión 16 — 2026-09-14 — bugfix: `12_informe` no incrustaba 13 figuras nuevas
+
+> Bug reportado por el usuario: las 9 figuras `acto2_corr_placenta_cerebro_*.png`
+> (T7/sesión de correlaciones por sexo) y los 4 SPLOM por sexo existen en
+> `outputs/figures/` y tienen fila en `procedencia.csv`, pero no aparecían en
+> `docs/informe.html` — la sección "Acto 2.1-2.2" seguía mostrando solo
+> `acto2_dispersion_placenta_cerebro.png` (la vista global vieja, sin separar
+> por sexo). Causa: `SECCIONES` en `12_informe.{R,py}` traía la lista de PNG
+> de cada sección **escrita a mano**, y nunca se actualizó cuando `08_acto2_correlaciones`
+> agregó esas 13 figuras en una sesión anterior.
+
+### Qué se completó
+
+- **`SECCIONES`** deja de traer una lista de PNG a mano en su 3er elemento y
+  pasa a un **criterio** (`script` de `procedencia.csv` + `patron` opcional de
+  nombre): las figuras de cada sección se derivan solas filtrando
+  `procedencia.csv` en `figuras_de_seccion()` (nueva). El `patron` solo hace
+  falta para separar los dos usos de `07_figuras_acto1` (boxplots de expresión
+  vs pSTAT3, mismo `script`, filas distintas); para el resto de las secciones
+  alcanza con el `script`.
+- Efecto directo: la sección "Acto 2.1-2.2" ahora muestra las **9 figuras
+  `acto2_corr_placenta_cerebro_<item>.png`** (por gen + score compuesto), los
+  **6 SPLOM** (2 globales + 4 por sexo) y la vista global vieja
+  (`acto2_dispersion_placenta_cerebro.png`, que sigue siendo una figura
+  legítima del mismo script — no se borra, solo deja de ser la única).
+  **Figuras incrustadas: 13 → 26.**
+- **Verificación nueva `informe_figuras_procedencia_embebidas`**: compara el
+  set de figuras con fila en `procedencia.csv` contra las efectivamente
+  incrustadas (`figuras_embebidas()`, la unión de `figuras_de_seccion()` sobre
+  todas las `SECCIONES`) y falla si sobra alguna sin embeber. **Esta es la
+  verificación que habría detectado el bug** — antes solo existía la
+  verificación inversa (`informe_figuras_incrustadas`: que las figuras
+  *listadas a mano* existan en disco, que no detecta figuras *ausentes de la
+  lista*).
+- Mismo patrón en R (`figuras_procedencia`/`figuras_de_seccion`/`figuras_embebidas`,
+  usando `.col()`/`leer_csv_sin_este()` ya existentes) y Python (ídem con
+  `_col()`/`leer_csv_sin_este()`).
+
+### Verificado
+
+- Recuento de `figcaption` en `informe.textonly.html`: las 26 figuras de
+  `procedencia.csv` aparecen, en el orden esperado (SPLOM, luego correlación
+  por gen, luego la vista global, dentro de la sección de Acto 2.1-2.2).
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, **91/91**
+  verificaciones en TRUE (antes 90 — la nueva se suma), paridad de render OK,
+  ~4.3 min.**
+
+### Pendiente / siguiente paso concreto
+
+- Ninguna. Si se agregan figuras nuevas a algún script existente, aparecerán
+  solas en su sección (mismo `script` en `procedencia.csv`); si se agrega una
+  sección nueva en `SECCIONES`, sigue siendo manual (título + `.md` + criterio),
+  como corresponde.
