@@ -1851,14 +1851,49 @@ verificada 20/20.
   Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, **94/94**
   verificaciones en TRUE (antes 93), paridad de render OK, ~4.3 min.**
 
+### Punto 3/4 — NUEVO: test de interacción SEXO×TTO sobre la dispersión
+
+Extensión factorial del Levene Brown-Forsythe (2.3): en vez de un factor
+(`TTO`), ANOVA III de 2 factores (`SEXO`, `TTO`) sobre `z = |x − mediana de
+su celda SEXO×TTO|`, por gen×tejido (universo = T5, `via == "modelo"`,
+18/20 — se lee `qpcr_modelos_clasificacion.csv` del propio idioma). Tabla
+nueva `acto2_dispersion_interaccion.csv`.
+
+**Corrección del usuario aplicada**: esta es la única parte del proyecto
+donde **D5 no se aplica** — ANOVA tipo III directo con contrastes suma-cero,
+sin cascada. Razón (declarada en el reporte y en `analisis_descartados.md`):
+el propio Levene Brown-Forsythe ya es un ANOVA sobre desvíos absolutos; los
+desvíos absolutos son positivos y sesgados por construcción (Shapiro fallaría
+casi siempre → ART sin motivo real), y evaluar homocedasticidad sobre una
+variable que ya es una medida de dispersión es circular. Núcleo ANOVA III
+(`resolver`/`ajustar`/diseño suma-cero/`anova3_terminos`) portado de
+`05_qpcr_modelos` (mismo diseño de 4 columnas `[1, s, t, s*t]`).
+
+**Verificación 7.2 del pedido** (`acto2_interaccion_vs_levene`): el test
+colapsado a un solo factor (`TTO`, ignorando `SEXO`) tiene que reproducir
+exactamente el Levene Brown-Forsythe. Verificado con `fatcd36@PLACENTA_E15`
+(fijo, determinista): **F 2.009666 vs 2.009666, p 1.653996e-01 vs
+1.653996e-01** — coincide a 6 decimales, tolerancia 1e-8 superada.
+
+BH (D12) por término, dentro de cada tejido. Resultado (datos reales): 8/18
+gen×tejido con `p_SEXOxTTO < .05` (incluye `fatcd36`, `fatp4`, `gp130` en
+cerebro — 3 de los 4 genes que el pedido señala como "interacción
+significativa en T5 sin post hoc que sobreviva Holm").
+
+### Verificado
+
+- R↔Python: mismos 8/18 genes significativos, mismos F/p exactos.
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, **32/32** CSV byte-idénticos (nueva tabla
+  incluida), **98/98** verificaciones en TRUE (antes 94), paridad de render
+  OK, ~4.3 min.**
+- Bug propio encontrado y corregido en el camino: la primera redacción de
+  `analisis_descartados.md` citaba `fila_diseno`/`_fila_diseno` y
+  `05_qpcr_modelos.R`/`.py` (nombres específicos de cada lenguaje) → falla de
+  paridad de render; corregido con prosa neutra.
+
 ### Pendiente / siguiente paso concreto
 
-- **Punto 3/4** (test de interacción SEXO×TTO sobre dispersión, ANOVA III
-  directo **sin cascada D5** — corrección del usuario: los desvíos absolutos
-  son positivos y sesgados por construcción, Shapiro fallaría casi siempre y
-  mandaría todo a ART sin motivo; evaluar homocedasticidad sobre una medida
-  de dispersión no tiene sentido. Dejar anotado en el reporte que esta es la
-  única parte del proyecto donde D5 no se aplica, con esa justificación) y
-  **punto 4/4** (simulación cubre los estratos HEMBRA/MACHO) — seguir en esta
-  misma sesión, un commit por punto, cerrando cada uno con `.\run_all.ps1`
-  completo. Punto 5 (test de pendientes) sigue pendiente de confirmación.
+- **Punto 4/4** (simulación cubre los estratos HEMBRA/MACHO) — cerrar esta
+  sesión con ese punto, commit propio, `.\run_all.ps1` completo. Punto 5
+  (test de pendientes) sigue pendiente de confirmación.

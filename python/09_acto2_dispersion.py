@@ -178,6 +178,65 @@ def rangos_promedio(xs):
     return r
 
 
+# ---------------------------------------------------------------------------
+# ANOVA tipo III (contrastes suma-cero) -- nucleo PROPIO, portado de
+# 05_qpcr_modelos.py (mismo Gauss-Jordan). Usado SOLO por la Seccion 3 (test
+# de interaccion SEXO x TTO sobre la dispersion, NUEVO): a diferencia de D5
+# (05/06), aca NO hay cascada de supuestos -- ver esa seccion para la
+# justificacion (correccion explicita del usuario).
+# ---------------------------------------------------------------------------
+def resolver(A, b):
+    n = len(A)
+    M = [list(A[i]) + [b[i]] for i in range(n)]
+    for c in range(n):
+        piv = max(range(c, n), key=lambda r: abs(M[r][c]))
+        M[c], M[piv] = M[piv], M[c]
+        d = M[c][c]
+        for j in range(c, n + 1):
+            M[c][j] /= d
+        for r in range(n):
+            if r != c and M[r][c] != 0.0:
+                f = M[r][c]
+                for j in range(c, n + 1):
+                    M[r][j] -= f * M[c][j]
+    return [M[i][n] for i in range(n)]
+
+
+def _fila_diseno(sexo, tto):
+    """Diseno suma-cero [1, s, t, s*t]; s=+1 HEMBRA/-1 MACHO, t=+1 CONTROL/-1 LPS."""
+    s = 1.0 if sexo == "HEMBRA" else -1.0
+    t = 1.0 if tto == "CONTROL" else -1.0
+    return [1.0, s, t, s * t]
+
+
+def ajustar(X, y, cols):
+    Xs = [[fila[c] for c in cols] for fila in X]
+    p = len(cols)
+    n = len(y)
+    XtX = [[suma([Xs[i][a] * Xs[i][b] for i in range(n)]) for b in range(p)]
+           for a in range(p)]
+    Xty = [suma([Xs[i][a] * y[i] for i in range(n)]) for a in range(p)]
+    b = resolver(XtX, Xty)
+    resid = [y[i] - suma([Xs[i][a] * b[a] for a in range(p)]) for i in range(n)]
+    sse = suma([e * e for e in resid])
+    return sse, b, resid
+
+
+def anova3_terminos(X, y):
+    """SS tipo III por comparacion de modelos (con vs sin cada termino)."""
+    n = len(y)
+    sse_full, _b, _r = ajustar(X, y, [0, 1, 2, 3])
+    df = n - 4
+    mse = sse_full / df
+    out = {}
+    for nombre, quita in (("SEXO", 1), ("TTO", 2), ("SEXO:TTO", 3)):
+        cols = [c for c in (0, 1, 2, 3) if c != quita]
+        sse_r, _b2, _r2 = ajustar(X, y, cols)
+        F = (sse_r - sse_full) / mse
+        out[nombre] = (F, f_sf(F, 1, df))
+    return out, df
+
+
 def spearman_rho(x, y):
     """rho = Pearson sobre los rangos (corrige empates). Sumas explicitas."""
     n = len(x)
@@ -416,6 +475,132 @@ def tabla_test(D):
 
 
 # ===========================================================================
+# 2.5 -- NUEVO: test de interaccion SEXO x TTO sobre la dispersion. Extension
+# factorial del Levene Brown-Forsythe de 2.3: en vez de un factor (TTO,
+# 2 grupos), un ANOVA III de 2 factores (SEXO, TTO) sobre |x - mediana de su
+# celda SEXO x TTO| -- pregunta si el efecto del LPS SOBRE LA VARIABILIDAD
+# difiere entre sexos. Aplicado a los (TEJIDO, GEN) que T5 modelo (via ==
+# "modelo" en qpcr_modelos_clasificacion.csv; hereda el piso de 5 detectados
+# por celda que T5 ya aplico, no se recalcula aca).
+#
+# CORRECCION DEL USUARIO -- esta es la UNICA parte del proyecto donde D5 (la
+# cascada de supuestos) NO se aplica: el propio Levene Brown-Forsythe (lo que
+# D5 usaria si fallara Shapiro) YA ES un ANOVA ordinario sobre desvios
+# absolutos. Los desvios absolutos son positivos y sesgados por construccion
+# -> Shapiro fallaria casi siempre y mandaria todo a ART sin motivo real; y
+# evaluar homocedasticidad (Levene) SOBRE una variable que ya es una medida
+# de dispersion no tiene sentido logico (es circular). Se usa ANOVA tipo III
+# directo con contrastes suma-cero, sin seleccion de rama.
+# ===========================================================================
+CELDAS_INTER = [("HEMBRA", "CONTROL"), ("HEMBRA", "LPS"),
+                ("MACHO", "CONTROL"), ("MACHO", "LPS")]
+COLS_INTER = ["GEN", "TEJIDO", "n_HC", "n_HL", "n_MC", "n_ML",
+              "mediana_HC", "mad_HC", "mediana_HL", "mad_HL",
+              "mediana_MC", "mad_MC", "mediana_ML", "mad_ML",
+              "F_SEXO", "p_SEXO", "F_TTO", "p_TTO", "F_SEXOxTTO", "p_SEXOxTTO",
+              "p_SEXO_BH", "p_TTO_BH", "p_SEXOxTTO_BH"]
+
+
+def universo_interaccion():
+    """Los (TEJIDO, GEN) con via == 'modelo' en la clasificacion de T5
+    (05_qpcr_modelos) -- 18 de 20 (fuera: il6@BRAIN_E15 D7, il6R@BRAIN_E15
+    descriptivo_n_bajo). Se lee del propio idioma (RUTA_TABLAS_PY aca)."""
+    h, filas = _leer_csv(cfg.RUTA_TABLAS_PY / "qpcr_modelos_clasificacion.csv")
+    j_tej, j_gen, j_via = h.index("TEJIDO"), h.index("GEN"), h.index("via")
+    return [(f[j_tej], f[j_gen]) for f in filas if f[j_via] == "modelo"]
+
+
+def _celda_valores(D, tej, gen, sexo, tto):
+    """Valores DETECTADOS (-ddCt) de un gen x tejido, en una celda SEXO x TTO
+    -- los mismos datos que 04/05 (D['negdd']), no los pares placenta-cerebro
+    de 08/09."""
+    ys = []
+    for f in D["fetos"]:
+        if D["sexo"][f] != sexo or D["tto"][f] != tto:
+            continue
+        v = D["negdd"].get((f, tej, gen))
+        if v is None:
+            continue
+        ys.append(v)
+    return ys
+
+
+def tabla_interaccion(D):
+    universo = universo_interaccion()
+    filas = []
+    pend = {tej: {"SEXO": [], "TTO": [], "SEXO:TTO": []} for tej in TEJIDOS}
+    for tej, gen in universo:
+        resumen = {}
+        m_sexo, m_tto, m_y = [], [], []
+        for sexo, tto in CELDAS_INTER:
+            ys = _celda_valores(D, tej, gen, sexo, tto)
+            med = mediana(ys)
+            zs = [abs(v - med) for v in ys]
+            resumen[(sexo, tto)] = (len(ys), med, promedio(zs) if zs else None)
+            m_sexo += [sexo] * len(zs)
+            m_tto += [tto] * len(zs)
+            m_y += zs
+        X = [_fila_diseno(s, t) for s, t in zip(m_sexo, m_tto)]
+        stats, _df = anova3_terminos(X, m_y)
+        idx = len(filas)
+        for term in ("SEXO", "TTO", "SEXO:TTO"):
+            pend[tej][term].append((idx, stats[term][1]))
+        r = resumen
+        filas.append([
+            gen, tej,
+            r[CELDAS_INTER[0]][0], r[CELDAS_INTER[1]][0],
+            r[CELDAS_INTER[2]][0], r[CELDAS_INTER[3]][0],
+            g10(r[CELDAS_INTER[0]][1]), g10(r[CELDAS_INTER[0]][2]),
+            g10(r[CELDAS_INTER[1]][1]), g10(r[CELDAS_INTER[1]][2]),
+            g10(r[CELDAS_INTER[2]][1]), g10(r[CELDAS_INTER[2]][2]),
+            g10(r[CELDAS_INTER[3]][1]), g10(r[CELDAS_INTER[3]][2]),
+            p6e(stats["SEXO"][0]), p6e(stats["SEXO"][1]),
+            p6e(stats["TTO"][0]), p6e(stats["TTO"][1]),
+            p6e(stats["SEXO:TTO"][0]), p6e(stats["SEXO:TTO"][1]),
+            "", "", "",
+        ])
+    # BH dentro de cada tejido (D12, mismo criterio que T5), por termino.
+    col = {"SEXO": 20, "TTO": 21, "SEXO:TTO": 22}
+    for tej in TEJIDOS:
+        for term in ("SEXO", "TTO", "SEXO:TTO"):
+            pd = pend[tej][term]
+            if not pd:
+                continue
+            ajust = bh([p for _, p in pd])
+            for (idx, _), pa in zip(pd, ajust):
+                filas[idx][col[term]] = p6e(pa)
+    return filas
+
+
+def verificar_interaccion_vs_levene(D):
+    """Verificacion 7.2 del pedido: el test de interaccion reproduce el
+    Levene Brown-Forsythe cuando se colapsa a UN solo factor (TTO, ignorando
+    SEXO) -- es la misma matematica (ANOVA tipo III con 1 factor de 2
+    niveles == ANOVA de una via == Brown-Forsythe sobre los mismos desvios
+    absolutos). Un gen x tejido fijo (determinista), dejado registrado en el
+    log."""
+    tej, gen = "PLACENTA_E15", "fatcd36"
+    vc = _celda_valores(D, tej, gen, "HEMBRA", "CONTROL") + \
+        _celda_valores(D, tej, gen, "MACHO", "CONTROL")
+    vl = _celda_valores(D, tej, gen, "HEMBRA", "LPS") + \
+        _celda_valores(D, tej, gen, "MACHO", "LPS")
+    F_lev, p_lev = levene_bf_2(vc, vl)
+    mc, ml = mediana(vc), mediana(vl)
+    zc = [abs(v - mc) for v in vc]
+    zl = [abs(v - ml) for v in vl]
+    y = zc + zl
+    ttov = ["CONTROL"] * len(zc) + ["LPS"] * len(zl)
+    X1 = [[1.0, 1.0 if t == "CONTROL" else -1.0] for t in ttov]
+    sse_full, _b, _r = ajustar(X1, y, [0, 1])
+    df = len(y) - 2
+    mse = sse_full / df
+    sse_r, _b2, _r2 = ajustar(X1, y, [0])
+    F = (sse_r - sse_full) / mse
+    return dict(F_generico=F, p_generico=f_sf(F, 1, df), F_levene=F_lev,
+                p_levene=p_lev, tej=tej, gen=gen)
+
+
+# ===========================================================================
 # 3. Figuras.
 # ===========================================================================
 def figura_dispersion_sd(disp, ruta):
@@ -623,6 +808,45 @@ _DESCARTES = "\n".join([
     "TTO sobre la dispersion (Seccion 3, nuevo) y de la simulacion "
     "estratificada de `10_acto2_simulacion`.",
     "",
+    "### NUEVO -- Test de interaccion SEXO x TTO sobre la dispersion (2.5)",
+    "",
+    "- **Por que hace falta**: estaba en la especificacion original del Acto "
+    "2.3 y no se habia implementado. Extension factorial del Levene "
+    "Brown-Forsythe: en cerebro E15, siete genes tienen interaccion SEXO x "
+    "TTO significativa en el Acto 1 (T5); en tres (`glut1`, `slc38a2`, "
+    "`fatp1`) el post hoc explica la interaccion con un patron limpio "
+    "(respuesta especifica de hembras), pero en los otros cuatro (`fatcd36`, "
+    "`fatp4`, `gp130`, `slc38a1`) la interaccion es significativa y NINGUNA "
+    "comparacion puntual sobrevive a Holm -- patron compatible con un efecto "
+    "en la DISPERSION, no en la media, que este test puede distinguir y que "
+    "el Acto 1 no podia ver.",
+    "- **Procedimiento**: por gen x tejido (universo = T5, `via == "
+    "\"modelo\"`, 18/20), `z = |x - mediana de la celda SEXO x TTO de x|` "
+    "sobre los 36 fetos (valores detectados); ANOVA tipo III de `z ~ SEXO * "
+    "TTO`, F y p de `SEXO`, `TTO` y `SEXO:TTO`.",
+    "- **CORRECCION DEL USUARIO -- unica parte del proyecto donde D5 NO se "
+    "aplica.** Primera version intentaba correr la cascada D5 tambien aca; "
+    "el usuario senalo que no corresponde: el Levene Brown-Forsythe (lo que "
+    "D5 usaria si fallara Shapiro) YA ES un ANOVA ordinario sobre desvios "
+    "absolutos. (a) Los desvios absolutos (`z`) son positivos y sesgados "
+    "por construccion -> Shapiro fallaria casi siempre -> cascada mandaria "
+    "todo a ART sin motivo real. (b) Evaluar homocedasticidad (Levene) "
+    "SOBRE una variable que ya es una medida de dispersion es circular -- "
+    "no tiene sentido logico. **Se usa ANOVA tipo III directo con "
+    "contrastes suma-cero, sin seleccion de rama, en todos los gen x "
+    "tejido de esta seccion.**",
+    "- **Nucleo PROPIO** (`resolver`/`ajustar`/`anova3_terminos` y el "
+    "diseno suma-cero, portados de `05_qpcr_modelos`, mismo diseno de "
+    "4 columnas `[1, s, t, s*t]`). **Verificacion (pedido 7.2)**: "
+    "el test colapsado a UN solo factor (`TTO`, ignorando `SEXO`) tiene que "
+    "reproducir exactamente el Levene Brown-Forsythe -- son la misma "
+    "matematica (ANOVA tipo III con 1 factor de 2 niveles == ANOVA de una "
+    "via == Brown-Forsythe sobre los mismos desvios absolutos). Verificado "
+    "en corrida con `fatcd36@PLACENTA_E15` (fijo, determinista), `stopifnot` "
+    "tol 1e-8, resultado en el log.",
+    "- BH (D12) de cada termino, DENTRO de cada tejido (mismo criterio que "
+    "T5), suplementario.",
+    "",
     "### Alcance y piso",
     "",
     "- Items: 9 genes con `-ddCt` en ambos tejidos (todos menos `il6`, D7) + "
@@ -676,7 +900,7 @@ def _md(header, filas):
     return "\n".join(out)
 
 
-def construir_reporte(fuente, disp, test):
+def construir_reporte(fuente, disp, test, inter):
     L = []
     ap = L.append
     ap("# Reporte de dispersion y test de correlaciones Acto 2.3-2.4 (T8)")
@@ -728,18 +952,41 @@ def construir_reporte(fuente, disp, test):
     ap("")
     ap(_md(COLS_DISP, disp))
     ap("")
-    ap("## 3. Figuras")
+    ap("## 3. Test de interaccion SEXO x TTO sobre la dispersion (NUEVO)")
+    ap("")
+    ap("- Extension factorial del Levene Brown-Forsythe de la Seccion 2: en vez de "
+       "un factor (`TTO`, 2 grupos), un ANOVA tipo III de **2 factores** (`SEXO`, "
+       "`TTO`) sobre `z = |x - mediana de su celda SEXO x TTO|` -- pregunta si el "
+       "efecto del LPS **sobre la variabilidad** difiere entre sexos. Aplicado a "
+       "los (`TEJIDO`, `GEN`) que T5 modelo (`via == \"modelo\"`, 18 de 20; hereda "
+       "el piso de 5 detectados por celda que T5 ya aplico).")
+    ap("- **Esta es la UNICA parte del proyecto donde D5 (la cascada de supuestos) "
+       "NO se aplica** -- correccion explicita del usuario. El propio Levene "
+       "Brown-Forsythe (lo que D5 usaria si fallara Shapiro) **ya es** un ANOVA "
+       "ordinario sobre desvios absolutos: (a) los desvios absolutos son positivos "
+       "y sesgados por construccion, Shapiro fallaria casi siempre y mandaria todo "
+       "a ART sin motivo real; (b) evaluar homocedasticidad (Levene) **sobre una "
+       "variable que ya es una medida de dispersion** es circular. Se usa **ANOVA "
+       "tipo III directo con contrastes suma-cero, sin seleccion de rama**.")
+    ap("- `p_*_BH`: Benjamini-Hochberg de cada termino (`SEXO`, `TTO`, "
+       "`SEXO:TTO`) **dentro de cada tejido**, mismo criterio que T5 (D12) -- "
+       "suplementario, no dirige la inferencia.")
+    ap("")
+    ap(_md(COLS_INTER, inter))
+    ap("")
+    ap("## 4. Figuras")
     ap("")
     ap("- `outputs/figures/acto2_dispersion_sd.png` -- SD de -ddCt por item "
        "(placenta/cerebro x Control/LPS).")
     ap("- `outputs/figures/acto2_test_delta_rho.png` -- rho_control vs rho_lps por "
        "item con Delta rho y `p_bw` anotados.")
     ap("")
-    ap("## 4. Notas")
+    ap("## 5. Notas")
     ap("")
     ap("Ver `analisis_descartados.md`, seccion `09_acto2_dispersion`: eleccion del "
        "test y del SE, rol de la tabla de dispersion, piso de n y items de baja "
-       "potencia.")
+       "potencia, y la justificacion completa de por que la Seccion 3 no aplica "
+       "D5.")
     ap("")
     return "\n".join(L)
 
@@ -752,9 +999,18 @@ def main():
     disp = tabla_dispersion(D)
     test = tabla_test(D)
 
+    inter = tabla_interaccion(D)
+    chk = verificar_interaccion_vs_levene(D)
+    print(f"  [interaccion colapsada a 1 factor vs Levene BF, {chk['gen']}@{chk['tej']}] "
+          f"F: {chk['F_generico']:.6f} vs {chk['F_levene']:.6f}  |  "
+          f"p: {chk['p_generico']:.6e} vs {chk['p_levene']:.6e}")
+    assert abs(chk["F_generico"] - chk["F_levene"]) < 1e-8
+    assert abs(chk["p_generico"] - chk["p_levene"]) < 1e-8
+
     for base in (cfg.RUTA_TABLAS_R, cfg.RUTA_TABLAS_PY):
         escribir_csv(base / "acto2_dispersion.csv", COLS_DISP, disp)
         escribir_csv(base / "acto2_test_correlaciones.csv", COLS_TEST, test)
+        escribir_csv(base / "acto2_dispersion_interaccion.csv", COLS_INTER, inter)
 
     fig_sd = cfg.RUTA_FIGURAS / "acto2_dispersion_sd.png"
     fig_dr = cfg.RUTA_FIGURAS / "acto2_test_delta_rho.png"
@@ -762,7 +1018,7 @@ def main():
     figura_test_delta_rho(test, fig_dr)
 
     escribir_texto(cfg.RUTA_TABLAS / "acto2_dispersion_reporte.md",
-                   construir_reporte(fuente, disp, test))
+                   construir_reporte(fuente, disp, test, inter))
     actualizar_descartados()
 
     # Conteos de resumen (print + verificaciones): AMBOS_SEXOS, para no romper
@@ -829,6 +1085,16 @@ def main():
          "descartada: dejar solo el estrato agrupado, descartada porque promedia "
          "correlaciones de signo opuesto, ver fatcd36; limitacion declarada: "
          "n<=9, potencia baja; BH dentro de cada estrato, no a traves de los tres)"],
+        ["outputs/tables/{R,python}/acto2_dispersion_interaccion.csv", "tabla",
+         ESTE_SCRIPT, "PROPIO", ent, "NUEVO (pedido explicito): ANOVA tipo III "
+         "de z=|x-mediana celda SEXO x TTO| ~ SEXO*TTO por gen x tejido "
+         "(universo = T5, via==modelo, 18/20); F y p de SEXO/TTO/SEXO:TTO + BH "
+         "dentro de tejido; extension factorial del Levene de "
+         "acto2_dispersion.csv. UNICA parte del proyecto sin cascada D5 "
+         "(correccion del usuario: Levene BF ya es un ANOVA sobre desvios "
+         "absolutos, positivos y sesgados por construccion -- Shapiro fallaria "
+         "casi siempre y mandaria a ART sin motivo; evaluar homocedasticidad "
+         "sobre una medida de dispersion es circular)"],
         ["outputs/figures/acto2_dispersion_sd.png", "figura", ESTE_SCRIPT,
          "PROPIO", ent, "SD de -ddCt por item: placenta/cerebro x Control/LPS"],
         ["outputs/figures/acto2_test_delta_rho.png", "figura", ESTE_SCRIPT,
@@ -900,6 +1166,29 @@ def main():
          "2 figuras existen",
          "TRUE" if (fig_sd.is_file() and fig_dr.is_file()) else "FALSE",
          ESTE_SCRIPT],
+        ["acto2_interaccion_universo",
+         "el test de interaccion sobre dispersion se aplica al universo modelado por T5",
+         f"{len(inter)} filas (T5: {len(inter)} via=='modelo')",
+         "18 gen x tejido (20 - il6@BRAIN D7 - il6R@BRAIN descriptivo_n_bajo)",
+         "TRUE" if len(inter) == 18 else "FALSE", ESTE_SCRIPT],
+        ["acto2_interaccion_sin_cascada",
+         "el test de interaccion NO aplica la cascada D5 (correccion explicita "
+         "del usuario) -- ANOVA tipo III directo, sin rama",
+         "anova3_terminos() unico metodo, sin Shapiro/Levene previos, sin columna rama",
+         "ANOVA III directo en las 18 filas", "TRUE", ESTE_SCRIPT],
+        ["acto2_interaccion_vs_levene",
+         "el test de interaccion colapsado a 1 factor (TTO) reproduce el Levene "
+         "Brown-Forsythe (pedido 7.2)",
+         "%s@%s: F %.6f vs %.6f; p %.6e vs %.6e; |dif F|=%.2e" % (
+             chk["gen"], chk["tej"], chk["F_generico"], chk["F_levene"],
+             chk["p_generico"], chk["p_levene"],
+             abs(chk["F_generico"] - chk["F_levene"])),
+         "|dif F| y |dif p| < 1e-8", "TRUE", ESTE_SCRIPT],
+        ["acto2_interaccion_bh",
+         "BH (D12) de SEXO/TTO/SEXO:TTO dentro de cada tejido, suplementario",
+         "3 columnas p_*_BH, ajuste separado por TEJIDO", "BH por tejido, no dirige",
+         "TRUE" if (COLS_INTER[20] == "p_SEXO_BH" and COLS_INTER[21] == "p_TTO_BH"
+                    and COLS_INTER[22] == "p_SEXOxTTO_BH") else "FALSE", ESTE_SCRIPT],
     ])
 
     print("== 09_acto2_dispersion.py ==")
@@ -924,6 +1213,14 @@ def main():
     print(f"  -> outputs/tables/{{R,python}}/acto2_dispersion.csv, "
           f"acto2_test_correlaciones.csv")
     print(f"  -> {fig_sd.name}, {fig_dr.name}")
+
+    n_sig_inter = sum(1 for f in inter if f[19] != "" and float(f[19]) < 0.05)
+    print(f"  interaccion SEXO x TTO sobre dispersion (2.5, sin cascada D5): "
+          f"{n_sig_inter}/{len(inter)} gen x tejido con p_SEXOxTTO < .05")
+    for f in inter:
+        if f[19] != "" and float(f[19]) < 0.05:
+            print(f"    {f[0]:10} {f[1]:14} F_inter={f[18]}  p_inter={f[19]}")
+    print("  -> outputs/tables/{R,python}/acto2_dispersion_interaccion.csv")
 
 
 if __name__ == "__main__":
