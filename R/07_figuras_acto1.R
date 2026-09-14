@@ -441,19 +441,27 @@ panel_deteccion <- function(il6_tab, il6_fis, tej = "BRAIN_E15", gen = "il6") {
 
 # Figura global de un tejido: filas por via metabolica (estilo pedido).
 # Fila 1 lipidos (3) | fila 2 glucosa (2) | fila 3 aminoacidos (2) | fila 4
-# via IL-6 (hasta 3, il6@BRAIN_E15 es el panel de deteccion). Las filas de 2
-# se centran dejando en blanco la primera columna (layout admite 0 = celda
-# vacia).
+# via IL-6 (hasta 3, il6@BRAIN_E15 es el panel de deteccion).
+#
+# Centrado (pedido explicito, las filas de 2 quedaban corridas): grilla de 6
+# columnas donde cada panel ocupa 2 -- la fila de 3 usa las columnas 1-2, 3-4
+# y 5-6; la de 2 usa 2-3 y 4-5 (centrada dentro del ancho de la fila de 3).
+# `layout()` fusiona celdas contiguas con el mismo indice en una sola region.
+INICIOS_FILA <- list(`3` = c(1L, 3L, 5L), `2` = c(2L, 4L))
 figura_tejido <- function(D, tejido, ruta) {
   filas <- FILAS_VIA
   if (tejido == "BRAIN_E15") filas$IL6 <- setdiff(filas$IL6, "il6R")
 
-  m <- matrix(0L, nrow = length(filas), ncol = 3L)
+  m <- matrix(0L, nrow = length(filas), ncol = 6L)
   k <- 0L
   for (i in seq_along(filas)) {
     gs <- filas[[i]]
-    despl <- if (length(gs) == 2L) 1L else 0L   # centra las filas de 2
-    for (j in seq_along(gs)) { k <- k + 1L; m[i, j + despl] <- k }
+    inicios <- INICIOS_FILA[[as.character(length(gs))]]
+    if (is.null(inicios)) stop(sprintf("fila con %d paneles no soportada", length(gs)))
+    for (j in seq_along(gs)) {
+      k <- k + 1L
+      m[i, inicios[j] + 0:1] <- k
+    }
   }
 
   png(ruta, width = 3 * 1150, height = length(filas) * 1000, res = DPI)

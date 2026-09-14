@@ -55,6 +55,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.gridspec import GridSpec  # noqa: E402
 
 _cfg_spec = importlib.util.spec_from_file_location(
     "cfg00", Path(__file__).resolve().parent / "00_config.py"
@@ -466,26 +467,32 @@ def panel_deteccion(ax, il6_tab, il6_fis, tej="BRAIN_E15", gen="il6"):
 # ===========================================================================
 # 4. Figuras.
 # ===========================================================================
+INICIOS_FILA = {3: (0, 2, 4), 2: (1, 3)}   # 0-indexed; cada panel ocupa 2 columnas
+
+
 def figura_tejido(D, tejido, ruta):
     """Filas por via metabolica (estilo pedido): lipidos(3) / glucosa(2) /
     aminoacidos(2) / IL-6 (hasta 3, il6@BRAIN_E15 es el panel de deteccion).
-    Filas de 2 se centran dejando en blanco la primera columna."""
+
+    Centrado (pedido explicito, las filas de 2 quedaban corridas): grilla de
+    6 columnas donde cada panel ocupa 2 -- la fila de 3 usa las columnas 1-2,
+    3-4 y 5-6; la de 2 usa 2-3 y 4-5 (centrada dentro del ancho de la fila
+    de 3)."""
     _rng.seed(cfg.SEMILLA)   # jitter reproducible por figura
     filas = {k: list(v) for k, v in FILAS_VIA.items()}
     if tejido == "BRAIN_E15":
         filas["IL6"] = [g for g in filas["IL6"] if g != "il6R"]
 
     nrow = len(filas)
-    fig, axes = plt.subplots(nrow, 3, figsize=(11.5, nrow * 3.9))
+    fig = plt.figure(figsize=(11.5, nrow * 3.9))
+    gs = GridSpec(nrow, 6, figure=fig)
     for i, (via, genes) in enumerate(filas.items()):
-        despl = 1 if len(genes) == 2 else 0
-        for col in range(3):
-            j = col - despl
-            ax = axes[i, col]
-            if j < 0 or j >= len(genes):
-                ax.set_visible(False)
-                continue
-            gen = genes[j]
+        inicios = INICIOS_FILA.get(len(genes))
+        if inicios is None:
+            raise ValueError(f"fila con {len(genes)} paneles no soportada")
+        for j, gen in enumerate(genes):
+            c0 = inicios[j]
+            ax = fig.add_subplot(gs[i, c0:c0 + 2])
             if tejido == "BRAIN_E15" and gen == "il6":
                 panel_deteccion(ax, D["il6_tab"], D["il6_fis"])
             else:

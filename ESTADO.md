@@ -1677,8 +1677,29 @@ cantidad de niveles apilados.
   Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, paridad de render
   OK, ~4.6 min.**
 
+### Cambio 2/3 — grilla de 6 columnas para centrar las filas de 2 genes
+
+**Bug reportado**: las filas de 2 genes (`SLC38A1`/`SLC38A2`, `gp130`/`il6`)
+quedaban corridas hacia un costado en vez de centradas. Causa: `layout()` (R)
+y `subplots` (Python) usaban una grilla de 3 columnas real, con la fila de 2
+desplazada 1 columna (pegada al borde derecho, no centrada).
+
+- Grilla de **6 columnas**, cada panel ocupa 2: la fila de 3 usa las columnas
+  1-2, 3-4 y 5-6; la de 2 usa 2-3 y 4-5 (centrada dentro del ancho de la fila
+  de 3). R: `layout()` con una matriz de 6 columnas donde cada panel repite su
+  índice en las 2 columnas que ocupa (fusiona la región). Python:
+  `matplotlib.gridspec.GridSpec(nrow, 6)` + `fig.add_subplot(gs[i, c0:c0+2])`.
+- Verificado visualmente (R y Python, PLACENTA_E15 y BRAIN_E15): las 2 filas
+  de 2 genes por tejido quedan centradas, sin cambios en las filas de 3.
+
+### Verificado
+
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, paridad de render
+  OK, ~4.5 min.**
+
 ### Pendiente / siguiente paso concreto
 
-- **Cambio 2/3** (grilla de 6 columnas para centrar las filas de 2 genes) y
-  **cambio 3/3** (paleta de pSTAT3 desde `00_config`) — seguir en esta misma
-  sesión, un commit por cambio, cerrando cada uno con `.\run_all.ps1` completo.
+- **Cambio 3/3** (paleta de pSTAT3 desde `00_config`) — seguir en esta misma
+  sesión, cerrando con `.\run_all.ps1` completo antes de dar la sesión por
+  terminada.
