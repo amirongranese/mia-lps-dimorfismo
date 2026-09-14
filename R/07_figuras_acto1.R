@@ -62,14 +62,8 @@ suppressMessages({ library(ggplot2) })   # pSTAT3 sigue en ggplot2; expresion en
 ESTE_SCRIPT <- "07_figuras_acto1"
 
 # --- Paleta y estilo de los boxplots de expresion (estilo pedido) ----------
-COL_CTRL <- c(HEMBRA = "#AEDCF0", MACHO = "#6BAED6")
-COL_LPS  <- list(
-  GLUCOSA     = c(HEMBRA = "#F09EC8", MACHO = "#D6317F"),
-  AMINOACIDOS = c(HEMBRA = "#8FD9B6", MACHO = "#2E9E6B"),
-  LIPIDOS     = c(HEMBRA = "#FBC98A", MACHO = "#E08214"),
-  IL6         = c(HEMBRA = "#C5A3E0", MACHO = "#7B4EA8")
-)
-COL_TTO <- c(CONTROL = "#0072B2", LPS = "#D55E00")   # solo pSTAT3 (Okabe-Ito, igual que 03/08)
+# COL_CTRL / COL_LPS viven en 00_config.R (fuente unica, no se reescriben
+# aca); pSTAT3 (mas abajo) reusa COL_LPS$IL6 -- pSTAT3 es senalizacion de IL-6.
 
 GPATH <- c(fatcd36 = "LIPIDOS", fatp1 = "LIPIDOS", fatp4 = "LIPIDOS",
            glut1 = "GLUCOSA", glut3 = "GLUCOSA",
@@ -94,6 +88,10 @@ gpath <- function(g) GPATH[[g]]
 gdisp <- function(g) GDISP[[g]]
 color_for <- function(gen, sexo, tto)
   if (tto == "CONTROL") COL_CTRL[[sexo]] else COL_LPS[[gpath(gen)]][[sexo]]
+# pSTAT3 (misma logica, sin "gen": usa directo la paleta IL6 -- pSTAT3 es
+# senalizacion rio abajo de IL-6, coherente con el color de esa via).
+color_pstat3 <- function(sexo, tto)
+  if (tto == "CONTROL") COL_CTRL[[sexo]] else COL_LPS$IL6[[sexo]]
 
 # Estilo de trazo (un solo lugar, para que las 2 figuras de expresion coincidan)
 EST <- list(
@@ -516,24 +514,32 @@ figura_pstat3 <- function(D, ruta) {
     k <- CELDAS_4[[j]]
     for (r in D$pst) if (r$SEXO == k[1] && r$TTO == k[2])
       filas[[length(filas) + 1L]] <- data.frame(
-        xi = j - 1L, tto = k[2], MEMBRANA = r$MEMBRANA,
+        xi = j - 1L, sexo = k[1], tto = k[2], MEMBRANA = r$MEMBRANA,
         y = as.numeric(r$PSTAT3), stringsAsFactors = FALSE)
   }
   d <- do.call(rbind, filas)
+  d$grupo <- paste(d$sexo, d$tto)
   tope <- max(d$y)
   especs <- d11_brackets_especificacion(cl, pholm)
   brk <- apilar_brackets_ggplot(especs, tope, en_log = FALSE)
 
+  # Paleta por grupo SEXO x TTO (misma logica que los boxplots de expresion):
+  # celeste (COL_CTRL) para Control, violeta de la via IL-6 (COL_LPS$IL6) para
+  # LPS -- pSTAT3 es senalizacion rio abajo de IL-6.
+  pal4 <- setNames(
+    vapply(CELDAS_4, function(g) color_pstat3(g[1], g[2]), character(1)),
+    vapply(CELDAS_4, function(g) paste(g[1], g[2]), character(1)))
+
   p <- ggplot(d, aes(xi, y, group = xi))
   n_por <- aggregate(y ~ xi + tto, d, length)
   if (any(n_por$y >= 3))
-    p <- p + geom_boxplot(aes(colour = tto, fill = tto), width = 0.52,
+    p <- p + geom_boxplot(aes(colour = grupo, fill = grupo), width = 0.52,
                           outlier.shape = NA, alpha = 0.14, show.legend = FALSE)
   p <- p +
-    geom_point(aes(colour = tto, shape = MEMBRANA),
+    geom_point(aes(colour = grupo, shape = MEMBRANA),
                position = position_jitter(width = 0.13, height = 0), size = 2) +
-    scale_colour_manual(values = COL_TTO, guide = "none") +
-    scale_fill_manual(values = COL_TTO, guide = "none") +
+    scale_colour_manual(values = pal4, guide = "none") +
+    scale_fill_manual(values = pal4, guide = "none") +
     scale_shape_manual(values = c("1" = 16, "2" = 15, "3" = 17),
                        name = NULL, labels = c("Membrana 1", "Membrana 2", "Membrana 3")) +
     scale_x_continuous(breaks = 0:3, labels = ETIQ_X, limits = c(-0.6, 3.6)) +
@@ -685,6 +691,21 @@ paste0("- El boxplot de pSTAT3 muestra los valores **crudos** por SEXO x TTO (no
        "(o / cuadrado / triangulo). El bloque MEMBRANA lo maneja el modelo D9 (06), ",
        "no la figura. Nota al pie: pSTAT3 = abundancia de fosfo-STAT3, no fraccion. ",
        "Sigue en ggplot2; solo cambia la cascada D11 que decide los brackets."),
+"",
+"### Paleta de pSTAT3 alineada a los boxplots de expresion (pedido post-cierre)",
+"",
+paste0("- pSTAT3 dejo de usar la paleta Okabe-Ito (`COL_TTO`, azul/naranja generica) ",
+       "y pasa a seguir la **misma logica que los boxplots de expresion**: celeste ",
+       "(`COL_CTRL`, mas oscuro en macho) para Control, y el violeta de la via IL-6 ",
+       "(`COL_LPS$IL6`/`COL_LPS[\"IL6\"]`, `#C5A3E0` hembra / `#7B4EA8` macho) para LPS ",
+       "-- coherente porque pSTAT3 es senalizacion rio abajo de IL-6. Helper nuevo ",
+       "`color_pstat3(sexo, tto)`, misma logica que `color_for()` pero sin el argumento ",
+       "`gen` (siempre usa la via IL6)."),
+paste0("- **`COL_CTRL` y `COL_LPS` se mueven a `00_config.{R,py}`** (antes vivian ",
+       "hardcodeados en `07_figuras_acto1`): unica fuente de estos colores, sin ",
+       "reescribirlos a mano en el script de figuras. `07_figuras_acto1` los referencia ",
+       "(`cfg.COL_CTRL`/`cfg.COL_LPS` en Python; `source()` los deja en el mismo entorno ",
+       "en R)."),
 "",
 "### Figuras del ELISA",
 "",

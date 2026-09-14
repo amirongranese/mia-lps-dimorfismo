@@ -66,14 +66,11 @@ _cfg_spec.loader.exec_module(cfg)
 ESTE_SCRIPT = "07_figuras_acto1"
 
 # --- Paleta y estilo de los boxplots de expresion (estilo pedido) ----------
-COL_CTRL = {"HEMBRA": "#AEDCF0", "MACHO": "#6BAED6"}
-COL_LPS = {
-    "GLUCOSA":     {"HEMBRA": "#F09EC8", "MACHO": "#D6317F"},
-    "AMINOACIDOS": {"HEMBRA": "#8FD9B6", "MACHO": "#2E9E6B"},
-    "LIPIDOS":     {"HEMBRA": "#FBC98A", "MACHO": "#E08214"},
-    "IL6":         {"HEMBRA": "#C5A3E0", "MACHO": "#7B4EA8"},
-}
-COL_TTO = {"CONTROL": "#0072B2", "LPS": "#D55E00"}   # solo pSTAT3 (Okabe-Ito, igual que 03/08)
+# COL_CTRL / COL_LPS viven en 00_config.py (fuente unica, no se reescriben
+# aca); pSTAT3 (mas abajo) reusa COL_LPS["IL6"] -- pSTAT3 es senalizacion de
+# IL-6.
+COL_CTRL = cfg.COL_CTRL
+COL_LPS = cfg.COL_LPS
 
 GPATH = {
     "fatcd36": "LIPIDOS", "fatp1": "LIPIDOS", "fatp4": "LIPIDOS",
@@ -103,6 +100,12 @@ def gdisp(g):
 
 def color_for(gen, sexo, tto):
     return COL_CTRL[sexo] if tto == "CONTROL" else COL_LPS[GPATH[gen]][sexo]
+
+
+def color_pstat3(sexo, tto):
+    """pSTAT3 (misma logica, sin 'gen'): usa directo la paleta IL6 -- pSTAT3
+    es senalizacion rio abajo de IL-6, coherente con el color de esa via."""
+    return COL_CTRL[sexo] if tto == "CONTROL" else COL_LPS["IL6"][sexo]
 
 
 # Estilo de trazo (un solo lugar, para que las 2 figuras de expresion coincidan)
@@ -537,21 +540,22 @@ def figura_pstat3(D, ruta):
     fig, ax = plt.subplots(figsize=(6.8, 5.2))
     todos = []
     for i, (sx, tt) in enumerate(CELDAS_4):
+        color = color_pstat3(sx, tt)
         ys = [v for v, _m in vals[i]]
         todos += ys
         if len(ys) >= 3:
             bp = ax.boxplot([ys], positions=[i], widths=0.52, patch_artist=True,
                             showfliers=False, manage_ticks=False)
             for b in bp["boxes"]:
-                b.set(facecolor=COL_TTO[tt], alpha=0.14, edgecolor=COL_TTO[tt])
+                b.set(facecolor=color, alpha=0.14, edgecolor=color)
             for kk in ("whiskers", "caps", "medians"):
                 for a in bp[kk]:
-                    a.set(color=COL_TTO[tt], linewidth=1.0)
+                    a.set(color=color, linewidth=1.0)
         jj = [(-0.16 + 0.32 * k / (len(ys) - 1)) if len(ys) > 1 else 0.0
               for k in range(len(ys))]
         for (v, m), j in zip(vals[i], jj):
             ax.plot(i + j, v, marker=marcas.get(m, "o"), ms=5.0,
-                    mfc=COL_TTO[tt], mec="white", mew=0.5, ls="none", zorder=3)
+                    mfc=color, mec="white", mew=0.5, ls="none", zorder=3)
     tope = max(todos)
     especs = d11_brackets_especificacion(cl, pholm)
     for k, b in enumerate(especs):
@@ -693,6 +697,21 @@ _DESCARTES = "\n".join([
     "(o / cuadrado / triangulo). El bloque MEMBRANA lo maneja el modelo D9 (06), "
     "no la figura. Nota al pie: pSTAT3 = abundancia de fosfo-STAT3, no fraccion. "
     "Sigue en ggplot2; solo cambia la cascada D11 que decide los brackets.",
+    "",
+    "### Paleta de pSTAT3 alineada a los boxplots de expresion (pedido post-cierre)",
+    "",
+    "- pSTAT3 dejo de usar la paleta Okabe-Ito (`COL_TTO`, azul/naranja generica) "
+    "y pasa a seguir la **misma logica que los boxplots de expresion**: celeste "
+    "(`COL_CTRL`, mas oscuro en macho) para Control, y el violeta de la via IL-6 "
+    "(`COL_LPS$IL6`/`COL_LPS[\"IL6\"]`, `#C5A3E0` hembra / `#7B4EA8` macho) para LPS "
+    "-- coherente porque pSTAT3 es senalizacion rio abajo de IL-6. Helper nuevo "
+    "`color_pstat3(sexo, tto)`, misma logica que `color_for()` pero sin el argumento "
+    "`gen` (siempre usa la via IL6).",
+    "- **`COL_CTRL` y `COL_LPS` se mueven a `00_config.{R,py}`** (antes vivian "
+    "hardcodeados en `07_figuras_acto1`): unica fuente de estos colores, sin "
+    "reescribirlos a mano en el script de figuras. `07_figuras_acto1` los referencia "
+    "(`cfg.COL_CTRL`/`cfg.COL_LPS` en Python; `source()` los deja en el mismo entorno "
+    "en R).",
     "",
     "### Figuras del ELISA",
     "",

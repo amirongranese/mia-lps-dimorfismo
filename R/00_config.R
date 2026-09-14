@@ -120,6 +120,19 @@ NIVELES_TTO  <- c("CONTROL", "LPS")
 # D1: el calibrador de la cuantificacion relativa es HEMBRA CONTROL.
 CALIBRADOR <- c(SEXO = "HEMBRA", TTO = "CONTROL")
 
+# --- Paleta de los boxplots de expresion / pSTAT3 (Acto 1, 07_figuras_acto1) --
+# Unica fuente de estos colores -- 07_figuras_acto1.{R,py} los referencia, no
+# los reescribe a mano. Control por sexo (celeste, 2 tonos); LPS por sexo x
+# via metabolica (una paleta por via) para que el ojo asocie color con la
+# ruta; pSTAT3 (senalizacion de IL-6) reusa la paleta IL6 para su LPS.
+COL_CTRL <- c(HEMBRA = "#AEDCF0", MACHO = "#6BAED6")
+COL_LPS  <- list(
+  GLUCOSA     = c(HEMBRA = "#F09EC8", MACHO = "#D6317F"),
+  AMINOACIDOS = c(HEMBRA = "#8FD9B6", MACHO = "#2E9E6B"),
+  LIPIDOS     = c(HEMBRA = "#FBC98A", MACHO = "#E08214"),
+  IL6         = c(HEMBRA = "#C5A3E0", MACHO = "#7B4EA8")
+)
+
 EMOJI_HEMBRA <- "♀"
 EMOJI_MACHO  <- "♂"
 VS16         <- "️"   # variation selector que traen las NOMINACION de los crudos

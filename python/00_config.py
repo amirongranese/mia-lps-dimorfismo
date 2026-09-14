@@ -136,6 +136,19 @@ NIVELES_TTO = ["CONTROL", "LPS"]
 # D1: el calibrador de la cuantificacion relativa es HEMBRA CONTROL.
 CALIBRADOR = {"SEXO": "HEMBRA", "TTO": "CONTROL"}
 
+# --- Paleta de los boxplots de expresion / pSTAT3 (Acto 1, 07_figuras_acto1) --
+# Unica fuente de estos colores -- 07_figuras_acto1.py los referencia, no los
+# reescribe a mano. Control por sexo (celeste, 2 tonos); LPS por sexo x via
+# metabolica (una paleta por via); pSTAT3 (senalizacion de IL-6) reusa la
+# paleta IL6 para su LPS.
+COL_CTRL = {"HEMBRA": "#AEDCF0", "MACHO": "#6BAED6"}
+COL_LPS = {
+    "GLUCOSA":     {"HEMBRA": "#F09EC8", "MACHO": "#D6317F"},
+    "AMINOACIDOS": {"HEMBRA": "#8FD9B6", "MACHO": "#2E9E6B"},
+    "LIPIDOS":     {"HEMBRA": "#FBC98A", "MACHO": "#E08214"},
+    "IL6":         {"HEMBRA": "#C5A3E0", "MACHO": "#7B4EA8"},
+}
+
 EMOJI_HEMBRA = "♀"
 EMOJI_MACHO = "♂"
 _VS16 = "️"  # variation selector que traen las NOMINACION de los crudos

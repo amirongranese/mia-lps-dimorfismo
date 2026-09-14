@@ -1698,8 +1698,37 @@ desplazada 1 columna (pegada al borde derecho, no centrada).
   Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, paridad de render
   OK, ~4.5 min.**
 
+### Cambio 3/3 — paleta de pSTAT3 alineada a los boxplots de expresión
+
+**Pedido**: que pSTAT3 siga la misma lógica de color que los boxplots de
+expresión (celeste `COL_CTRL` para Control, macho más oscuro que hembra) y
+que el LPS use el violeta de la vía IL-6 (`COL_LPS$IL6`, `#C5A3E0` hembra /
+`#7B4EA8` macho) — coherente porque pSTAT3 es señalización de IL-6. Colores
+tomados de `00_config`, no reescritos a mano en el script de figuras.
+
+- **`COL_CTRL` y `COL_LPS` se mueven de `07_figuras_acto1.{R,py}` a
+  `00_config.{R,py}`**: única fuente de estos colores. `07_figuras_acto1` los
+  referencia (`cfg.COL_CTRL`/`cfg.COL_LPS` en Python; en R quedan en el mismo
+  entorno vía `source()`).
+- **`figura_pstat3`** deja de usar la paleta Okabe-Ito (`COL_TTO`, azul/naranja
+  genérica, eliminada del script) y pasa a colorear por grupo SEXO×TTO (4
+  colores, no 2) vía el helper nuevo `color_pstat3(sexo, tto)` — misma lógica
+  que `color_for()` pero sin el argumento `gen` (siempre usa la vía IL6). En R
+  esto requirió agregar la columna `sexo`/`grupo` al data.frame y pasar de
+  `scale_colour_manual(values = COL_TTO)` (2 niveles) a una paleta de 4
+  (`pal4`, una entrada por `SEXO TTO`).
+- Verificado visualmente (R y Python): Control celeste (macho más oscuro),
+  LPS violeta IL-6 (macho más oscuro que hembra), en las 4 cajas.
+
+### Verificado
+
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, paridad de render
+  OK, ~4.3 min.**
+
 ### Pendiente / siguiente paso concreto
 
-- **Cambio 3/3** (paleta de pSTAT3 desde `00_config`) — seguir en esta misma
-  sesión, cerrando con `.\run_all.ps1` completo antes de dar la sesión por
-  terminada.
+- Ninguna tarea pendiente conocida de esta sesión (los 3 cambios pedidos
+  quedaron aplicados y verificados, un commit por cambio). Si aparece un
+  pedido nuevo: leer AGENTS.md + ESTADO.md, avisar en dos líneas antes de
+  escribir código, y cerrar con `.\run_all.ps1` completo.
