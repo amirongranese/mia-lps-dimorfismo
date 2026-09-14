@@ -296,12 +296,35 @@ fc_por_grupo <- function(cuant, tej, gen) {
 # ===========================================================================
 # 3. Primitivas de dibujo en R base (boxplots de expresion).
 # ===========================================================================
-bracket_base <- function(x1, x2, y, alto, etiqueta, solido) {
+bracket_base <- function(x1, x2, y, etiqueta, solido) {
+  # Linea horizontal simple, SIN las perpendiculares en los extremos (pedido
+  # explicito: es mas limpio y mas correcto -- marca un efecto que abarca los
+  # 4 grupos o los dos sexos, no una comparacion puntual entre dos extremos).
   col <- if (solido) "black" else "grey40"
   lty <- if (solido) 1 else 2
-  lines(c(x1, x1, x2, x2), c(y, y + alto, y + alto, y), col = col, lty = lty,
-        lwd = 0.9, xpd = NA)
-  text((x1 + x2) / 2, y + alto, etiqueta, pos = 3, col = col, cex = 0.85, xpd = NA)
+  lines(c(x1, x2), c(y, y), col = col, lty = lty, lwd = 0.9)
+  text((x1 + x2) / 2, y, etiqueta, pos = 3, col = col, cex = 0.85)
+}
+
+# El eje Y lo fijan los DATOS (D2: escala log), no los brackets -- antes era al
+# reves (el techo se estiraba con `ymax * 1.30^(n_niveles+1)`, siempre, incluso
+# sin ningun bracket). Si hay brackets, se reserva una FRACCION FIJA del alto
+# total del panel en log10 (`frac_reservada`, constante, no crece con la
+# cantidad de niveles) repartida en franjas iguales; si no hay brackets, no se
+# reserva nada -- el protagonista del panel es el boxplot.
+rango_eje_paneles <- function(ymin_datos, ymax_datos, n_niveles,
+                              frac_reservada = 0.25, pad_datos = 1.15) {
+  piso <- ymin_datos * 0.6
+  if (n_niveles <= 0L)
+    return(list(piso = piso, techo = ymax_datos * pad_datos, niveles = numeric(0)))
+  log_piso <- log10(piso)
+  log_datos_top <- log10(ymax_datos * pad_datos)
+  rango_datos <- log_datos_top - log_piso
+  log_techo <- log_piso + rango_datos / (1 - frac_reservada)
+  franja <- (log_techo - log_datos_top) / n_niveles
+  niveles <- vapply(seq_len(n_niveles), function(k)
+    10 ^ (log_datos_top + (k - 1 + 0.25) * franja), numeric(1))
+  list(piso = piso, techo = 10 ^ log_techo, niveles = niveles)
 }
 
 # Panel de un gen x tejido. Eje Y SIEMPRE logaritmico (D2): no se decide segun
@@ -312,11 +335,8 @@ panel_gen <- function(fc, gen, tejido, fila_clasif, pholm_por_par, con_titulo = 
   if (!length(todos)) { plot.new(); return(invisible(NULL)) }
 
   especs <- d11_brackets_especificacion(fila_clasif, pholm_por_par)
-  n_niveles <- max(length(especs), 1L)
-
-  ymin <- min(todos) * 0.6
-  ymax <- max(todos)
-  ylim <- c(ymin, ymax * (1.30 ^ (n_niveles + 1)))
+  geo <- rango_eje_paneles(min(todos), max(todos), length(especs))
+  ylim <- c(geo$piso, geo$techo)
 
   rellenos <- vapply(seq_along(GRUPOS), function(j) {
     g <- GRUPOS[[j]]
@@ -356,8 +376,7 @@ panel_gen <- function(fc, gen, tejido, fila_clasif, pholm_por_par, con_titulo = 
 
   for (k in seq_along(especs)) {
     b <- especs[[k]]
-    y <- ymax * (1.30 ^ k)
-    bracket_base(b$x1 + 1, b$x2 + 1, y, y * 0.04, b$texto, b$estilo == "solida")
+    bracket_base(b$x1 + 1, b$x2 + 1, geo$niveles[k], b$texto, b$estilo == "solida")
   }
 
   if (con_titulo) {
@@ -634,6 +653,22 @@ paste0("- Eje Y = `FC = 2^(-ddCt)` en escala **log** (D2). `FC` se calcula aca d
        "`neg_ddCt` de `qpcr_cuantificacion_long.tsv`; 04 no lo guarda para no arrastrar ",
        "el redondeo de `2^x` entre libm. Caja solo si el grupo tiene **>=3 detectados** ",
        "(los puntos se dibujan igual, sin caja, si son menos)."),
+"",
+"### Brackets: linea simple + eje fijado por los datos (pedido post-cierre)",
+"",
+paste0("- **Bug reportado**: el techo del eje crecia en proporcion a la cantidad de ",
+       "brackets, siempre, incluso en paneles sin un solo bracket (`n_niveles` tenia un ",
+       "piso de 1) -- `acto1_expresion_PLACENTA_E15.png` llegaba a 10^4 con datos que no ",
+       "pasan de 10, `il6R` (sin brackets) a 10^5. **Se separan las dos responsabilidades**: ",
+       "la funcion que arma el rango del eje calcula el techo/piso **solo a partir de los ",
+       "datos** (mismo padding de siempre, `pad_datos = 1.15`), y **solo si hay brackets** ",
+       "reserva una fraccion fija del alto total del panel en log10 (`frac_reservada = 0.25`, ",
+       "constante, no crece con la cantidad de niveles), repartida en franjas iguales; ",
+       "sin brackets no se reserva nada."),
+paste0("- El dibujo del bracket deja de trazar el rectangulo con perpendiculares en los ",
+       "extremos: ahora es una **linea horizontal simple** con el texto encima. Mas ",
+       "limpio y mas correcto: el bracket marca un efecto que abarca los 4 grupos o los ",
+       "dos sexos (ramas (b)/(c) de D11), no una comparacion puntual entre dos extremos."),
 "",
 "### pSTAT3: valores crudos + membrana como forma de punto",
 "",

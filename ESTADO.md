@@ -1620,3 +1620,65 @@ ELISA MS n=14 (4 censurados), LA n=28 (10 censurados). pSTAT3 36 filas, membrana
   + ESTADO.md, avisar en dos líneas antes de escribir código, adaptar nombres
   de columna contra los CSV reales (no asumir los de la especificación), y
   cerrar con `.\run_all.ps1` completo antes de dar por terminado.
+
+---
+
+## Sesión 15 — 2026-09-14 — pedido post-cierre: brackets/eje, grilla centrada, paleta pSTAT3
+
+> Tres cambios visuales pedidos explícitamente sobre `07_figuras_acto1.{R,py}`,
+> uno por commit: (1) brackets sin perpendiculares + eje Y fijado por los
+> datos; (2) paneles de 2 genes centrados (grilla de 6 columnas); (3) paleta
+> de pSTAT3 alineada a la de los boxplots de expresión, colores tomados de
+> `00_config.{R,py}`. No reabre D11 (la cascada de 3 ramas no cambia, solo su
+> geometría de dibujo).
+
+### Cambio 1/3 — brackets sin perpendiculares + eje Y fijado por los datos
+
+**Bug reportado**: en `acto1_expresion_PLACENTA_E15.png` el eje llegaba a 10⁴
+con datos que no pasan de 10; en `il6R` (sin un solo bracket) llegaba a 10⁵.
+Causa: el techo del eje (`ylim`) se calculaba como `ymax * 1.30^(n_niveles+1)`
+con `n_niveles = max(length(especs), 1)` — **siempre** con un piso de 1 nivel,
+incluso en paneles sin ningún bracket, y creciendo multiplicativamente con la
+cantidad de niveles apilados.
+
+- **`bracket_base`/`_bracket`**: pasan a dibujar una **línea horizontal
+  simple** (sin las dos perpendiculares en los extremos) con el texto encima.
+  Más correcto: un bracket de efecto principal (ramas (b)/(c) de D11) marca un
+  efecto que abarca los 4 grupos o los dos sexos, no una comparación puntual
+  entre dos extremos. La versión de pSTAT3 (ggplot2/matplotlib) **no cambia**
+  — sigue con el rectángulo de extremos (fuera del alcance del pedido, que
+  aplicaba a "los boxplots de expresión"); en Python se separó en
+  `_bracket_pstat3` para no romper esa figura al simplificar `_bracket`.
+- **`rango_eje_paneles`/`_rango_eje_paneles`** (función nueva): el rango del
+  eje sale **solo de los datos** (`ymin*0.6` .. `ymax*1.15`, mismo padding de
+  siempre). **Solo si hay brackets** (`n_niveles = length(especs)`, sin piso
+  artificial) se reserva una **fracción fija** del alto total del panel en
+  log10 (`frac_reservada = 0.25`, constante — no crece con la cantidad de
+  niveles), repartida en franjas iguales por nivel. Sin brackets, el eje no
+  reserva nada: el boxplot es el protagonista.
+- Verificado visualmente (R y Python, PLACENTA_E15 y BRAIN_E15): paneles sin
+  bracket (`il6R`) con eje ajustado a los datos; paneles con 2 brackets
+  apilados (`fatp4`, `glut1`, `slc38a2`) sin colisión con el título/subtítulo.
+
+### Bug propio encontrado y corregido
+
+- **Paridad de texto R/Python** en la sección nueva de `analisis_descartados.md`:
+  la primera redacción citaba literalmente la fórmula del bug (`ymax * 1.30^(n_niveles+1)`
+  en R vs `ymax * 1.30**k` en Python) y los nombres de función (`rango_eje_paneles()`
+  vs `_rango_eje_paneles()`), que difieren entre lenguajes por convención de
+  nombres. `99_verificar` lo detectó como falla de paridad de render
+  (`informe.textonly.html` + `analisis_descartados.md` no byte-idénticos).
+  Corregido redactando en prosa neutra (sin literal de código ni nombre de
+  función específico de un lenguaje).
+
+### Verificado
+
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, paridad de render
+  OK, ~4.6 min.**
+
+### Pendiente / siguiente paso concreto
+
+- **Cambio 2/3** (grilla de 6 columnas para centrar las filas de 2 genes) y
+  **cambio 3/3** (paleta de pSTAT3 desde `00_config`) — seguir en esta misma
+  sesión, un commit por cambio, cerrando cada uno con `.\run_all.ps1` completo.

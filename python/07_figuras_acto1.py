@@ -327,39 +327,34 @@ def _jitter(n):
     return [(_rng.random() - 0.5) * 0.26 for _ in range(n)]
 
 
-def _bracket(ax, x1, x2, y, alto, etiqueta, solido):
+def _bracket(ax, x1, x2, y, etiqueta, solido):
+    # Linea horizontal simple, SIN las perpendiculares en los extremos (pedido
+    # explicito: es mas limpio y mas correcto -- marca un efecto que abarca
+    # los 4 grupos o los dos sexos, no una comparacion puntual entre extremos).
     col = "black" if solido else "0.4"
     ls = "-" if solido else (0, (2, 2))
-    # clip_on=True (default): el bracket nunca dibuja fuera de los ejes, para
-    # que no pueda superponerse con el titulo/subtitulo (que viven afuera, en
-    # el margen). El headroom para que entre se calcula en _ylim_headroom().
-    ax.plot([x1, x1, x2, x2], [y, y + alto, y + alto, y], color=col, ls=ls,
-            lw=0.9, solid_capstyle="butt")
-    ax.text((x1 + x2) / 2.0, y + alto, etiqueta, ha="center", va="bottom",
+    ax.plot([x1, x2], [y, y], color=col, ls=ls, lw=0.9, solid_capstyle="butt")
+    ax.text((x1 + x2) / 2.0, y, etiqueta, ha="center", va="bottom",
             fontsize=8.5 if solido else 7.5, color=col)
 
 
-def _brackets_geometria(ymin_datos, ymax_datos, n_niveles, frac_datos=0.50):
-    """Techo del eje Y y posicion (y, alto) de cada nivel de bracket, TODO en
-    fracciones fijas del alto total del panel en escala log10 -- no multiplos
-    de `ymax_datos` (eso da un respiro enorme en paneles de rango angosto y
-    casi nulo, colisionando con el titulo, en paneles de rango ancho: el mismo
-    `1.30**k` es un salto absoluto de log minusculo frente a un rango de 5
-    decadas y gigante frente a un rango de 1 decada). Los datos ocupan una
-    fraccion fija (`frac_datos`) del panel; el resto se reparte en
-    `n_niveles + 1` franjas iguales (la ultima queda vacia, de margen antes
-    del borde -- ahi arriba, afuera del eje, va el titulo/subtitulo)."""
+def _rango_eje_paneles(ymin_datos, ymax_datos, n_niveles,
+                        frac_reservada=0.25, pad_datos=1.15):
+    """El eje Y lo fijan los DATOS (D2: escala log), no los brackets -- antes
+    el techo se estiraba con `ymax * 1.30**k` siempre, incluso sin ningun
+    bracket. Si hay brackets, se reserva una FRACCION FIJA del alto total del
+    panel en log10 (`frac_reservada`, constante, no crece con la cantidad de
+    niveles), repartida en franjas iguales; si no hay brackets, no se reserva
+    nada -- el protagonista del panel es el boxplot."""
     piso = ymin_datos * 0.6
+    if n_niveles <= 0:
+        return piso, ymax_datos * pad_datos, []
     log_piso = math.log10(piso)
-    log_ymax = math.log10(ymax_datos)
-    log_techo = log_piso + (log_ymax - log_piso) / frac_datos
-    alto_franja = (1.0 - frac_datos) / (n_niveles + 1) * (log_techo - log_piso)
-    niveles = []
-    for k in range(1, n_niveles + 1):
-        log_y = log_piso + frac_datos * (log_techo - log_piso) + (k - 1 + 0.15) * alto_franja
-        y = 10 ** log_y
-        alto = 10 ** (log_y + 0.5 * alto_franja) - y
-        niveles.append((y, alto))
+    log_datos_top = math.log10(ymax_datos * pad_datos)
+    rango_datos = log_datos_top - log_piso
+    log_techo = log_piso + rango_datos / (1.0 - frac_reservada)
+    franja = (log_techo - log_datos_top) / n_niveles
+    niveles = [10 ** (log_datos_top + (k + 0.25) * franja) for k in range(n_niveles)]
     return piso, 10 ** log_techo, niveles
 
 
@@ -406,12 +401,10 @@ def panel_gen(ax, fc, gen, tejido, fila_clasif, pholm_por_par, con_titulo=True):
 
     ymax = max(todos)
     ymin = min(todos)
-    n_niveles = max(len(especs), 1)
-    piso, techo, niveles_y = _brackets_geometria(ymin, ymax, n_niveles)
+    piso, techo, niveles_y = _rango_eje_paneles(ymin, ymax, len(especs))
     ax.set_ylim(piso, techo)
-    for (y, alto), b in zip(niveles_y, especs):
-        _bracket(ax, b["x1"] + 1, b["x2"] + 1, y, alto, b["texto"],
-                 b["estilo"] == "solida")
+    for y, b in zip(niveles_y, especs):
+        _bracket(ax, b["x1"] + 1, b["x2"] + 1, y, b["texto"], b["estilo"] == "solida")
 
     if con_titulo:
         p_int = _num((fila_clasif or {}).get("p_SEXOxTTO"))
@@ -509,6 +502,19 @@ def figura_tejido(D, tejido, ruta):
     plt.close(fig)
 
 
+def _bracket_pstat3(ax, x1, x2, y, alto, etiqueta, solido):
+    """Bracket CON extremos (rectangulo): sin cambios, fuera del alcance del
+    pedido de simplificar brackets (que aplica solo a las figuras de
+    expresion). Mantiene paridad visual con la version R de pSTAT3
+    (`apilar_brackets_ggplot`, geom_segment), que tampoco cambio."""
+    col = "black" if solido else "0.4"
+    ls = "-" if solido else (0, (2, 2))
+    ax.plot([x1, x1, x2, x2], [y, y + alto, y + alto, y], color=col, ls=ls,
+            lw=0.9, solid_capstyle="butt")
+    ax.text((x1 + x2) / 2.0, y + alto, etiqueta, ha="center", va="bottom",
+            fontsize=8.5 if solido else 7.5, color=col)
+
+
 def figura_pstat3(D, ruta):
     pst = D["pst"]
     cl = D["pst_cl"][0] if D["pst_cl"] else {}
@@ -545,7 +551,7 @@ def figura_pstat3(D, ruta):
         paso = 0.10 + 0.11 * k
         y = tope * (1 + paso)
         alto = tope * (1 + paso - 0.035) - y
-        _bracket(ax, b["x1"], b["x2"], y, alto, b["texto"], b["estilo"] == "solida")
+        _bracket_pstat3(ax, b["x1"], b["x2"], y, alto, b["texto"], b["estilo"] == "solida")
     ax.set_ylim(0, tope * 1.75)
     ax.set_xticks(range(4))
     ax.set_xticklabels(ETIQ_X, fontsize=8.5)
@@ -656,6 +662,22 @@ _DESCARTES = "\n".join([
     "`neg_ddCt` de `qpcr_cuantificacion_long.tsv`; 04 no lo guarda para no arrastrar "
     "el redondeo de `2^x` entre libm. Caja solo si el grupo tiene **>=3 detectados** "
     "(los puntos se dibujan igual, sin caja, si son menos).",
+    "",
+    "### Brackets: linea simple + eje fijado por los datos (pedido post-cierre)",
+    "",
+    "- **Bug reportado**: el techo del eje crecia en proporcion a la cantidad de "
+    "brackets, siempre, incluso en paneles sin un solo bracket (`n_niveles` tenia un "
+    "piso de 1) -- `acto1_expresion_PLACENTA_E15.png` llegaba a 10^4 con datos que no "
+    "pasan de 10, `il6R` (sin brackets) a 10^5. **Se separan las dos responsabilidades**: "
+    "la funcion que arma el rango del eje calcula el techo/piso **solo a partir de los "
+    "datos** (mismo padding de siempre, `pad_datos = 1.15`), y **solo si hay brackets** "
+    "reserva una fraccion fija del alto total del panel en log10 (`frac_reservada = 0.25`, "
+    "constante, no crece con la cantidad de niveles), repartida en franjas iguales; "
+    "sin brackets no se reserva nada.",
+    "- El dibujo del bracket deja de trazar el rectangulo con perpendiculares en los "
+    "extremos: ahora es una **linea horizontal simple** con el texto encima. Mas "
+    "limpio y mas correcto: el bracket marca un efecto que abarca los 4 grupos o los "
+    "dos sexos (ramas (b)/(c) de D11), no una comparacion puntual entre dos extremos.",
     "",
     "### pSTAT3: valores crudos + membrana como forma de punto",
     "",
