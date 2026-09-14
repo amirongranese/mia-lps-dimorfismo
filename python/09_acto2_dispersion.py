@@ -313,31 +313,36 @@ def _lado(xs, ys, tej):
 
 
 # ===========================================================================
-# 2.3 -- Tabla de dispersion (insumo de la prohibicion 5).
+# 2.3 -- Tabla de dispersion (insumo de la prohibicion 5). Estratificada por
+# ESTRATO (AMBOS_SEXOS/HEMBRA/MACHO, pedido explicito, misma logica que 2.4):
+# AMBOS_SEXOS = filas previas, sin cambios; HEMBRA/MACHO son aditivas.
 # ===========================================================================
-COLS_DISP = ["ITEM", "TIPO", "TEJIDO", "n_control", "sd_control", "n_lps",
-             "sd_lps", "ratio_var_lps_control", "levene_bf_F", "levene_bf_p"]
+COLS_DISP = ["ITEM", "TIPO", "ESTRATO", "TEJIDO", "n_control", "sd_control",
+             "n_lps", "sd_lps", "ratio_var_lps_control", "levene_bf_F",
+             "levene_bf_p"]
 
 
 def tabla_dispersion(D):
     filas = []
     for item in ITEMS:
         tipo = "score" if item == "score_compuesto" else "gen"
-        cx, cy, _ = _pares(D, item, "CONTROL")
-        lx, ly, _ = _pares(D, item, "LPS")
-        for tej in TEJIDOS:
-            vc = _lado(cx, cy, tej)
-            vl = _lado(lx, ly, tej)
-            nc, nl = len(vc), len(vl)
-            sdc = desvio(vc)
-            sdl = desvio(vl)
-            ratio = (sdl * sdl) / (sdc * sdc) if (sdc and sdl and sdc > 0) else None
-            if nc >= PISO_PAR and nl >= PISO_PAR:
-                F, p = levene_bf_2(vc, vl)
-            else:
-                F, p = None, None
-            filas.append([item, tipo, tej, nc, g10(sdc), nl, g10(sdl),
-                          g10(ratio), p6e(F), p6e(p)])
+        for estrato in ESTRATOS:
+            sx = _sexo_de_estrato(estrato)
+            cx, cy, _ = _pares(D, item, "CONTROL", sx)
+            lx, ly, _ = _pares(D, item, "LPS", sx)
+            for tej in TEJIDOS:
+                vc = _lado(cx, cy, tej)
+                vl = _lado(lx, ly, tej)
+                nc, nl = len(vc), len(vl)
+                sdc = desvio(vc)
+                sdl = desvio(vl)
+                ratio = (sdl * sdl) / (sdc * sdc) if (sdc and sdl and sdc > 0) else None
+                if nc >= PISO_PAR and nl >= PISO_PAR:
+                    F, p = levene_bf_2(vc, vl)
+                else:
+                    F, p = None, None
+                filas.append([item, tipo, estrato, tej, nc, g10(sdc), nl, g10(sdl),
+                              g10(ratio), p6e(F), p6e(p)])
     return filas
 
 
@@ -414,21 +419,24 @@ def tabla_test(D):
 # 3. Figuras.
 # ===========================================================================
 def figura_dispersion_sd(disp, ruta):
-    """SD de -ddCt por item: placenta/cerebro x Control/LPS. Un panel por item."""
+    """SD de -ddCt por item: placenta/cerebro x Control/LPS. Un panel por item.
+    Solo AMBOS_SEXOS (comportamiento previo): los estratos por sexo se leen en
+    la tabla, no saturan este panel."""
+    disp = [f for f in disp if f[2] == "AMBOS_SEXOS"]
     ncol, nrow = 4, 3
     fig, axes = plt.subplots(nrow, ncol, figsize=(13.0, 8.5))
     axl = axes.flatten()
     idx = {}
     for f in disp:
-        idx.setdefault(f[0], {})[f[2]] = f
+        idx.setdefault(f[0], {})[f[3]] = f
     for k, item in enumerate(ITEMS):
         ax = axl[k]
         etiquetas = ["pla\nCtrl", "pla\nLPS", "cer\nCtrl", "cer\nLPS"]
         vals, cols = [], []
         for tej in ("PLACENTA_E15", "BRAIN_E15"):
             row = idx[item][tej]
-            sdc = float(row[4]) if row[4] != "" else float("nan")
-            sdl = float(row[6]) if row[6] != "" else float("nan")
+            sdc = float(row[5]) if row[5] != "" else float("nan")
+            sdl = float(row[7]) if row[7] != "" else float("nan")
             vals += [sdc, sdl]
             cols += [COL_TTO["CONTROL"], COL_TTO["LPS"]]
         ax.bar(range(4), vals, color=cols, edgecolor="0.3", linewidth=0.5)
@@ -606,6 +614,15 @@ _DESCARTES = "\n".join([
     "`MACHO` por separado); mezclar sus 27 `p` en un solo ajuste Benjamini-"
     "Hochberg no tendria sentido estadistico.",
     "",
+    "### Dispersion por sexo (2.3), misma estratificacion",
+    "",
+    "- La tabla de dispersion (`acto2_dispersion.csv`) gana la misma columna "
+    "`ESTRATO`: el Levene Brown-Forsythe Control vs LPS por lado se corre "
+    "tambien dentro de `HEMBRA` y dentro de `MACHO`, ademas del `AMBOS_SEXOS` "
+    "agrupado (sin cambios). Es insumo directo del test de interaccion SEXO x "
+    "TTO sobre la dispersion (Seccion 3, nuevo) y de la simulacion "
+    "estratificada de `10_acto2_simulacion`.",
+    "",
     "### Alcance y piso",
     "",
     "- Items: 9 genes con `-ddCt` en ambos tejidos (todos menos `il6`, D7) + "
@@ -703,6 +720,11 @@ def construir_reporte(fuente, disp, test):
        "de varianzas LPS/Control y Levene Brown-Forsythe por lado. La lectura "
        "biologica del cambio de correlacion queda pendiente de "
        "`10_acto2_simulacion`.")
+    ap("- **Estratificado por sexo** (pedido explicito, aditivo, misma columna "
+       "`ESTRATO` que la Seccion 1): el mismo Levene Brown-Forsythe Control vs "
+       "LPS, ahora tambien **dentro de cada sexo**. Insumo de la Seccion 3 (test "
+       "de interaccion) y de la simulacion estratificada de "
+       "`10_acto2_simulacion`.")
     ap("")
     ap(_md(COLS_DISP, disp))
     ap("")
@@ -776,13 +798,28 @@ def main():
             particion_ok = False
             particion_detalle.append(item)
 
+    # Misma particion para la tabla de dispersion (2.3), por item x tejido.
+    n_por_disp = {(f[0], f[2], f[3]): (int(f[4]), int(f[6])) for f in disp}
+    particion_disp_ok = True
+    particion_disp_detalle = []
+    for item in ITEMS:
+        for tej in TEJIDOS:
+            nc_a, nl_a = n_por_disp[(item, "AMBOS_SEXOS", tej)]
+            nc_h, nl_h = n_por_disp[(item, "HEMBRA", tej)]
+            nc_m, nl_m = n_por_disp[(item, "MACHO", tej)]
+            if nc_h + nc_m != nc_a or nl_h + nl_m != nl_a:
+                particion_disp_ok = False
+                particion_disp_detalle.append(f"{item} {tej}")
+
     ent = (f"data/processed/qpcr_cuantificacion_long.tsv + qpcr_score_compuesto_long.tsv "
            f"(de data/{fuente}/{cfg.ARCHIVO_QPCR})")
     registrar_procedencia([
         ["outputs/tables/{R,python}/acto2_dispersion.csv", "tabla", ESTE_SCRIPT,
          "PROPIO", ent, "SD (n-1) de -ddCt por lado (placenta/cerebro) x grupo "
          "sobre los pares por feto; cociente de varianzas LPS/Control; Levene "
-         "Brown-Forsythe por lado"],
+         "Brown-Forsythe por lado; estratificado por ESTRATO "
+         "(AMBOS_SEXOS/HEMBRA/MACHO, pedido explicito -- mismo motivo que "
+         "acto2_test_correlaciones.csv)"],
         ["outputs/tables/{R,python}/acto2_test_correlaciones.csv", "tabla",
          ESTE_SCRIPT, "PROPIO", ent, "test reportado (prohibicion 4): Fisher z "
          "sobre rho de Spearman Control vs LPS; SE Bonett-Wright primario + SE "
@@ -834,6 +871,16 @@ def main():
              ("; falla en: " + ", ".join(particion_detalle)) if particion_detalle else ""),
          "particiona en %d/%d items" % (len(ITEMS), len(ITEMS)),
          "TRUE" if particion_ok else "FALSE", ESTE_SCRIPT],
+        ["acto2_estrato_particion_dispersion",
+         "n(HEMBRA) + n(MACHO) = n(AMBOS_SEXOS) por item x tejido (dispersion, 2.3)",
+         "particiona en %d/%d celdas item x tejido%s" % (
+             len(ITEMS) * len(TEJIDOS) - len(particion_disp_detalle),
+             len(ITEMS) * len(TEJIDOS),
+             ("; falla en: " + ", ".join(particion_disp_detalle))
+             if particion_disp_detalle else ""),
+         "particiona en %d/%d celdas" % (len(ITEMS) * len(TEJIDOS),
+                                          len(ITEMS) * len(TEJIDOS)),
+         "TRUE" if particion_disp_ok else "FALSE", ESTE_SCRIPT],
         ["acto2_dispersion_pares",
          "la dispersion se mide sobre los MISMOS pares por feto que la correlacion",
          "vector por lado = componente placenta/cerebro de pares(item, grupo)",

@@ -200,33 +200,39 @@ pares <- function(D, item, estrato, sexo_filtro = NULL) {
 .lado <- function(pr, tej) if (tej == "PLACENTA_E15") pr$x else pr$y
 
 # ===========================================================================
-# 2.3 -- Tabla de dispersion (+ cruza-verificacion Levene vs car).
+# 2.3 -- Tabla de dispersion (+ cruza-verificacion Levene vs car). Estratificada
+# por ESTRATO (AMBOS_SEXOS/HEMBRA/MACHO, pedido explicito, misma logica que
+# 2.4): AMBOS_SEXOS = filas previas, sin cambios; HEMBRA/MACHO son aditivas.
 # ===========================================================================
-COLS_DISP <- c("ITEM", "TIPO", "TEJIDO", "n_control", "sd_control", "n_lps",
-               "sd_lps", "ratio_var_lps_control", "levene_bf_F", "levene_bf_p")
+COLS_DISP <- c("ITEM", "TIPO", "ESTRATO", "TEJIDO", "n_control", "sd_control",
+               "n_lps", "sd_lps", "ratio_var_lps_control", "levene_bf_F",
+               "levene_bf_p")
 
 tabla_dispersion <- function(D) {
   filas <- list(); peor <- 0
   for (item in ITEMS) {
     tipo <- if (item == "score_compuesto") "score" else "gen"
-    prc <- pares(D, item, "CONTROL"); prl <- pares(D, item, "LPS")
-    for (tej in TEJIDOS) {
-      vc <- .lado(prc, tej); vl <- .lado(prl, tej)
-      nc <- length(vc); nl <- length(vl)
-      sdc <- desvio(vc); sdl <- desvio(vl)
-      ratio <- if (!is.na(sdc) && !is.na(sdl) && sdc > 0)
-        (sdl * sdl) / (sdc * sdc) else NA_real_
-      Fp <- if (nc >= PISO_PAR && nl >= PISO_PAR) levene_bf_2(vc, vl)
-            else c(NA_real_, NA_real_)
-      if (!is.na(Fp[1])) {
-        dfv <- data.frame(y = c(vc, vl),
-                          g = factor(c(rep("C", nc), rep("L", nl))))
-        lt <- suppressWarnings(car::leveneTest(y ~ g, data = dfv, center = median))
-        peor <- max(peor, abs(Fp[1] - lt[1, "F value"]))
+    for (estrato in ESTRATOS) {
+      sx <- sexo_de_estrato(estrato)
+      prc <- pares(D, item, "CONTROL", sx); prl <- pares(D, item, "LPS", sx)
+      for (tej in TEJIDOS) {
+        vc <- .lado(prc, tej); vl <- .lado(prl, tej)
+        nc <- length(vc); nl <- length(vl)
+        sdc <- desvio(vc); sdl <- desvio(vl)
+        ratio <- if (!is.na(sdc) && !is.na(sdl) && sdc > 0)
+          (sdl * sdl) / (sdc * sdc) else NA_real_
+        Fp <- if (nc >= PISO_PAR && nl >= PISO_PAR) levene_bf_2(vc, vl)
+              else c(NA_real_, NA_real_)
+        if (!is.na(Fp[1])) {
+          dfv <- data.frame(y = c(vc, vl),
+                            g = factor(c(rep("C", nc), rep("L", nl))))
+          lt <- suppressWarnings(car::leveneTest(y ~ g, data = dfv, center = median))
+          peor <- max(peor, abs(Fp[1] - lt[1, "F value"]))
+        }
+        filas[[length(filas) + 1L]] <- list(item, tipo, estrato, tej, nc, g10(sdc),
+                                            nl, g10(sdl), g10(ratio), p6e(Fp[1]),
+                                            p6e(Fp[2]))
       }
-      filas[[length(filas) + 1L]] <- list(item, tipo, tej, nc, g10(sdc), nl,
-                                          g10(sdl), g10(ratio), p6e(Fp[1]),
-                                          p6e(Fp[2]))
     }
   }
   list(filas = filas, peor = peor)
@@ -301,12 +307,15 @@ tabla_test <- function(D) {
 # 3. Figuras.
 # ===========================================================================
 figura_dispersion_sd <- function(disp, ruta) {
+  # Solo AMBOS_SEXOS (comportamiento previo): los estratos por sexo se leen
+  # en la tabla, no saturan este panel.
+  disp <- Filter(function(f) f[[3]] == "AMBOS_SEXOS", disp)
   reg <- list()
   for (f in disp) {
     nom <- if (f[[1]] == "score_compuesto") "score compuesto" else f[[1]]
-    lado <- if (f[[3]] == "PLACENTA_E15") "placenta" else "cerebro"
-    sdc <- if (nzchar(f[[5]])) as.numeric(f[[5]]) else NA_real_
-    sdl <- if (nzchar(f[[7]])) as.numeric(f[[7]]) else NA_real_
+    lado <- if (f[[4]] == "PLACENTA_E15") "placenta" else "cerebro"
+    sdc <- if (nzchar(f[[6]])) as.numeric(f[[6]]) else NA_real_
+    sdl <- if (nzchar(f[[8]])) as.numeric(f[[8]]) else NA_real_
     reg[[length(reg) + 1L]] <- data.frame(item = nom, lado = lado,
       tto = "Control", sd = sdc, stringsAsFactors = FALSE)
     reg[[length(reg) + 1L]] <- data.frame(item = nom, lado = lado,
@@ -500,6 +509,15 @@ paste0("- **BH dentro de cada estrato** (no a traves de los tres): los tres ",
        "`MACHO` por separado); mezclar sus 27 `p` en un solo ajuste Benjamini-",
        "Hochberg no tendria sentido estadistico."),
 "",
+"### Dispersion por sexo (2.3), misma estratificacion",
+"",
+paste0("- La tabla de dispersion (`acto2_dispersion.csv`) gana la misma ",
+       "columna `ESTRATO`: el Levene Brown-Forsythe Control vs LPS por lado ",
+       "se corre tambien dentro de `HEMBRA` y dentro de `MACHO`, ademas del ",
+       "`AMBOS_SEXOS` agrupado (sin cambios). Es insumo directo del test de ",
+       "interaccion SEXO x TTO sobre la dispersion (Seccion 3, nuevo) y de la ",
+       "simulacion estratificada de `10_acto2_simulacion`."),
+"",
 "### Alcance y piso",
 "",
 paste0("- Items: 9 genes con `-ddCt` en ambos tejidos (todos menos `il6`, D7) + ",
@@ -592,6 +610,11 @@ construir_reporte <- function(fuente, disp, test) {
     paste0("- SD (n-1) de `-ddCt` de cada lado en los mismos pares por feto, ",
            "cociente de varianzas LPS/Control y Levene Brown-Forsythe por lado. ",
            "La lectura biologica del cambio de correlacion queda pendiente de ",
+           "`10_acto2_simulacion`."),
+    paste0("- **Estratificado por sexo** (pedido explicito, aditivo, misma ",
+           "columna `ESTRATO` que la Seccion 1): el mismo Levene Brown-Forsythe ",
+           "Control vs LPS, ahora tambien **dentro de cada sexo**. Insumo de la ",
+           "Seccion 3 (test de interaccion) y de la simulacion estratificada de ",
            "`10_acto2_simulacion`."), "",
     .md(COLS_DISP, disp), "",
     "## 3. Figuras", "",
@@ -666,6 +689,23 @@ main <- function() {
     }
   }
 
+  # Misma particion para la tabla de dispersion (2.3), por item x tejido.
+  n_por_disp <- list()
+  for (f in disp) n_por_disp[[paste(f[[1]], f[[3]], f[[4]])]] <-
+    c(n_control = f[[5]], n_lps = f[[7]])
+  particion_disp_ok <- TRUE; particion_disp_detalle <- character(0)
+  for (item in ITEMS) for (tej in TEJIDOS) {
+    a <- n_por_disp[[paste(item, "AMBOS_SEXOS", tej)]]
+    h <- n_por_disp[[paste(item, "HEMBRA", tej)]]
+    m <- n_por_disp[[paste(item, "MACHO", tej)]]
+    ok_c <- as.integer(h["n_control"]) + as.integer(m["n_control"]) == as.integer(a["n_control"])
+    ok_l <- as.integer(h["n_lps"]) + as.integer(m["n_lps"]) == as.integer(a["n_lps"])
+    if (!ok_c || !ok_l) {
+      particion_disp_ok <- FALSE
+      particion_disp_detalle <- c(particion_disp_detalle, paste(item, tej))
+    }
+  }
+
   ent <- sprintf(paste0("data/processed/qpcr_cuantificacion_long.tsv + ",
                         "qpcr_score_compuesto_long.tsv (de data/%s/%s)"),
                  fuente, ARCHIVO_QPCR)
@@ -673,7 +713,9 @@ main <- function() {
     list("outputs/tables/{R,python}/acto2_dispersion.csv", "tabla", ESTE_SCRIPT,
          "PROPIO", ent, paste0("SD (n-1) de -ddCt por lado (placenta/cerebro) x ",
          "grupo sobre los pares por feto; cociente de varianzas LPS/Control; ",
-         "Levene Brown-Forsythe por lado")),
+         "Levene Brown-Forsythe por lado; estratificado por ESTRATO ",
+         "(AMBOS_SEXOS/HEMBRA/MACHO, pedido explicito -- mismo motivo que ",
+         "acto2_test_correlaciones.csv)")),
     list("outputs/tables/{R,python}/acto2_test_correlaciones.csv", "tabla",
          ESTE_SCRIPT, "PROPIO", ent, paste0("test reportado (prohibicion 4): ",
          "Fisher z sobre rho de Spearman Control vs LPS; SE Bonett-Wright ",
@@ -727,6 +769,15 @@ main <- function() {
                    paste0("; falla en: ", paste(particion_detalle, collapse = ", ")) else ""),
          sprintf("particiona en %d/%d items", length(ITEMS), length(ITEMS)),
          if (particion_ok) "TRUE" else "FALSE", ESTE_SCRIPT),
+    list("acto2_estrato_particion_dispersion",
+         "n(HEMBRA) + n(MACHO) = n(AMBOS_SEXOS) por item x tejido (dispersion, 2.3)",
+         sprintf("particiona en %d/%d celdas item x tejido%s",
+                 length(ITEMS) * length(TEJIDOS) - length(particion_disp_detalle),
+                 length(ITEMS) * length(TEJIDOS), if (length(particion_disp_detalle))
+                   paste0("; falla en: ", paste(particion_disp_detalle, collapse = ", ")) else ""),
+         sprintf("particiona en %d/%d celdas", length(ITEMS) * length(TEJIDOS),
+                 length(ITEMS) * length(TEJIDOS)),
+         if (particion_disp_ok) "TRUE" else "FALSE", ESTE_SCRIPT),
     list("acto2_dispersion_pares",
          "la dispersion se mide sobre los MISMOS pares por feto que la correlacion",
          "vector por lado = componente placenta/cerebro de pares(item, grupo)",

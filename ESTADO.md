@@ -1834,11 +1834,31 @@ rho=0.86 (n=8), ♂Control rho=−0.43 (n=8); agrupados dan 0.47 (verificado:
   Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, **93/93**
   verificaciones en TRUE (antes 91), paridad de render OK, ~4.4 min.**
 
+### Punto 2/4 — Dispersión por sexo (sección 2.3)
+
+Misma estratificación que el punto 1, aplicada a la tabla de dispersión
+(`acto2_dispersion.csv`): `COLS_DISP` gana `ESTRATO` (insertada antes de
+`TEJIDO`); el Levene Brown-Forsythe Control vs LPS por lado se corre también
+dentro de `HEMBRA` y `MACHO`, además de `AMBOS_SEXOS` (sin cambios,
+aditivo). `figura_dispersion_sd` sigue mostrando solo `AMBOS_SEXOS` (mismo
+criterio que la figura de Δρ). Verificación nueva
+`acto2_estrato_particion_dispersion`: partición por item×tejido (20 celdas),
+verificada 20/20.
+
+### Verificado
+
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, **94/94**
+  verificaciones en TRUE (antes 93), paridad de render OK, ~4.3 min.**
+
 ### Pendiente / siguiente paso concreto
 
-- **Punto 2/4** (dispersión por sexo, sección 2.3, misma infraestructura de
-  `pares()` ya lista), **punto 3/4** (test de interacción SEXO×TTO sobre
-  dispersión, ANOVA III directo sin cascada D5 — corrección del usuario) y
+- **Punto 3/4** (test de interacción SEXO×TTO sobre dispersión, ANOVA III
+  directo **sin cascada D5** — corrección del usuario: los desvíos absolutos
+  son positivos y sesgados por construcción, Shapiro fallaría casi siempre y
+  mandaría todo a ART sin motivo; evaluar homocedasticidad sobre una medida
+  de dispersión no tiene sentido. Dejar anotado en el reporte que esta es la
+  única parte del proyecto donde D5 no se aplica, con esa justificación) y
   **punto 4/4** (simulación cubre los estratos HEMBRA/MACHO) — seguir en esta
   misma sesión, un commit por punto, cerrando cada uno con `.\run_all.ps1`
   completo. Punto 5 (test de pendientes) sigue pendiente de confirmación.
