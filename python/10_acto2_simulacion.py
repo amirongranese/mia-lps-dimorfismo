@@ -71,6 +71,16 @@ GEN_SIN_CEREBRO = "il6"
 GENES_CORR = [g for g in cfg.GENES if g != GEN_SIN_CEREBRO]
 ITEMS = GENES_CORR + ["score_compuesto"]
 ESCENARIOS = ["GLOBAL", "CONTROL"]
+# Estratificacion por sexo (pedido explicito, punto 4/4): AMBOS_SEXOS =
+# comportamiento previo (agrupado); HEMBRA/MACHO = mismo diseno con las SD
+# OBSERVADAS de cada celda de sexo. Aditivo.
+ESTRATOS = ["AMBOS_SEXOS", "HEMBRA", "MACHO"]
+
+
+def _sexo_de_estrato(e):
+    return None if e == "AMBOS_SEXOS" else e
+
+
 B_SIM = 2000
 R_CLAMP = 0.999999
 DPI = 300
@@ -236,11 +246,13 @@ def cargar():
 
     madre = {}
     tto = {}
+    sexo = {}
     negdd = {}
     for r in cuant:
         f = r["FETO"]
         madre[f] = r["MADRE_ID"]
         tto[f] = r["TTO"]
+        sexo[f] = r["SEXO"]
         v = None if r["neg_ddCt"] == "" else float(r["neg_ddCt"])
         negdd[(f, r["TEJIDO"], r["GEN"])] = v
     sc = {}
@@ -249,13 +261,18 @@ def cargar():
         sc[(r["FETO"], r["TEJIDO"])] = v
 
     fetos = sorted(madre.keys(), key=lambda f: (madre[f], f))
-    return dict(fetos=fetos, tto=tto, negdd=negdd, sc=sc)
+    return dict(fetos=fetos, tto=tto, sexo=sexo, negdd=negdd, sc=sc)
 
 
-def _pares(D, item, estrato):
+def _pares(D, item, estrato, sexo_filtro=None):
+    """`sexo_filtro`: None = ambos sexos (comportamiento previo); 'HEMBRA'/
+    'MACHO' restringe ademas por sexo -- simulacion estratificada (pedido
+    explicito, punto 4/4 de pedidos/cambios_acto2_dispersion_por_sexo.md)."""
     xs, ys, ts = [], [], []
     for f in D["fetos"]:
         if estrato != "GLOBAL" and D["tto"][f] != estrato:
+            continue
+        if sexo_filtro is not None and D["sexo"][f] != sexo_filtro:
             continue
         if item == "score_compuesto":
             xp = D["sc"].get((f, "PLACENTA_E15"))
@@ -274,7 +291,7 @@ def _pares(D, item, estrato):
 # ===========================================================================
 # 2. Simulacion.
 # ===========================================================================
-COLS_SIM = ["ITEM", "TIPO", "ESCENARIO", "rho_true", "r_pearson_gen",
+COLS_SIM = ["ITEM", "TIPO", "ESTRATO", "ESCENARIO", "rho_true", "r_pearson_gen",
             "n_control", "n_lps", "sd_pla_control", "sd_bra_control",
             "sd_pla_lps", "sd_bra_lps", "delta_rho_obs", "sim_mean_delta_rho",
             "sim_sd_delta_rho", "sim_q025", "sim_q975", "sim_frac_abs_ge_obs",
@@ -326,33 +343,35 @@ def tabla_simulacion(D, rng):
     filas = []
     for item in ITEMS:
         tipo = "score" if item == "score_compuesto" else "gen"
-        cx, cy, _ = _pares(D, item, "CONTROL")
-        lx, ly, _ = _pares(D, item, "LPS")
-        gx, gy, _ = _pares(D, item, "GLOBAL")
-        nc, nl = len(cx), len(lx)
-        if nc < PISO_PAR or nl < PISO_PAR:
+        for estrato in ESTRATOS:
+            sx = _sexo_de_estrato(estrato)
+            cx, cy, _ = _pares(D, item, "CONTROL", sx)
+            lx, ly, _ = _pares(D, item, "LPS", sx)
+            gx, gy, _ = _pares(D, item, "GLOBAL", sx)
+            nc, nl = len(cx), len(lx)
+            if nc < PISO_PAR or nl < PISO_PAR:
+                for esc in ESCENARIOS:
+                    filas.append([item, tipo, estrato, esc, "", "", nc, nl]
+                                 + [""] * 11 + ["sin_test"])
+                continue
+            rc_obs = spearman_rho(cx, cy)
+            rl_obs = spearman_rho(lx, ly)
+            rg_obs = spearman_rho(gx, gy)
+            drho_obs = rc_obs - rl_obs
+            sd_pla_c, sd_bra_c = desvio(cx), desvio(cy)
+            sd_pla_l, sd_bra_l = desvio(lx), desvio(ly)
             for esc in ESCENARIOS:
-                filas.append([item, tipo, esc, "", "", nc, nl, "", "", "", "",
-                              "", "", "", "", "", "", "", "sin_test"])
-            continue
-        rc_obs = spearman_rho(cx, cy)
-        rl_obs = spearman_rho(lx, ly)
-        rg_obs = spearman_rho(gx, gy)
-        drho_obs = rc_obs - rl_obs
-        sd_pla_c, sd_bra_c = desvio(cx), desvio(cy)
-        sd_pla_l, sd_bra_l = desvio(lx), desvio(ly)
-        for esc in ESCENARIOS:
-            rho_true = rg_obs if esc == "GLOBAL" else rc_obs
-            r_pear = rho_s_a_r(rho_true)
-            s = _simular_celda(rng, r_pear, sd_pla_c, sd_bra_c, nc,
-                               sd_pla_l, sd_bra_l, nl, drho_obs)
-            dentro = (s["q025"] <= drho_obs <= s["q975"])
-            filas.append([
-                item, tipo, esc, g10(rho_true), p6e(r_pear), nc, nl,
-                g10(sd_pla_c), g10(sd_bra_c), g10(sd_pla_l), g10(sd_bra_l),
-                g10(drho_obs), g10(s["media"]), g10(s["sd"]), g10(s["q025"]),
-                g10(s["q975"]), g10(s["frac_ge"]), g10(s["tasa_fisher"]),
-                "DENTRO" if dentro else "FUERA"])
+                rho_true = rg_obs if esc == "GLOBAL" else rc_obs
+                r_pear = rho_s_a_r(rho_true)
+                s = _simular_celda(rng, r_pear, sd_pla_c, sd_bra_c, nc,
+                                   sd_pla_l, sd_bra_l, nl, drho_obs)
+                dentro = (s["q025"] <= drho_obs <= s["q975"])
+                filas.append([
+                    item, tipo, estrato, esc, g10(rho_true), p6e(r_pear), nc, nl,
+                    g10(sd_pla_c), g10(sd_bra_c), g10(sd_pla_l), g10(sd_bra_l),
+                    g10(drho_obs), g10(s["media"]), g10(s["sd"]), g10(s["q025"]),
+                    g10(s["q975"]), g10(s["frac_ge"]), g10(s["tasa_fisher"]),
+                    "DENTRO" if dentro else "FUERA"])
     return filas
 
 
@@ -360,6 +379,9 @@ def tabla_simulacion(D, rng):
 # 3. Figura.
 # ===========================================================================
 def figura_simulacion(sim, ruta):
+    # Solo AMBOS_SEXOS (comportamiento previo): los estratos por sexo se leen
+    # en la tabla completa, no saturan este panel.
+    sim = [f for f in sim if f[2] == "AMBOS_SEXOS"]
     ncol, nrow = 4, 3
     fig, axes = plt.subplots(nrow, ncol, figsize=(13.0, 9.0))
     axl = axes.flatten()
@@ -374,21 +396,21 @@ def figura_simulacion(sim, ruta):
         ymap = {"GLOBAL": 1.0, "CONTROL": 0.0}
         tiene = False
         for f in filas:
-            esc = f[2]
+            esc = f[3]
             y = ymap[esc]
-            if f[18] == "sin_test":
+            if f[19] == "sin_test":
                 ax.text(0.5, 0.5, "n<5 en algun grupo\n(sin simulacion)",
                         ha="center", va="center", fontsize=8, color="0.5",
                         transform=ax.transAxes)
                 break
             tiene = True
-            q025, q975 = float(f[14]), float(f[15])
-            media = float(f[12])
-            drho_obs = float(f[11])
+            q025, q975 = float(f[15]), float(f[16])
+            media = float(f[13])
+            drho_obs = float(f[12])
             ax.plot([q025, q975], [y, y], "-", color=col_esc[esc], lw=3,
                     alpha=0.55, solid_capstyle="butt")
             ax.plot(media, y, "|", color=col_esc[esc], ms=12, mew=1.5)
-            ax.plot(drho_obs, y, "D", color=col_ver[f[18]], ms=7, mec="black",
+            ax.plot(drho_obs, y, "D", color=col_ver[f[19]], ms=7, mec="black",
                     mew=0.5, zorder=3)
         if tiene:
             ax.axvline(0.0, color="0.6", lw=0.6, ls=":")
@@ -518,6 +540,29 @@ _DESCARTES = "\n".join([
     "interpretable como coordinacion biologica. `FUERA`: lo excede en ese "
     "escenario.",
     "",
+    "### Estratificacion por sexo (pedido explicito, punto 4/4, aditiva)",
+    "",
+    "- **Por que hace falta**: `09_acto2_dispersion` gano Delta rho por sexo "
+    "(`HEMBRA`/`MACHO`, ademas de `AMBOS_SEXOS`) -- cada uno de esos Delta rho "
+    "necesita su propio control de restriccion de rango, o queda sin la "
+    "verificacion que lo hace interpretable (prohibicion 5).",
+    "- **Mismo diseno**, extendido con columna `ESTRATO`: una `r` verdadera "
+    "comun a Control y LPS (rango GLOBAL/CONTROL, igual que antes), y las SD "
+    "marginales = SD **observadas dentro de ese estrato de sexo** (misma "
+    "celda SEXO x TTO que la tabla de dispersion de 09). El veredicto sigue "
+    "siendo DENTRO/FUERA, mismo criterio.",
+    "- **Limitacion declarada, no oculta**: con `n <= 9` por celda de sexo, el "
+    "intervalo simulado es ancho y el veredicto `DENTRO` es casi automatico -- "
+    "**con este `n` no se puede distinguir cambio de coordinacion de cambio de "
+    "dispersion** dentro de cada sexo por separado. Es un resultado en si "
+    "mismo (falta de potencia), no un defecto de la simulacion; se dice en el "
+    "cuerpo del reporte (Seccion 1), no en una nota al pie.",
+    "- **Bug propio encontrado y corregido**: la fila `sin_test` (celdas bajo "
+    "el piso `n_par >= 5`) tenia UN campo de menos que columnas la tabla -- "
+    "bug preexistente, nunca disparado porque `AMBOS_SEXOS` siempre superaba "
+    "el piso con estos datos; con `HEMBRA`/`MACHO` (n<=9) si se dispara. "
+    "Corregido completando los 20 campos de `COLS_SIM`.",
+    "",
     "### Descartado",
     "",
     "- **Simular sobre rangos** (en vez de en `-ddCt`): no modela como la "
@@ -589,8 +634,20 @@ def construir_reporte(fuente, sim):
     ap("- `veredicto = DENTRO` -> la sola diferencia de dispersion puede "
        "producir el `Delta rho` observado (no se descarta restriccion de rango, "
        "prohibicion 5).")
+    ap("- **Estratificado por sexo** (pedido explicito, aditivo): columna "
+       "`ESTRATO` = `AMBOS_SEXOS` (agrupado, como antes) / `HEMBRA` / `MACHO`. "
+       "Cada `Delta rho` nuevo por sexo (de `09_acto2_dispersion`) necesita su "
+       "propio control de restriccion de rango; mismo diseno, con las SD "
+       "OBSERVADAS de cada celda de sexo.")
+    ap("- **Limitacion declarada** (no es un defecto de la simulacion, es un "
+       "resultado en si mismo): con `n <= 9` por celda de sexo, el intervalo "
+       "simulado va a ser ancho, lo cual hace que el veredicto `DENTRO` sea "
+       "casi automatico. **Con este `n` no se puede distinguir cambio de "
+       "coordinacion de cambio de dispersion** dentro de `HEMBRA`/`MACHO` por "
+       "separado -- la lectura confiable de restriccion de rango sigue siendo "
+       "`AMBOS_SEXOS`.")
     ap("")
-    ap("## 2. Resultados por item y escenario")
+    ap("## 2. Resultados por item, estrato y escenario")
     ap("")
     ap(_md(COLS_SIM, sim))
     ap("")
@@ -626,9 +683,27 @@ def main():
                    construir_reporte(fuente, sim))
     actualizar_descartados()
 
-    n_sim = sum(1 for f in sim if f[18] != "sin_test")
-    n_dentro = sum(1 for f in sim if f[18] == "DENTRO")
-    n_fuera = sum(1 for f in sim if f[18] == "FUERA")
+    # Conteos de resumen (print + verificaciones): AMBOS_SEXOS, para no romper
+    # la semantica de las verificaciones ya existentes (20 celdas = 10 items x
+    # 2 escenarios); HEMBRA/MACHO se resumen aparte.
+    sim_ambos = [f for f in sim if f[2] == "AMBOS_SEXOS"]
+    n_sim = sum(1 for f in sim_ambos if f[19] != "sin_test")
+    n_dentro = sum(1 for f in sim_ambos if f[19] == "DENTRO")
+    n_fuera = sum(1 for f in sim_ambos if f[19] == "FUERA")
+
+    # Particion: n(HEMBRA) + n(MACHO) == n(AMBOS_SEXOS) por item x escenario x
+    # grupo -- si no cierra, hay error de filtrado. n_control/n_lps en col 6/7.
+    n_por_sim = {(f[0], f[2], f[3]): (int(f[6]), int(f[7])) for f in sim}
+    particion_sim_ok = True
+    particion_sim_detalle = []
+    for item in ITEMS:
+        for esc in ESCENARIOS:
+            nc_a, nl_a = n_por_sim[(item, "AMBOS_SEXOS", esc)]
+            nc_h, nl_h = n_por_sim[(item, "HEMBRA", esc)]
+            nc_m, nl_m = n_por_sim[(item, "MACHO", esc)]
+            if nc_h + nc_m != nc_a or nl_h + nl_m != nl_a:
+                particion_sim_ok = False
+                particion_sim_detalle.append(f"{item} {esc}")
 
     ent = (f"data/processed/qpcr_cuantificacion_long.tsv + qpcr_score_compuesto_long.tsv "
            f"+ outputs/tables/*/acto2_dispersion.csv (de data/{fuente}/{cfg.ARCHIVO_QPCR})")
@@ -637,7 +712,13 @@ def main():
          "PROPIO", ent, "simulacion de restriccion de rango: normal bivariada en "
          "-ddCt, r verdadera comun (escenarios GLOBAL y CONTROL), SD por grupo "
          "observadas; Delta rho simulado, IC95, frac >=|obs|, tasa Fisher, "
-         "veredicto DENTRO/FUERA"],
+         "veredicto DENTRO/FUERA; estratificado por ESTRATO "
+         "(AMBOS_SEXOS/HEMBRA/MACHO, pedido explicito -- cada Delta rho nuevo por "
+         "sexo de 09_acto2_dispersion necesita su propio control de restriccion "
+         "de rango, mismo diseno con las SD observadas de cada celda de sexo; "
+         "limitacion declarada: con n<=9 el intervalo simulado es ancho y el "
+         "veredicto DENTRO es casi automatico -- con este n no se puede "
+         "distinguir cambio de coordinacion de cambio de dispersion)"],
         ["outputs/figures/acto2_simulacion_delta_rho.png", "figura", ESTE_SCRIPT,
          "PROPIO", ent, "Delta rho observado vs intervalo 95% del Delta rho "
          "simulado por item y escenario"],
@@ -670,9 +751,25 @@ def main():
          "sd_pla/sd_bra de pares(item, grupo); unica diferencia entre grupos en "
          "la simulacion", "SD observadas", "TRUE", ESTE_SCRIPT],
         ["acto2_sim_veredicto",
-         "veredicto por item x escenario: DENTRO (no se descarta rango) / FUERA",
+         "veredicto por item x escenario (AMBOS_SEXOS): DENTRO (no se descarta "
+         "rango) / FUERA",
          f"{n_sim} celdas simuladas; DENTRO={n_dentro}; FUERA={n_fuera}",
          "DENTRO/FUERA/sin_test", "TRUE", ESTE_SCRIPT],
+        ["acto2_sim_estratos_sexo",
+         "ESTRATO = AMBOS_SEXOS/HEMBRA/MACHO, mismo diseno con SD observadas por sexo",
+         ";".join(ESTRATOS), "AMBOS_SEXOS;HEMBRA;MACHO",
+         "TRUE" if ESTRATOS == ["AMBOS_SEXOS", "HEMBRA", "MACHO"] else "FALSE",
+         ESTE_SCRIPT],
+        ["acto2_sim_estrato_particion",
+         "n(HEMBRA) + n(MACHO) = n(AMBOS_SEXOS) por item x escenario x grupo",
+         "particiona en %d/%d celdas item x escenario%s" % (
+             len(ITEMS) * len(ESCENARIOS) - len(particion_sim_detalle),
+             len(ITEMS) * len(ESCENARIOS),
+             ("; falla en: " + ", ".join(particion_sim_detalle))
+             if particion_sim_detalle else ""),
+         "particiona en %d/%d celdas" % (len(ITEMS) * len(ESCENARIOS),
+                                          len(ITEMS) * len(ESCENARIOS)),
+         "TRUE" if particion_sim_ok else "FALSE", ESTE_SCRIPT],
         ["acto2_sim_tasa_fisher",
          "se reporta la tasa de falsos positivos del Fisher z (09) bajo pura "
          "restriccion de rango",
@@ -686,14 +783,23 @@ def main():
 
     print("== 10_acto2_simulacion.py ==")
     print(f"  fuente = {fuente}   B = {B_SIM}   semilla = {cfg.SEMILLA}")
-    print(f"  celdas simuladas: {n_sim}  (DENTRO={n_dentro}, FUERA={n_fuera})")
-    for f in sim:
-        if f[18] == "sin_test":
-            print(f"    {f[0]:16} {f[2]:8}  (sin test, piso)")
+    print(f"  celdas simuladas AMBOS_SEXOS: {n_sim}  (DENTRO={n_dentro}, FUERA={n_fuera})")
+    for f in sim_ambos:
+        if f[19] == "sin_test":
+            print(f"    {f[0]:16} {f[3]:8}  (sin test, piso)")
         else:
-            print(f"    {f[0]:16} {f[2]:8}  dRho_obs={f[11]:>9}  "
-                  f"IC95_sim=[{f[14]:>9}, {f[15]:>9}]  frac>=obs={f[16]:>8}  "
-                  f"fisherFP={f[17]:>7}  -> {f[18]}")
+            print(f"    {f[0]:16} {f[3]:8}  dRho_obs={f[12]:>9}  "
+                  f"IC95_sim=[{f[15]:>9}, {f[16]:>9}]  frac>=obs={f[17]:>8}  "
+                  f"fisherFP={f[18]:>7}  -> {f[19]}")
+    for estrato in ("HEMBRA", "MACHO"):
+        fs = [f for f in sim if f[2] == estrato]
+        nsi = sum(1 for f in fs if f[19] != "sin_test")
+        ndi = sum(1 for f in fs if f[19] == "DENTRO")
+        nfu = sum(1 for f in fs if f[19] == "FUERA")
+        print(f"  celdas simuladas {estrato}: {nsi}  (DENTRO={ndi}, FUERA={nfu})")
+    print("  particion n(HEMBRA)+n(MACHO)=n(AMBOS_SEXOS) [item x escenario]: " + (
+        f"OK en {len(ITEMS) * len(ESCENARIOS)}/{len(ITEMS) * len(ESCENARIOS)} celdas"
+        if particion_sim_ok else "FALLA en: " + ", ".join(particion_sim_detalle)))
     print(f"  -> outputs/tables/{{R,python}}/acto2_simulacion.csv")
     print(f"  -> {fig_sim.name}")
 

@@ -52,6 +52,11 @@ GEN_SIN_CEREBRO <- "il6"
 GENES_CORR <- setdiff(GENES, GEN_SIN_CEREBRO)
 ITEMS <- c(GENES_CORR, "score_compuesto")
 ESCENARIOS <- c("GLOBAL", "CONTROL")
+# Estratificacion por sexo (pedido explicito, punto 4/4): AMBOS_SEXOS =
+# comportamiento previo (agrupado); HEMBRA/MACHO = mismo diseno con las SD
+# OBSERVADAS de cada celda de sexo. Aditivo.
+ESTRATOS <- c("AMBOS_SEXOS", "HEMBRA", "MACHO")
+sexo_de_estrato <- function(e) if (e == "AMBOS_SEXOS") NULL else e
 B_SIM <- 2000L
 R_CLAMP <- 0.999999
 DPI <- 300
@@ -152,6 +157,7 @@ cargar <- function() {
   sc <- .leer_tsv(file.path(proc, "qpcr_score_compuesto_long.tsv"))
   madre <- setNames(cu$MADRE_ID, cu$FETO)[!duplicated(cu$FETO)]
   tto   <- setNames(cu$TTO, cu$FETO)[!duplicated(cu$FETO)]
+  sexo  <- setNames(cu$SEXO, cu$FETO)[!duplicated(cu$FETO)]
   negdd <- setNames(
     ifelse(cu$neg_ddCt == "", NA_real_, suppressWarnings(as.numeric(cu$neg_ddCt))),
     paste(cu$FETO, cu$TEJIDO, cu$GEN, sep = "\r"))
@@ -160,13 +166,17 @@ cargar <- function() {
            suppressWarnings(as.numeric(sc$score_compuesto))),
     paste(sc$FETO, sc$TEJIDO, sep = "\r"))
   fetos <- names(madre)[order(madre, names(madre), method = "radix")]
-  list(fetos = fetos, tto = tto, negdd = negdd, sc = scv)
+  list(fetos = fetos, tto = tto, sexo = sexo, negdd = negdd, sc = scv)
 }
 
-pares <- function(D, item, estrato) {
+# `sexo_filtro`: NULL = ambos sexos (comportamiento previo); "HEMBRA"/"MACHO"
+# restringe ademas por sexo -- simulacion estratificada (pedido explicito,
+# punto 4/4 de pedidos/cambios_acto2_dispersion_por_sexo.md).
+pares <- function(D, item, estrato, sexo_filtro = NULL) {
   xs <- c(); ys <- c(); ts <- c()
   for (f in D$fetos) {
     if (estrato != "GLOBAL" && D$tto[[f]] != estrato) next
+    if (!is.null(sexo_filtro) && D$sexo[[f]] != sexo_filtro) next
     if (item == "score_compuesto") {
       xp <- D$sc[[paste(f, "PLACENTA_E15", sep = "\r")]]
       yb <- D$sc[[paste(f, "BRAIN_E15", sep = "\r")]]
@@ -183,7 +193,7 @@ pares <- function(D, item, estrato) {
 # ===========================================================================
 # 2. Simulacion.
 # ===========================================================================
-COLS_SIM <- c("ITEM", "TIPO", "ESCENARIO", "rho_true", "r_pearson_gen",
+COLS_SIM <- c("ITEM", "TIPO", "ESTRATO", "ESCENARIO", "rho_true", "r_pearson_gen",
               "n_control", "n_lps", "sd_pla_control", "sd_bra_control",
               "sd_pla_lps", "sd_bra_lps", "delta_rho_obs", "sim_mean_delta_rho",
               "sim_sd_delta_rho", "sim_q025", "sim_q975", "sim_frac_abs_ge_obs",
@@ -228,32 +238,35 @@ tabla_simulacion <- function(D, rng) {
   filas <- list()
   for (item in ITEMS) {
     tipo <- if (item == "score_compuesto") "score" else "gen"
-    prc <- pares(D, item, "CONTROL"); prl <- pares(D, item, "LPS")
-    prg <- pares(D, item, "GLOBAL")
-    nc <- length(prc$x); nl <- length(prl$x)
-    if (nc < PISO_PAR || nl < PISO_PAR) {
-      for (esc in ESCENARIOS)
-        filas[[length(filas) + 1L]] <- list(item, tipo, esc, "", "", nc, nl,
-          "", "", "", "", "", "", "", "", "", "", "", "sin_test")
-      next
-    }
-    rc_obs <- spearman_rho(prc$x, prc$y)
-    rl_obs <- spearman_rho(prl$x, prl$y)
-    rg_obs <- spearman_rho(prg$x, prg$y)
-    drho_obs <- rc_obs - rl_obs
-    sd_pla_c <- desvio(prc$x); sd_bra_c <- desvio(prc$y)
-    sd_pla_l <- desvio(prl$x); sd_bra_l <- desvio(prl$y)
-    for (esc in ESCENARIOS) {
-      rho_true <- if (esc == "GLOBAL") rg_obs else rc_obs
-      r_pear <- rho_s_a_r(rho_true)
-      s <- .simular_celda(rng, r_pear, sd_pla_c, sd_bra_c, nc,
-                          sd_pla_l, sd_bra_l, nl, drho_obs)
-      dentro <- (s$q025 <= drho_obs && drho_obs <= s$q975)
-      filas[[length(filas) + 1L]] <- list(
-        item, tipo, esc, g10(rho_true), p6e(r_pear), nc, nl,
-        g10(sd_pla_c), g10(sd_bra_c), g10(sd_pla_l), g10(sd_bra_l),
-        g10(drho_obs), g10(s$media), g10(s$sd), g10(s$q025), g10(s$q975),
-        g10(s$frac_ge), g10(s$tasa_fisher), if (dentro) "DENTRO" else "FUERA")
+    for (estrato in ESTRATOS) {
+      sx <- sexo_de_estrato(estrato)
+      prc <- pares(D, item, "CONTROL", sx); prl <- pares(D, item, "LPS", sx)
+      prg <- pares(D, item, "GLOBAL", sx)
+      nc <- length(prc$x); nl <- length(prl$x)
+      if (nc < PISO_PAR || nl < PISO_PAR) {
+        for (esc in ESCENARIOS)
+          filas[[length(filas) + 1L]] <- c(list(item, tipo, estrato, esc, "", "", nc, nl),
+            as.list(rep("", 11L)), list("sin_test"))
+        next
+      }
+      rc_obs <- spearman_rho(prc$x, prc$y)
+      rl_obs <- spearman_rho(prl$x, prl$y)
+      rg_obs <- spearman_rho(prg$x, prg$y)
+      drho_obs <- rc_obs - rl_obs
+      sd_pla_c <- desvio(prc$x); sd_bra_c <- desvio(prc$y)
+      sd_pla_l <- desvio(prl$x); sd_bra_l <- desvio(prl$y)
+      for (esc in ESCENARIOS) {
+        rho_true <- if (esc == "GLOBAL") rg_obs else rc_obs
+        r_pear <- rho_s_a_r(rho_true)
+        s <- .simular_celda(rng, r_pear, sd_pla_c, sd_bra_c, nc,
+                            sd_pla_l, sd_bra_l, nl, drho_obs)
+        dentro <- (s$q025 <= drho_obs && drho_obs <= s$q975)
+        filas[[length(filas) + 1L]] <- list(
+          item, tipo, estrato, esc, g10(rho_true), p6e(r_pear), nc, nl,
+          g10(sd_pla_c), g10(sd_bra_c), g10(sd_pla_l), g10(sd_bra_l),
+          g10(drho_obs), g10(s$media), g10(s$sd), g10(s$q025), g10(s$q975),
+          g10(s$frac_ge), g10(s$tasa_fisher), if (dentro) "DENTRO" else "FUERA")
+      }
     }
   }
   filas
@@ -263,24 +276,27 @@ tabla_simulacion <- function(D, rng) {
 # 3. Figura.
 # ===========================================================================
 figura_simulacion <- function(sim, ruta) {
+  # Solo AMBOS_SEXOS (comportamiento previo): los estratos por sexo se leen
+  # en la tabla completa, no saturan este panel.
+  sim <- Filter(function(f) f[[3]] == "AMBOS_SEXOS", sim)
   ord <- vapply(ITEMS, function(i)
     if (i == "score_compuesto") "score compuesto" else i, character(1))
   seg <- list(); pts <- list(); med <- list(); txt <- list()
   ymap <- c(GLOBAL = 1, CONTROL = 0)
   for (f in sim) {
     nom <- if (f[[1]] == "score_compuesto") "score compuesto" else f[[1]]
-    if (f[[19]] == "sin_test") {
+    if (f[[20]] == "sin_test") {
       txt[[length(txt) + 1L]] <- data.frame(item = nom, lab = "n<5 (sin simulacion)",
                                             stringsAsFactors = FALSE)
       next
     }
-    y <- ymap[[f[[3]]]]
-    seg[[length(seg) + 1L]] <- data.frame(item = nom, esc = f[[3]], y = y,
-      x0 = as.numeric(f[[15]]), x1 = as.numeric(f[[16]]), stringsAsFactors = FALSE)
-    med[[length(med) + 1L]] <- data.frame(item = nom, esc = f[[3]], y = y,
-      x = as.numeric(f[[13]]), stringsAsFactors = FALSE)
+    y <- ymap[[f[[4]]]]
+    seg[[length(seg) + 1L]] <- data.frame(item = nom, esc = f[[4]], y = y,
+      x0 = as.numeric(f[[16]]), x1 = as.numeric(f[[17]]), stringsAsFactors = FALSE)
+    med[[length(med) + 1L]] <- data.frame(item = nom, esc = f[[4]], y = y,
+      x = as.numeric(f[[14]]), stringsAsFactors = FALSE)
     pts[[length(pts) + 1L]] <- data.frame(item = nom, y = y,
-      x = as.numeric(f[[12]]), ver = f[[19]], stringsAsFactors = FALSE)
+      x = as.numeric(f[[13]]), ver = f[[20]], stringsAsFactors = FALSE)
   }
   d_seg <- do.call(rbind, seg); d_pts <- do.call(rbind, pts)
   d_med <- do.call(rbind, med)
@@ -422,6 +438,30 @@ paste0("- `veredicto = DENTRO`: el `Delta rho` observado cae dentro del ",
        "de correlacion no es interpretable como coordinacion biologica. ",
        "`FUERA`: lo excede en ese escenario."),
 "",
+"### Estratificacion por sexo (pedido explicito, punto 4/4, aditiva)",
+"",
+paste0("- **Por que hace falta**: `09_acto2_dispersion` gano Delta rho por ",
+       "sexo (`HEMBRA`/`MACHO`, ademas de `AMBOS_SEXOS`) -- cada uno de esos ",
+       "Delta rho necesita su propio control de restriccion de rango, o queda ",
+       "sin la verificacion que lo hace interpretable (prohibicion 5)."),
+paste0("- **Mismo diseno**, extendido con columna `ESTRATO`: una `r` verdadera ",
+       "comun a Control y LPS (rango GLOBAL/CONTROL, igual que antes), y las ",
+       "SD marginales = SD **observadas dentro de ese estrato de sexo** (misma ",
+       "celda SEXO x TTO que la tabla de dispersion de 09). El veredicto sigue ",
+       "siendo DENTRO/FUERA, mismo criterio."),
+paste0("- **Limitacion declarada, no oculta**: con `n <= 9` por celda de sexo, ",
+       "el intervalo simulado es ancho y el veredicto `DENTRO` es casi ",
+       "automatico -- **con este `n` no se puede distinguir cambio de ",
+       "coordinacion de cambio de dispersion** dentro de cada sexo por ",
+       "separado. Es un resultado en si mismo (falta de potencia), no un ",
+       "defecto de la simulacion; se dice en el cuerpo del reporte (Seccion 1), ",
+       "no en una nota al pie."),
+paste0("- **Bug propio encontrado y corregido**: la fila `sin_test` (celdas ",
+       "bajo el piso `n_par >= 5`) tenia UN campo de menos que columnas la ",
+       "tabla -- bug preexistente, nunca disparado porque `AMBOS_SEXOS` ",
+       "siempre superaba el piso con estos datos; con `HEMBRA`/`MACHO` (n<=9) ",
+       "si se dispara. Corregido completando los 20 campos de `COLS_SIM`."),
+"",
 "### Descartado",
 "",
 paste0("- **Simular sobre rangos** (en vez de en `-ddCt`): no modela como la ",
@@ -490,8 +530,20 @@ construir_reporte <- function(fuente, sim) {
            "`CONTROL` (rho de Control)."),
     paste0("- `veredicto = DENTRO` -> la sola diferencia de dispersion puede ",
            "producir el `Delta rho` observado (no se descarta restriccion de ",
-           "rango, prohibicion 5)."), "",
-    "## 2. Resultados por item y escenario", "",
+           "rango, prohibicion 5)."),
+    paste0("- **Estratificado por sexo** (pedido explicito, aditivo): columna ",
+           "`ESTRATO` = `AMBOS_SEXOS` (agrupado, como antes) / `HEMBRA` / `MACHO`. ",
+           "Cada `Delta rho` nuevo por sexo (de `09_acto2_dispersion`) necesita su ",
+           "propio control de restriccion de rango; mismo diseno, con las SD ",
+           "OBSERVADAS de cada celda de sexo."),
+    paste0("- **Limitacion declarada** (no es un defecto de la simulacion, es un ",
+           "resultado en si mismo): con `n <= 9` por celda de sexo, el intervalo ",
+           "simulado va a ser ancho, lo cual hace que el veredicto `DENTRO` sea ",
+           "casi automatico. **Con este `n` no se puede distinguir cambio de ",
+           "coordinacion de cambio de dispersion** dentro de `HEMBRA`/`MACHO` por ",
+           "separado -- la lectura confiable de restriccion de rango sigue siendo ",
+           "`AMBOS_SEXOS`."), "",
+    "## 2. Resultados por item, estrato y escenario", "",
     .md(COLS_SIM, sim), "",
     "## 3. Figura", "",
     paste0("- `outputs/figures/acto2_simulacion_delta_rho.png` -- `Delta rho` ",
@@ -522,9 +574,32 @@ main <- function() {
                   construir_reporte(fuente, sim))
   actualizar_descartados()
 
-  n_sim <- sum(vapply(sim, function(f) f[[19]] != "sin_test", logical(1)))
-  n_dentro <- sum(vapply(sim, function(f) f[[19]] == "DENTRO", logical(1)))
-  n_fuera <- sum(vapply(sim, function(f) f[[19]] == "FUERA", logical(1)))
+  # Conteos de resumen (cat + verificaciones): AMBOS_SEXOS, para no romper la
+  # semantica de las verificaciones ya existentes (20 celdas = 10 items x 2
+  # escenarios); HEMBRA/MACHO se resumen aparte.
+  sim_ambos <- Filter(function(f) f[[3]] == "AMBOS_SEXOS", sim)
+  n_sim <- sum(vapply(sim_ambos, function(f) f[[20]] != "sin_test", logical(1)))
+  n_dentro <- sum(vapply(sim_ambos, function(f) f[[20]] == "DENTRO", logical(1)))
+  n_fuera <- sum(vapply(sim_ambos, function(f) f[[20]] == "FUERA", logical(1)))
+
+  # Particion: n(HEMBRA) + n(MACHO) == n(AMBOS_SEXOS) por item x escenario x
+  # grupo (mismo espiritu que la verificacion 7.1 de 09) -- si no cierra, hay
+  # error de filtrado. n_control/n_lps ahora estan en las columnas 7/8.
+  n_por_sim <- list()
+  for (f in sim) n_por_sim[[paste(f[[1]], f[[3]], f[[4]])]] <-
+    c(n_control = f[[7]], n_lps = f[[8]])
+  particion_sim_ok <- TRUE; particion_sim_detalle <- character(0)
+  for (item in ITEMS) for (esc in ESCENARIOS) {
+    a <- n_por_sim[[paste(item, "AMBOS_SEXOS", esc)]]
+    h <- n_por_sim[[paste(item, "HEMBRA", esc)]]
+    m <- n_por_sim[[paste(item, "MACHO", esc)]]
+    ok_c <- as.integer(h["n_control"]) + as.integer(m["n_control"]) == as.integer(a["n_control"])
+    ok_l <- as.integer(h["n_lps"]) + as.integer(m["n_lps"]) == as.integer(a["n_lps"])
+    if (!ok_c || !ok_l) {
+      particion_sim_ok <- FALSE
+      particion_sim_detalle <- c(particion_sim_detalle, paste(item, esc))
+    }
+  }
 
   ent <- sprintf(paste0("data/processed/qpcr_cuantificacion_long.tsv + ",
                         "qpcr_score_compuesto_long.tsv + ",
@@ -535,7 +610,13 @@ main <- function() {
          "PROPIO", ent, paste0("simulacion de restriccion de rango: normal ",
          "bivariada en -ddCt, r verdadera comun (escenarios GLOBAL y CONTROL), ",
          "SD por grupo observadas; Delta rho simulado, IC95, frac >=|obs|, tasa ",
-         "Fisher, veredicto DENTRO/FUERA")),
+         "Fisher, veredicto DENTRO/FUERA; estratificado por ESTRATO ",
+         "(AMBOS_SEXOS/HEMBRA/MACHO, pedido explicito -- cada Delta rho nuevo por ",
+         "sexo de 09_acto2_dispersion necesita su propio control de restriccion ",
+         "de rango, mismo diseno con las SD observadas de cada celda de sexo; ",
+         "limitacion declarada: con n<=9 el intervalo simulado es ancho y el ",
+         "veredicto DENTRO es casi automatico -- con este n no se puede ",
+         "distinguir cambio de coordinacion de cambio de dispersion)")),
     list("outputs/figures/acto2_simulacion_delta_rho.png", "figura", ESTE_SCRIPT,
          "PROPIO", ent, paste0("Delta rho observado vs intervalo 95% del Delta ",
          "rho simulado por item y escenario")),
@@ -570,9 +651,23 @@ main <- function() {
                 "grupos en la simulacion"),
          "SD observadas", "TRUE", ESTE_SCRIPT),
     list("acto2_sim_veredicto",
-         "veredicto por item x escenario: DENTRO (no se descarta rango) / FUERA",
+         "veredicto por item x escenario (AMBOS_SEXOS): DENTRO (no se descarta rango) / FUERA",
          sprintf("%d celdas simuladas; DENTRO=%d; FUERA=%d", n_sim, n_dentro, n_fuera),
          "DENTRO/FUERA/sin_test", "TRUE", ESTE_SCRIPT),
+    list("acto2_sim_estratos_sexo",
+         "ESTRATO = AMBOS_SEXOS/HEMBRA/MACHO, mismo diseno con SD observadas por sexo",
+         paste(ESTRATOS, collapse = ";"), "AMBOS_SEXOS;HEMBRA;MACHO",
+         if (identical(ESTRATOS, c("AMBOS_SEXOS", "HEMBRA", "MACHO"))) "TRUE" else "FALSE",
+         ESTE_SCRIPT),
+    list("acto2_sim_estrato_particion",
+         "n(HEMBRA) + n(MACHO) = n(AMBOS_SEXOS) por item x escenario x grupo",
+         sprintf("particiona en %d/%d celdas item x escenario%s",
+                 length(ITEMS) * length(ESCENARIOS) - length(particion_sim_detalle),
+                 length(ITEMS) * length(ESCENARIOS), if (length(particion_sim_detalle))
+                   paste0("; falla en: ", paste(particion_sim_detalle, collapse = ", ")) else ""),
+         sprintf("particiona en %d/%d celdas", length(ITEMS) * length(ESCENARIOS),
+                 length(ITEMS) * length(ESCENARIOS)),
+         if (particion_sim_ok) "TRUE" else "FALSE", ESTE_SCRIPT),
     list("acto2_sim_tasa_fisher",
          paste0("se reporta la tasa de falsos positivos del Fisher z (09) bajo ",
                 "pura restriccion de rango"),
@@ -586,17 +681,30 @@ main <- function() {
 
   cat("== 10_acto2_simulacion.R ==\n")
   cat(sprintf("  fuente = %s   B = %d   semilla = %d\n", fuente, B_SIM, SEMILLA))
-  cat(sprintf("  celdas simuladas: %d  (DENTRO=%d, FUERA=%d)\n",
+  cat(sprintf("  celdas simuladas AMBOS_SEXOS: %d  (DENTRO=%d, FUERA=%d)\n",
               n_sim, n_dentro, n_fuera))
-  for (f in sim) {
-    if (f[[19]] == "sin_test")
-      cat(sprintf("    %-16s %-8s  (sin test, piso)\n", f[[1]], f[[3]]))
+  for (f in sim_ambos) {
+    if (f[[20]] == "sin_test")
+      cat(sprintf("    %-16s %-8s  (sin test, piso)\n", f[[1]], f[[4]]))
     else
       cat(sprintf(paste0("    %-16s %-8s  dRho_obs=%9s  IC95_sim=[%9s, %9s]  ",
                          "frac>=obs=%8s  fisherFP=%7s  -> %s\n"),
-                  f[[1]], f[[3]], f[[12]], f[[15]], f[[16]], f[[17]], f[[18]],
-                  f[[19]]))
+                  f[[1]], f[[4]], f[[13]], f[[16]], f[[17]], f[[18]], f[[19]],
+                  f[[20]]))
   }
+  for (estrato in c("HEMBRA", "MACHO")) {
+    fs <- Filter(function(f) f[[3]] == estrato, sim)
+    nsi <- sum(vapply(fs, function(f) f[[20]] != "sin_test", logical(1)))
+    ndi <- sum(vapply(fs, function(f) f[[20]] == "DENTRO", logical(1)))
+    nfu <- sum(vapply(fs, function(f) f[[20]] == "FUERA", logical(1)))
+    cat(sprintf("  celdas simuladas %s: %d  (DENTRO=%d, FUERA=%d)\n",
+                estrato, nsi, ndi, nfu))
+  }
+  cat(sprintf("  particion n(HEMBRA)+n(MACHO)=n(AMBOS_SEXOS) [item x escenario]: %s\n",
+              if (particion_sim_ok)
+                sprintf("OK en %d/%d celdas", length(ITEMS) * length(ESCENARIOS),
+                        length(ITEMS) * length(ESCENARIOS))
+              else paste0("FALLA en: ", paste(particion_sim_detalle, collapse = ", "))))
   cat("  -> outputs/tables/{R,python}/acto2_simulacion.csv\n")
   cat(sprintf("  -> %s\n", basename(fig_sim)))
 }

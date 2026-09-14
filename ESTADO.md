@@ -1892,8 +1892,41 @@ significativa en T5 sin post hoc que sobreviva Holm").
   `05_qpcr_modelos.R`/`.py` (nombres específicos de cada lenguaje) → falla de
   paridad de render; corregido con prosa neutra.
 
+### Punto 4/4 — Simulación cubre los estratos HEMBRA/MACHO
+
+`10_acto2_simulacion` gana columna `ESTRATO` (`AMBOS_SEXOS`/`HEMBRA`/`MACHO`):
+mismo diseño (normal bivariada en `-ddCt`, `r` verdadera común como rango
+GLOBAL/CONTROL), con las SD marginales = SD **observadas dentro de ese
+estrato de sexo**. `figura_simulacion` sigue mostrando solo `AMBOS_SEXOS`
+(mismo criterio que las demás figuras de 09/10). Verificación de partición
+`acto2_sim_estrato_particion`: 20/20 celdas item×escenario.
+
+**Resultado (limitación declarada en el reporte, no oculta)**: con `n<=9`
+por celda de sexo, el veredicto `DENTRO` es casi automático — `MACHO` dio
+18/18 DENTRO; `HEMBRA` 13/18 DENTRO, 5/18 FUERA. Con este `n` no se puede
+distinguir cambio de coordinación de cambio de dispersión dentro de cada
+sexo por separado; la lectura confiable sigue siendo `AMBOS_SEXOS`.
+
+**Bug propio encontrado y corregido**: la fila `sin_test` (celdas bajo el
+piso `n_par>=5`) tenía un campo de menos que columnas la tabla — bug
+preexistente en R (nunca disparado porque `AMBOS_SEXOS` siempre superaba el
+piso con estos datos), expuesto ahora porque `HEMBRA`/`MACHO` sí caen bajo
+el piso para algunos items. Corregido completando los 20 campos de
+`COLS_SIM` explícitamente (`rep("", 11L)` en R, `[""] * 11` en Python).
+
+### Verificado
+
+- R↔Python: mismos resultados exactos (`HEMBRA` 18 celdas/13 DENTRO/5 FUERA,
+  `MACHO` 18/18/0, partición 20/20 OK).
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 32/32 CSV byte-idénticos, **100/100**
+  verificaciones en TRUE (antes 98), paridad de render OK, ~4.6 min.**
+
 ### Pendiente / siguiente paso concreto
 
-- **Punto 4/4** (simulación cubre los estratos HEMBRA/MACHO) — cerrar esta
-  sesión con ese punto, commit propio, `.\run_all.ps1` completo. Punto 5
-  (test de pendientes) sigue pendiente de confirmación.
+- **Puntos 1–4 del pedido completos y verificados** (`pedidos/cambios_acto2_dispersion_por_sexo.md`),
+  cada uno con su commit. **Punto 5 (test de pendientes) sigue pendiente**:
+  el pedido exige preguntar antes de implementarlo; el usuario dijo
+  explícitamente que quede pendiente en esta sesión. Al retomarlo: preguntar
+  primero, luego `Y ~ X * TTO` dentro de cada sexo y tejido sobre los pares
+  de transportadores, reportando el `p` de la interacción.
