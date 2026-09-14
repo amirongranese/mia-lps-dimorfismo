@@ -1789,3 +1789,56 @@ tomados de `00_config`, no reescritos a mano en el script de figuras.
   solas en su sección (mismo `script` en `procedencia.csv`); si se agrega una
   sección nueva en `SECCIONES`, sigue siendo manual (título + `.md` + criterio),
   como corresponde.
+
+---
+
+## Sesión 17 — 2026-09-14 — pedido: `cambios_acto2_dispersion_por_sexo.md`
+
+> Pedido completo en `pedidos/cambios_acto2_dispersion_por_sexo.md`: dispersión
+> y Δρ separados por sexo + test de interacción SEXO×TTO sobre dispersión +
+> simulación extendida a los estratos por sexo. **Puntos 1–4 confirmados**;
+> punto 5 (test de pendientes) queda **pendiente, no se implementa** (el
+> pedido exige preguntar antes, y así se hizo). Corrección del usuario sobre
+> el punto 3: el test de interacción sobre dispersión **no aplica la cascada
+> D5** — ANOVA tipo III directo, sin selección de rama (ver ese punto).
+
+### Punto 1/4 — Δρ por sexo (sección 2.4)
+
+**Problema**: la tabla de Δρ (Fisher z, prohibición 4) agrupaba los sexos
+(n=16–18), mientras que desde T7 las figuras de correlación ya están
+separadas por sexo. El caso que lo deja claro es `fatcd36`: ♀Control
+rho=0.86 (n=8), ♂Control rho=−0.43 (n=8); agrupados dan 0.47 (verificado:
+0.8571/−0.4286/0.4706 en los datos reales).
+
+- **`pares()`/`_pares()`** ganan un filtro opcional de sexo (`sexo_filtro`);
+  `cargar()` carga `SEXO` por feto (ya estaba en `qpcr_cuantificacion_long.tsv`).
+- **`COLS_TEST`** gana la columna `ESTRATO` (`AMBOS_SEXOS`/`HEMBRA`/`MACHO`).
+  `AMBOS_SEXOS` = filas previas, sin cambios (aditivo); `HEMBRA`/`MACHO` son
+  filas nuevas, mismo Fisher z (SE Bonett-Wright primario + clásico), sin
+  cambiar el método.
+  - **BH (D12) dentro de cada estrato**, no a través de los 27 `p` juntos
+    (pedido explícito: la potencia difiere demasiado entre estratos).
+- **Potencia declarada en el cuerpo del reporte** (no nota al pie): con
+  `n<=9` por celda de sexo, el Fisher z tiene poca potencia.
+- `figura_test_delta_rho` sigue mostrando solo `AMBOS_SEXOS` (un forest por
+  sexo saturaría el panel); los estratos se leen en la tabla completa.
+- Verificación nueva `acto2_estrato_particion_test`: `n(HEMBRA)+n(MACHO) ==
+  n(AMBOS_SEXOS)` por item y por grupo — verificado 10/10 items.
+
+### Verificado
+
+- R↔Python: mismos valores (`fatcd36` HEMBRA rho=0.8571429, MACHO
+  rho=−0.4285714, AMBOS_SEXOS rho=0.4705882, coincide con el ejemplo del
+  pedido).
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 31/31 CSV byte-idénticos, **93/93**
+  verificaciones en TRUE (antes 91), paridad de render OK, ~4.4 min.**
+
+### Pendiente / siguiente paso concreto
+
+- **Punto 2/4** (dispersión por sexo, sección 2.3, misma infraestructura de
+  `pares()` ya lista), **punto 3/4** (test de interacción SEXO×TTO sobre
+  dispersión, ANOVA III directo sin cascada D5 — corrección del usuario) y
+  **punto 4/4** (simulación cubre los estratos HEMBRA/MACHO) — seguir en esta
+  misma sesión, un commit por punto, cerrando cada uno con `.\run_all.ps1`
+  completo. Punto 5 (test de pendientes) sigue pendiente de confirmación.

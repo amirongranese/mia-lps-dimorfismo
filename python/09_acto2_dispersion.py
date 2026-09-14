@@ -66,6 +66,15 @@ ITEMS = GENES_CORR + ["score_compuesto"]
 TEJIDOS = list(cfg.TEJIDOS_E15)                      # PLACENTA_E15, BRAIN_E15
 DPI = 300
 
+# Estratificacion por sexo (pedido explicito, pedidos/cambios_acto2_dispersion_por_sexo.md):
+# AMBOS_SEXOS = comportamiento previo (agrupado); HEMBRA/MACHO = dentro de cada
+# sexo. Aditivo: AMBOS_SEXOS se conserva tal cual estaba.
+ESTRATOS = ["AMBOS_SEXOS", "HEMBRA", "MACHO"]
+
+
+def _sexo_de_estrato(e):
+    return None if e == "AMBOS_SEXOS" else e
+
 
 # ---------------------------------------------------------------------------
 # Formateo y escritura -- identicos a 02..08.
@@ -254,11 +263,13 @@ def cargar():
 
     madre = {}
     tto = {}
+    sexo = {}
     negdd = {}
     for r in cuant:
         f = r["FETO"]
         madre[f] = r["MADRE_ID"]
         tto[f] = r["TTO"]
+        sexo[f] = r["SEXO"]
         v = None if r["neg_ddCt"] == "" else float(r["neg_ddCt"])
         negdd[(f, r["TEJIDO"], r["GEN"])] = v
     sc = {}
@@ -267,15 +278,21 @@ def cargar():
         sc[(r["FETO"], r["TEJIDO"])] = v
 
     fetos = sorted(madre.keys(), key=lambda f: (madre[f], f))
-    return dict(fetos=fetos, tto=tto, negdd=negdd, sc=sc)
+    return dict(fetos=fetos, tto=tto, sexo=sexo, negdd=negdd, sc=sc)
 
 
-def _pares(D, item, estrato):
+def _pares(D, item, estrato, sexo_filtro=None):
     """(placenta[], cerebro[], tto[]) de los fetos con ambos lados detectados.
-    Identico a 08: la entrada de T8 son los mismos pares por feto de T7."""
+    Identico a 08: la entrada de T8 son los mismos pares por feto de T7.
+    `sexo_filtro`: None = ambos sexos (comportamiento previo); 'HEMBRA'/'MACHO'
+    restringe ademas por sexo -- usado por la estratificacion pedida (ver
+    analisis_descartados 09_acto2_dispersion): agrupar sexos promedia
+    correlaciones de signo opuesto (ver fatcd36 en el reporte)."""
     xs, ys, ts = [], [], []
     for f in D["fetos"]:
         if estrato != "GLOBAL" and D["tto"][f] != estrato:
+            continue
+        if sexo_filtro is not None and D["sexo"][f] != sexo_filtro:
             continue
         if item == "score_compuesto":
             xp = D["sc"].get((f, "PLACENTA_E15"))
@@ -326,10 +343,15 @@ def tabla_dispersion(D):
 
 # ===========================================================================
 # 2.4 -- Test reportado: Fisher z sobre rho de Spearman (prohibicion 4).
+# Estratificado por ESTRATO (AMBOS_SEXOS/HEMBRA/MACHO, pedido explicito): el
+# caso que lo justifica es fatcd36, donde HEMBRA Control rho=0.86 y MACHO
+# Control rho=-0.43 -- agrupados dan 0.47, que no describe a ninguno de los
+# dos (ver reporte y analisis_descartados). AMBOS_SEXOS = filas previas, sin
+# cambios; HEMBRA/MACHO son aditivas.
 # ===========================================================================
-COLS_TEST = ["ITEM", "TIPO", "n_control", "rho_control", "n_lps", "rho_lps",
-             "delta_rho", "z_control", "z_lps", "se_bw_control", "se_bw_lps",
-             "stat_z_bw", "p_bw", "p_bw_bh", "se_clasico_control",
+COLS_TEST = ["ITEM", "TIPO", "ESTRATO", "n_control", "rho_control", "n_lps",
+             "rho_lps", "delta_rho", "z_control", "z_lps", "se_bw_control",
+             "se_bw_lps", "stat_z_bw", "p_bw", "p_bw_bh", "se_clasico_control",
              "se_clasico_lps", "stat_z_clasico", "p_clasico"]
 
 
@@ -350,33 +372,41 @@ def _fisher_z(rc, nc, rl, nl, se_fn_c, se_fn_l):
     return zc, zl, sec, sel, stat, norm_sf2(stat)
 
 
+# BH (D12) se calcula DENTRO de cada estrato (pedido explicito: la potencia y
+# el n difieren mucho entre AMBOS_SEXOS y HEMBRA/MACHO por separado; mezclar
+# los 27 p-values en un solo ajuste no tendria sentido).
 def tabla_test(D):
     filas = []
-    pend_bh = []          # (indice_fila, p_bw) de las filas con test
+    pend_bh = {e: [] for e in ESTRATOS}   # estrato -> [(indice_fila, p_bw), ...]
     for item in ITEMS:
         tipo = "score" if item == "score_compuesto" else "gen"
-        cx, cy, _ = _pares(D, item, "CONTROL")
-        lx, ly, _ = _pares(D, item, "LPS")
-        nc, nl = len(cx), len(lx)
-        if nc < PISO_PAR or nl < PISO_PAR:
-            filas.append([item, tipo, nc, "", nl, "", "", "", "", "", "",
-                          "", "", "", "", "", "", ""])
+        for estrato in ESTRATOS:
+            sx = _sexo_de_estrato(estrato)
+            cx, cy, _ = _pares(D, item, "CONTROL", sx)
+            lx, ly, _ = _pares(D, item, "LPS", sx)
+            nc, nl = len(cx), len(lx)
+            idx = len(filas)
+            if nc < PISO_PAR or nl < PISO_PAR:
+                filas.append([item, tipo, estrato, nc, "", nl, ""] + [""] * 12)
+                continue
+            rc = spearman_rho(cx, cy)
+            rl = spearman_rho(lx, ly)
+            drho = rc - rl
+            zc, zl, sbc, sbl, stat_bw, p_bw = _fisher_z(
+                rc, nc, rl, nl, _se_bw(rc, nc), _se_bw(rl, nl))
+            _zc2, _zl2, scc, scl, stat_cl, p_cl = _fisher_z(
+                rc, nc, rl, nl, _se_clasico(nc), _se_clasico(nl))
+            pend_bh[estrato].append((idx, p_bw))
+            filas.append([item, tipo, estrato, nc, g10(rc), nl, g10(rl), g10(drho),
+                          p6e(zc), p6e(zl), p6e(sbc), p6e(sbl), p6e(stat_bw),
+                          p6e(p_bw), "", p6e(scc), p6e(scl), p6e(stat_cl), p6e(p_cl)])
+    for estrato in ESTRATOS:
+        pend = pend_bh[estrato]
+        if not pend:
             continue
-        rc = spearman_rho(cx, cy)
-        rl = spearman_rho(lx, ly)
-        drho = rc - rl
-        zc, zl, sbc, sbl, stat_bw, p_bw = _fisher_z(
-            rc, nc, rl, nl, _se_bw(rc, nc), _se_bw(rl, nl))
-        _zc2, _zl2, scc, scl, stat_cl, p_cl = _fisher_z(
-            rc, nc, rl, nl, _se_clasico(nc), _se_clasico(nl))
-        pend_bh.append((len(filas), p_bw))
-        filas.append([item, tipo, nc, g10(rc), nl, g10(rl), g10(drho),
-                      p6e(zc), p6e(zl), p6e(sbc), p6e(sbl), p6e(stat_bw),
-                      p6e(p_bw), "", p6e(scc), p6e(scl), p6e(stat_cl), p6e(p_cl)])
-    if pend_bh:
-        ajust = bh([p for _, p in pend_bh])
-        for (idx, _), pa in zip(pend_bh, ajust):
-            filas[idx][13] = p6e(pa)
+        ajust = bh([p for _, p in pend])
+        for (idx, _), pa in zip(pend, ajust):
+            filas[idx][14] = p6e(pa)
     return filas
 
 
@@ -421,17 +451,20 @@ def figura_dispersion_sd(disp, ruta):
 
 
 def figura_test_delta_rho(test, ruta):
-    """Por item: rho_control vs rho_lps (puntos unidos) + Delta rho y p_bw."""
+    """Por item: rho_control vs rho_lps (puntos unidos) + Delta rho y p_bw.
+    Solo AMBOS_SEXOS (comportamiento previo de la figura): un forest por sexo
+    ademas saturaria el panel; los estratos por sexo se leen en la tabla."""
+    test = [f for f in test if f[2] == "AMBOS_SEXOS"]
     fig, ax = plt.subplots(figsize=(9.5, 6.0))
     ys = list(range(len(ITEMS)))[::-1]
     for y, item, row in zip(ys, ITEMS, test):
         nom = "score compuesto" if item == "score_compuesto" else item
-        if row[3] == "" or row[5] == "":
+        if row[4] == "" or row[6] == "":
             ax.text(0.0, y, f"  {nom}: n<{PISO_PAR} en algun grupo (sin test)",
                     va="center", fontsize=8, color="0.5")
             continue
-        rc, rl = float(row[3]), float(row[5])
-        drho, p_bw = float(row[6]), float(row[12])
+        rc, rl = float(row[4]), float(row[6])
+        drho, p_bw = float(row[7]), float(row[13])
         ax.plot([rc, rl], [y, y], "-", color="0.7", lw=1.2, zorder=1)
         ax.plot(rc, y, "o", ms=7, color=COL_TTO["CONTROL"], zorder=2,
                 label="Control" if y == ys[0] else None)
@@ -548,6 +581,31 @@ _DESCARTES = "\n".join([
     "Columna suplementaria en el espiritu de D12 -- **no dirige la inferencia**; "
     "se menciona en el informe cuantos items sobreviven.",
     "",
+    "### Estratificacion por sexo del Delta rho (pedido explicito, aditiva)",
+    "",
+    "- **Problema**: hasta esta sesion, la tabla de Delta rho (2.4) agrupaba "
+    "los sexos (n=16-18 por celda), mientras que desde T7 las figuras de "
+    "correlacion ya estan separadas por sexo -- el informe mostraba una cosa "
+    "(correlaciones por sexo en las figuras) y testeaba otra (Delta rho "
+    "agrupado). El caso que lo deja claro es `fatcd36`: `HEMBRA` Control rho "
+    "= 0.86 (n=8) y `MACHO` Control rho = -0.43 (n=8); agrupados dan 0.47, "
+    "que no describe a ninguno de los dos.",
+    "- **Correccion** (`pedidos/cambios_acto2_dispersion_por_sexo.md`): "
+    "columna `ESTRATO` con `AMBOS_SEXOS`/`HEMBRA`/`MACHO` en la tabla de "
+    "Delta rho (2.4) y en la de dispersion (2.3, ver abajo). **Aditivo**: el "
+    "estrato `AMBOS_SEXOS` es exactamente lo que habia antes, sin cambios; "
+    "`HEMBRA`/`MACHO` son filas nuevas.",
+    "- **Alternativa descartada**: dejar solo el estrato agrupado. Se "
+    "descarta porque promedia correlaciones de signo opuesto (ver `fatcd36` "
+    "arriba) -- no es una simplificacion neutral, esconde el patron.",
+    "- **Limitacion declarada**: con `n <= 9` por celda de sexo, el Fisher z "
+    "tiene potencia baja. Se dice en el cuerpo del reporte (Seccion 1), no en "
+    "una nota al pie.",
+    "- **BH dentro de cada estrato** (no a traves de los tres): los tres "
+    "estratos tienen n y potencia muy distintos (`AMBOS_SEXOS` vs `HEMBRA`/"
+    "`MACHO` por separado); mezclar sus 27 `p` en un solo ajuste Benjamini-"
+    "Hochberg no tendria sentido estadistico.",
+    "",
     "### Alcance y piso",
     "",
     "- Items: 9 genes con `-ddCt` en ambos tejidos (todos menos `il6`, D7) + "
@@ -617,8 +675,25 @@ def construir_reporte(fuente, disp, test):
        "`(z_control - z_lps)/sqrt(SE_control^2 + SE_lps^2)`, `p` normal a dos colas.")
     ap("- **SE primario = Bonett-Wright** (coherente con el IC de T7); **SE "
        "clasico** `1/sqrt(n-3)` como columna al lado, no cambia conclusiones. "
-       "`p_bw_bh` = BH entre items, suplementario (D12).")
+       "`p_bw_bh` = BH entre items, suplementario (D12), **calculado dentro "
+       "de cada ESTRATO** (no a traves de los tres).")
     ap("- Se testea solo con `n_par >= 5` en Control **y** LPS.")
+    ap("- **Estratificado por sexo** (pedido explicito, aditivo): columna "
+       "`ESTRATO` = `AMBOS_SEXOS` (agrupado, como antes) / `HEMBRA` / `MACHO`. "
+       "**Por que hace falta**: agrupar los sexos promedia correlaciones de "
+       "signo opuesto. El caso que lo deja claro es `fatcd36`: dentro de "
+       "`HEMBRA` Control la placenta y el cerebro coordinan con signo positivo "
+       "fuerte, dentro de `MACHO` Control coordinan con signo NEGATIVO; el "
+       "`AMBOS_SEXOS` agrupado da un rho intermedio que no describe a ninguno "
+       "de los dos sexos por separado (ver filas `fatcd36` en la tabla, por "
+       "`ESTRATO`).")
+    ap("- **Potencia**: con `n <= 9` por celda (HEMBRA/MACHO), el Fisher z "
+       "tiene muy poca potencia -- un `Delta rho` chico es indetectable y uno "
+       "grande puede no alcanzar significancia. Esta limitacion es real y se "
+       "declara aca, no en una nota al pie: **no leer \"no significativo en "
+       "HEMBRA/MACHO\" como evidencia de que el efecto desaparece al "
+       "estratificar** (prohibicion 4 sigue aplicando dentro de cada "
+       "estrato).")
     ap("")
     ap(_md(COLS_TEST, test))
     ap("")
@@ -668,9 +743,38 @@ def main():
                    construir_reporte(fuente, disp, test))
     actualizar_descartados()
 
-    n_test = sum(1 for f in test if f[3] != "")
-    n_sig_bw = sum(1 for f in test if f[12] != "" and float(f[12]) < 0.05)
-    n_sig_bh = sum(1 for f in test if f[13] != "" and float(f[13]) < 0.05)
+    # Conteos de resumen (print + verificaciones): AMBOS_SEXOS, para no romper
+    # el denominador "de N items" de las verificaciones ya existentes;
+    # HEMBRA/MACHO se resumen aparte en el print() final.
+    def _por_estrato(e):
+        return [f for f in test if f[2] == e]
+
+    def _n_test(fs):
+        return sum(1 for f in fs if f[4] != "")
+
+    def _n_sig_bw(fs):
+        return sum(1 for f in fs if f[13] != "" and float(f[13]) < 0.05)
+
+    def _n_sig_bh(fs):
+        return sum(1 for f in fs if f[14] != "" and float(f[14]) < 0.05)
+
+    test_ambos = _por_estrato("AMBOS_SEXOS")
+    n_test = _n_test(test_ambos)
+    n_sig_bw = _n_sig_bw(test_ambos)
+    n_sig_bh = _n_sig_bh(test_ambos)
+
+    # Particion: n(HEMBRA) + n(MACHO) == n(AMBOS_SEXOS), por item y por grupo
+    # (verificacion 7.1 del pedido) -- si no cierra, hay error de filtrado.
+    n_por = {(f[0], f[2]): (int(f[3]), int(f[5])) for f in test}
+    particion_ok = True
+    particion_detalle = []
+    for item in ITEMS:
+        nc_a, nl_a = n_por[(item, "AMBOS_SEXOS")]
+        nc_h, nl_h = n_por[(item, "HEMBRA")]
+        nc_m, nl_m = n_por[(item, "MACHO")]
+        if nc_h + nc_m != nc_a or nl_h + nl_m != nl_a:
+            particion_ok = False
+            particion_detalle.append(item)
 
     ent = (f"data/processed/qpcr_cuantificacion_long.tsv + qpcr_score_compuesto_long.tsv "
            f"(de data/{fuente}/{cfg.ARCHIVO_QPCR})")
@@ -682,7 +786,12 @@ def main():
         ["outputs/tables/{R,python}/acto2_test_correlaciones.csv", "tabla",
          ESTE_SCRIPT, "PROPIO", ent, "test reportado (prohibicion 4): Fisher z "
          "sobre rho de Spearman Control vs LPS; SE Bonett-Wright primario + SE "
-         "clasico + p_bh suplementario"],
+         "clasico + p_bh suplementario; estratificado por ESTRATO "
+         "(AMBOS_SEXOS/HEMBRA/MACHO, pedido explicito -- estratificacion pedida "
+         "para ver si el promedio entre sexos tapaba efectos; alternativa "
+         "descartada: dejar solo el estrato agrupado, descartada porque promedia "
+         "correlaciones de signo opuesto, ver fatcd36; limitacion declarada: "
+         "n<=9, potencia baja; BH dentro de cada estrato, no a traves de los tres)"],
         ["outputs/figures/acto2_dispersion_sd.png", "figura", ESTE_SCRIPT,
          "PROPIO", ent, "SD de -ddCt por item: placenta/cerebro x Control/LPS"],
         ["outputs/figures/acto2_test_delta_rho.png", "figura", ESTE_SCRIPT,
@@ -706,12 +815,25 @@ def main():
         ["acto2_test_se_doble",
          "se reportan SE Bonett-Wright (primario) y SE clasico 1/sqrt(n-3)",
          "columnas se_bw_* y se_clasico_* + stat/p de cada uno", "ambos SE",
-         "TRUE" if COLS_TEST[9] == "se_bw_control" and COLS_TEST[14] ==
+         "TRUE" if COLS_TEST[10] == "se_bw_control" and COLS_TEST[15] ==
          "se_clasico_control" else "FALSE", ESTE_SCRIPT],
         ["acto2_test_bh_suplementario",
-         "p_bw_bh (BH entre items) es suplementario y no cambia conclusiones (D12)",
-         f"{n_sig_bw} items p_bw<.05; {n_sig_bh} items p_bw_bh<.05",
+         "p_bw_bh (BH DENTRO de cada ESTRATO) es suplementario y no cambia "
+         "conclusiones (D12)",
+         f"AMBOS_SEXOS: {n_sig_bw} items p_bw<.05; {n_sig_bh} items p_bw_bh<.05",
          "columna rotulada, no dirige", "TRUE", ESTE_SCRIPT],
+        ["acto2_estratos_sexo",
+         "ESTRATO = AMBOS_SEXOS/HEMBRA/MACHO en Delta rho (2.4) y dispersion (2.3)",
+         ";".join(ESTRATOS), "AMBOS_SEXOS;HEMBRA;MACHO",
+         "TRUE" if ESTRATOS == ["AMBOS_SEXOS", "HEMBRA", "MACHO"] else "FALSE",
+         ESTE_SCRIPT],
+        ["acto2_estrato_particion_test",
+         "n(HEMBRA) + n(MACHO) = n(AMBOS_SEXOS) por item y por grupo (Delta rho, 2.4)",
+         "particiona en %d/%d items%s" % (
+             len(ITEMS) - len(particion_detalle), len(ITEMS),
+             ("; falla en: " + ", ".join(particion_detalle)) if particion_detalle else ""),
+         "particiona en %d/%d items" % (len(ITEMS), len(ITEMS)),
+         "TRUE" if particion_ok else "FALSE", ESTE_SCRIPT],
         ["acto2_dispersion_pares",
          "la dispersion se mide sobre los MISMOS pares por feto que la correlacion",
          "vector por lado = componente placenta/cerebro de pares(item, grupo)",
@@ -735,14 +857,23 @@ def main():
 
     print("== 09_acto2_dispersion.py ==")
     print(f"  fuente = {fuente}")
-    print(f"  items testeados (n_par>=5 ambos grupos): {n_test} / {len(ITEMS)}")
-    for f in test:
-        if f[3] != "":
-            print(f"    {f[0]:16} rhoC={f[3]:>8}  rhoL={f[5]:>8}  dRho={f[6]:>8}  "
-                  f"p_bw={f[12]}  p_bh={f[13]}")
+    print("  items testeados (n_par>=5 ambos grupos), AMBOS_SEXOS: "
+          f"{n_test} / {len(ITEMS)}")
+    for f in test_ambos:
+        if f[4] != "":
+            print(f"    {f[0]:16} rhoC={f[4]:>8}  rhoL={f[6]:>8}  dRho={f[7]:>8}  "
+                  f"p_bw={f[13]}  p_bh={f[14]}")
         else:
-            print(f"    {f[0]:16} nC={f[2]} nL={f[4]}  (sin test, piso)")
-    print(f"  significativos: p_bw<.05 -> {n_sig_bw};  p_bw_bh<.05 -> {n_sig_bh}")
+            print(f"    {f[0]:16} nC={f[3]} nL={f[5]}  (sin test, piso)")
+    print(f"  significativos AMBOS_SEXOS: p_bw<.05 -> {n_sig_bw};  "
+          f"p_bw_bh<.05 -> {n_sig_bh}")
+    for estrato in ("HEMBRA", "MACHO"):
+        fs = _por_estrato(estrato)
+        print(f"  items testeados {estrato}: {_n_test(fs)} / {len(ITEMS)}  "
+              f"(p_bw<.05 -> {_n_sig_bw(fs)}; p_bw_bh<.05 -> {_n_sig_bh(fs)})")
+    print("  particion n(HEMBRA)+n(MACHO)=n(AMBOS_SEXOS): " + (
+        f"OK en {len(ITEMS)}/{len(ITEMS)} items" if particion_ok
+        else "FALLA en: " + ", ".join(particion_detalle)))
     print(f"  -> outputs/tables/{{R,python}}/acto2_dispersion.csv, "
           f"acto2_test_correlaciones.csv")
     print(f"  -> {fig_sd.name}, {fig_dr.name}")

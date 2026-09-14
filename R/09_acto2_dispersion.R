@@ -51,6 +51,12 @@ ITEMS <- c(GENES_CORR, "score_compuesto")
 TEJIDOS <- TEJIDOS_E15                                 # PLACENTA_E15, BRAIN_E15
 DPI <- 300
 
+# Estratificacion por sexo (pedido explicito, pedidos/cambios_acto2_dispersion_por_sexo.md):
+# AMBOS_SEXOS = comportamiento previo (agrupado); HEMBRA/MACHO = dentro de cada
+# sexo. Aditivo: AMBOS_SEXOS se conserva tal cual estaba.
+ESTRATOS <- c("AMBOS_SEXOS", "HEMBRA", "MACHO")
+sexo_de_estrato <- function(e) if (e == "AMBOS_SEXOS") NULL else e
+
 # ---------------------------------------------------------------------------
 # Formateo y escritura -- identicos a 02..08.
 # ---------------------------------------------------------------------------
@@ -158,6 +164,7 @@ cargar <- function() {
   sc <- .leer_tsv(file.path(proc, "qpcr_score_compuesto_long.tsv"))
   madre <- setNames(cu$MADRE_ID, cu$FETO)[!duplicated(cu$FETO)]
   tto   <- setNames(cu$TTO, cu$FETO)[!duplicated(cu$FETO)]
+  sexo  <- setNames(cu$SEXO, cu$FETO)[!duplicated(cu$FETO)]
   negdd <- setNames(
     ifelse(cu$neg_ddCt == "", NA_real_, suppressWarnings(as.numeric(cu$neg_ddCt))),
     paste(cu$FETO, cu$TEJIDO, cu$GEN, sep = "\r"))
@@ -166,13 +173,18 @@ cargar <- function() {
            suppressWarnings(as.numeric(sc$score_compuesto))),
     paste(sc$FETO, sc$TEJIDO, sep = "\r"))
   fetos <- names(madre)[order(madre, names(madre), method = "radix")]
-  list(fetos = fetos, tto = tto, negdd = negdd, sc = scv)
+  list(fetos = fetos, tto = tto, sexo = sexo, negdd = negdd, sc = scv)
 }
 
-pares <- function(D, item, estrato) {
+# `sexo_filtro`: NULL = ambos sexos (comportamiento previo); "HEMBRA"/"MACHO"
+# restringe ademas por sexo -- usado por la estratificacion pedida (D#, ver
+# analisis_descartados 09_acto2_dispersion): agrupar sexos promedia
+# correlaciones de signo opuesto (ver fatcd36 en el reporte).
+pares <- function(D, item, estrato, sexo_filtro = NULL) {
   xs <- c(); ys <- c(); ts <- c()
   for (f in D$fetos) {
     if (estrato != "GLOBAL" && D$tto[[f]] != estrato) next
+    if (!is.null(sexo_filtro) && D$sexo[[f]] != sexo_filtro) next
     if (item == "score_compuesto") {
       xp <- D$sc[[paste(f, "PLACENTA_E15", sep = "\r")]]
       yb <- D$sc[[paste(f, "BRAIN_E15", sep = "\r")]]
@@ -222,10 +234,15 @@ tabla_dispersion <- function(D) {
 
 # ===========================================================================
 # 2.4 -- Test reportado: Fisher z sobre rho de Spearman (prohibicion 4).
+# Estratificado por ESTRATO (AMBOS_SEXOS/HEMBRA/MACHO, pedido explicito): el
+# caso que lo justifica es fatcd36, donde HEMBRA Control rho=0.86 y MACHO
+# Control rho=-0.43 -- agrupados dan 0.47, que no describe a ninguno de los
+# dos (ver reporte y analisis_descartados). AMBOS_SEXOS = filas previas, sin
+# cambios; HEMBRA/MACHO son aditivas.
 # ===========================================================================
-COLS_TEST <- c("ITEM", "TIPO", "n_control", "rho_control", "n_lps", "rho_lps",
-               "delta_rho", "z_control", "z_lps", "se_bw_control", "se_bw_lps",
-               "stat_z_bw", "p_bw", "p_bw_bh", "se_clasico_control",
+COLS_TEST <- c("ITEM", "TIPO", "ESTRATO", "n_control", "rho_control", "n_lps",
+               "rho_lps", "delta_rho", "z_control", "z_lps", "se_bw_control",
+               "se_bw_lps", "stat_z_bw", "p_bw", "p_bw_bh", "se_clasico_control",
                "se_clasico_lps", "stat_z_clasico", "p_clasico")
 
 .se_bw <- function(rho, n) sqrt((1 + rho * rho / 2) / (n - 3))
@@ -236,37 +253,46 @@ COLS_TEST <- c("ITEM", "TIPO", "n_control", "rho_control", "n_lps", "rho_lps",
   list(zc = zc, zl = zl, sec = sec, sel = sel, stat = stat, p = norm_sf2(stat))
 }
 
+# BH (D12) se calcula DENTRO de cada estrato (pedido explicito: la potencia y
+# el n difieren mucho entre AMBOS_SEXOS y HEMBRA/MACHO por separado; mezclar
+# los 27 p-values en un solo ajuste no tendria sentido).
 tabla_test <- function(D) {
-  filas <- list(); pend <- list(); peor <- 0
+  filas <- list(); peor <- 0
+  pend <- setNames(vector("list", length(ESTRATOS)), ESTRATOS)
   for (item in ITEMS) {
     tipo <- if (item == "score_compuesto") "score" else "gen"
-    prc <- pares(D, item, "CONTROL"); prl <- pares(D, item, "LPS")
-    nc <- length(prc$x); nl <- length(prl$x)
-    if (nc < PISO_PAR || nl < PISO_PAR) {
-      filas[[length(filas) + 1L]] <- list(item, tipo, nc, "", nl, "", "", "",
-                                          "", "", "", "", "", "", "", "", "", "")
-      next
+    for (estrato in ESTRATOS) {
+      sx <- sexo_de_estrato(estrato)
+      prc <- pares(D, item, "CONTROL", sx); prl <- pares(D, item, "LPS", sx)
+      nc <- length(prc$x); nl <- length(prl$x)
+      idx <- length(filas) + 1L
+      if (nc < PISO_PAR || nl < PISO_PAR) {
+        filas[[idx]] <- c(list(item, tipo, estrato, nc, "", nl, ""),
+                          as.list(rep("", 12)))
+        next
+      }
+      rc <- spearman_rho(prc$x, prc$y); rl <- spearman_rho(prl$x, prl$y)
+      ctc <- suppressWarnings(cor.test(prc$x, prc$y, method = "spearman",
+                                       exact = FALSE))
+      ctl <- suppressWarnings(cor.test(prl$x, prl$y, method = "spearman",
+                                       exact = FALSE))
+      peor <- max(peor, abs(rc - as.numeric(ctc$estimate)),
+                  abs(rl - as.numeric(ctl$estimate)))
+      drho <- rc - rl
+      bw <- .fisher_z(rc, rl, .se_bw(rc, nc), .se_bw(rl, nl))
+      cl <- .fisher_z(rc, rl, .se_clasico(nc), .se_clasico(nl))
+      pend[[estrato]][[length(pend[[estrato]]) + 1L]] <- c(idx, bw$p)
+      filas[[idx]] <- list(item, tipo, estrato, nc, g10(rc), nl, g10(rl),
+                           g10(drho), p6e(bw$zc), p6e(bw$zl), p6e(bw$sec),
+                           p6e(bw$sel), p6e(bw$stat), p6e(bw$p), "",
+                           p6e(cl$sec), p6e(cl$sel), p6e(cl$stat), p6e(cl$p))
     }
-    rc <- spearman_rho(prc$x, prc$y); rl <- spearman_rho(prl$x, prl$y)
-    ctc <- suppressWarnings(cor.test(prc$x, prc$y, method = "spearman",
-                                     exact = FALSE))
-    ctl <- suppressWarnings(cor.test(prl$x, prl$y, method = "spearman",
-                                     exact = FALSE))
-    peor <- max(peor, abs(rc - as.numeric(ctc$estimate)),
-                abs(rl - as.numeric(ctl$estimate)))
-    drho <- rc - rl
-    bw <- .fisher_z(rc, rl, .se_bw(rc, nc), .se_bw(rl, nl))
-    cl <- .fisher_z(rc, rl, .se_clasico(nc), .se_clasico(nl))
-    pend[[length(pend) + 1L]] <- c(length(filas) + 1L, bw$p)
-    filas[[length(filas) + 1L]] <- list(item, tipo, nc, g10(rc), nl, g10(rl),
-                                        g10(drho), p6e(bw$zc), p6e(bw$zl),
-                                        p6e(bw$sec), p6e(bw$sel), p6e(bw$stat),
-                                        p6e(bw$p), "", p6e(cl$sec), p6e(cl$sel),
-                                        p6e(cl$stat), p6e(cl$p))
   }
-  if (length(pend)) {
-    ajust <- bh(vapply(pend, function(z) z[2], numeric(1)))
-    for (k in seq_along(pend)) filas[[pend[[k]][1]]][[14]] <- p6e(ajust[k])
+  for (estrato in ESTRATOS) {
+    pd <- pend[[estrato]]
+    if (!length(pd)) next
+    ajust <- bh(vapply(pd, function(z) z[2], numeric(1)))
+    for (k in seq_along(pd)) filas[[pd[[k]][1]]][[15]] <- p6e(ajust[k])
   }
   list(filas = filas, peor = peor)
 }
@@ -310,19 +336,22 @@ figura_dispersion_sd <- function(disp, ruta) {
 }
 
 figura_test_delta_rho <- function(test, ruta) {
+  # Solo AMBOS_SEXOS (comportamiento previo de la figura): un forest por sexo
+  # ademas saturaria el panel; los estratos por sexo se leen en la tabla.
+  test <- Filter(function(f) f[[3]] == "AMBOS_SEXOS", test)
   reg <- list(); ann <- list()
   ord <- vapply(ITEMS, function(i)
     if (i == "score_compuesto") "score compuesto" else i, character(1))
   for (f in test) {
     nom <- if (f[[1]] == "score_compuesto") "score compuesto" else f[[1]]
-    if (!nzchar(f[[4]]) || !nzchar(f[[6]])) {
+    if (!nzchar(f[[5]]) || !nzchar(f[[7]])) {
       ann[[length(ann) + 1L]] <- data.frame(item = nom,
         lab = sprintf("n<%d en algun grupo (sin test)", PISO_PAR),
         stringsAsFactors = FALSE)
       next
     }
-    rc <- as.numeric(f[[4]]); rl <- as.numeric(f[[6]])
-    drho <- as.numeric(f[[7]]); p_bw <- as.numeric(f[[13]])
+    rc <- as.numeric(f[[5]]); rl <- as.numeric(f[[7]])
+    drho <- as.numeric(f[[8]]); p_bw <- as.numeric(f[[14]])
     reg[[length(reg) + 1L]] <- data.frame(item = nom, tto = "Control", rho = rc,
                                           stringsAsFactors = FALSE)
     reg[[length(reg) + 1L]] <- data.frame(item = nom, tto = "LPS", rho = rl,
@@ -446,6 +475,31 @@ paste0("- `p_bw_bh`: Benjamini-Hochberg de `p_bw` entre los items testeados. ",
        "Columna suplementaria en el espiritu de D12 -- **no dirige la ",
        "inferencia**; se menciona en el informe cuantos items sobreviven."),
 "",
+"### Estratificacion por sexo del Delta rho (pedido explicito, aditiva)",
+"",
+paste0("- **Problema**: hasta esta sesion, la tabla de Delta rho (2.4) agrupaba ",
+       "los sexos (n=16-18 por celda), mientras que desde T7 las figuras de ",
+       "correlacion ya estan separadas por sexo -- el informe mostraba una cosa ",
+       "(correlaciones por sexo en las figuras) y testeaba otra (Delta rho ",
+       "agrupado). El caso que lo deja claro es `fatcd36`: `HEMBRA` Control rho ",
+       "= 0.86 (n=8) y `MACHO` Control rho = -0.43 (n=8); agrupados dan 0.47, ",
+       "que no describe a ninguno de los dos."),
+paste0("- **Correccion** (`pedidos/cambios_acto2_dispersion_por_sexo.md`): ",
+       "columna `ESTRATO` con `AMBOS_SEXOS`/`HEMBRA`/`MACHO` en la tabla de ",
+       "Delta rho (2.4) y en la de dispersion (2.3, ver abajo). **Aditivo**: el ",
+       "estrato `AMBOS_SEXOS` es exactamente lo que habia antes, sin cambios; ",
+       "`HEMBRA`/`MACHO` son filas nuevas."),
+paste0("- **Alternativa descartada**: dejar solo el estrato agrupado. Se ",
+       "descarta porque promedia correlaciones de signo opuesto (ver `fatcd36` ",
+       "arriba) -- no es una simplificacion neutral, esconde el patron."),
+paste0("- **Limitacion declarada**: con `n <= 9` por celda de sexo, el Fisher z ",
+       "tiene potencia baja. Se dice en el cuerpo del reporte (Seccion 1), no en ",
+       "una nota al pie."),
+paste0("- **BH dentro de cada estrato** (no a traves de los tres): los tres ",
+       "estratos tienen n y potencia muy distintos (`AMBOS_SEXOS` vs `HEMBRA`/",
+       "`MACHO` por separado); mezclar sus 27 `p` en un solo ajuste Benjamini-",
+       "Hochberg no tendria sentido estadistico."),
+"",
 "### Alcance y piso",
 "",
 paste0("- Items: 9 genes con `-ddCt` en ambos tejidos (todos menos `il6`, D7) + ",
@@ -514,9 +568,26 @@ construir_reporte <- function(fuente, disp, test) {
            "z_lps)/sqrt(SE_control^2 + SE_lps^2)`, `p` normal a dos colas."),
     paste0("- **SE primario = Bonett-Wright** (coherente con el IC de T7); **SE ",
            "clasico** `1/sqrt(n-3)` como columna al lado, no cambia conclusiones. ",
-           "`p_bw_bh` = BH entre items, suplementario (D12)."),
-    "- Se testea solo con `n_par >= 5` en Control **y** LPS.", "",
-    .md(COLS_TEST, test), "",
+           "`p_bw_bh` = BH entre items, suplementario (D12), **calculado dentro ",
+           "de cada ESTRATO** (no a traves de los tres)."),
+    "- Se testea solo con `n_par >= 5` en Control **y** LPS.",
+    paste0("- **Estratificado por sexo** (pedido explicito, aditivo): columna ",
+           "`ESTRATO` = `AMBOS_SEXOS` (agrupado, como antes) / `HEMBRA` / `MACHO`. ",
+           "**Por que hace falta**: agrupar los sexos promedia correlaciones de ",
+           "signo opuesto. El caso que lo deja claro es `fatcd36`: dentro de ",
+           "`HEMBRA` Control la placenta y el cerebro coordinan con signo positivo ",
+           "fuerte, dentro de `MACHO` Control coordinan con signo NEGATIVO; el ",
+           "`AMBOS_SEXOS` agrupado da un rho intermedio que no describe a ninguno ",
+           "de los dos sexos por separado (ver filas `fatcd36` en la tabla, por ",
+           "`ESTRATO`)."),
+    paste0("- **Potencia**: con `n <= 9` por celda (HEMBRA/MACHO), el Fisher z ",
+           "tiene muy poca potencia -- un `Delta rho` chico es indetectable y uno ",
+           "grande puede no alcanzar significancia. Esta limitacion es real y se ",
+           "declara aca, no en una nota al pie: **no leer \"no significativo en ",
+           "HEMBRA/MACHO\" como evidencia de que el efecto desaparece al ",
+           "estratificar** (prohibicion 4 sigue aplicando dentro de cada ",
+           "estrato)."),
+    "", .md(COLS_TEST, test), "",
     "## 2. Dispersion por grupo (insumo de la prohibicion 5)", "",
     paste0("- SD (n-1) de `-ddCt` de cada lado en los mismos pares por feto, ",
            "cociente de varianzas LPS/Control y Levene Brown-Forsythe por lado. ",
@@ -564,11 +635,36 @@ main <- function() {
                   construir_reporte(fuente, disp, test))
   actualizar_descartados()
 
-  n_test <- sum(vapply(test, function(f) nzchar(f[[4]]), logical(1)))
-  n_sig_bw <- sum(vapply(test, function(f)
-    nzchar(f[[13]]) && as.numeric(f[[13]]) < 0.05, logical(1)))
-  n_sig_bh <- sum(vapply(test, function(f)
+  # Conteos de resumen (cat + verificaciones): AMBOS_SEXOS, para no romper el
+  # denominador "de 9 items" de las verificaciones ya existentes; HEMBRA/MACHO
+  # se resumen aparte en el cat() final.
+  por_estrato <- function(e) Filter(function(f) f[[3]] == e, test)
+  .n_test <- function(fs) sum(vapply(fs, function(f) nzchar(f[[5]]), logical(1)))
+  .n_sig_bw <- function(fs) sum(vapply(fs, function(f)
     nzchar(f[[14]]) && as.numeric(f[[14]]) < 0.05, logical(1)))
+  .n_sig_bh <- function(fs) sum(vapply(fs, function(f)
+    nzchar(f[[15]]) && as.numeric(f[[15]]) < 0.05, logical(1)))
+  test_ambos <- por_estrato("AMBOS_SEXOS")
+  n_test <- .n_test(test_ambos)
+  n_sig_bw <- .n_sig_bw(test_ambos)
+  n_sig_bh <- .n_sig_bh(test_ambos)
+
+  # Particion: n(HEMBRA) + n(MACHO) == n(AMBOS_SEXOS), por item y por grupo
+  # (verificacion 7.1 del pedido) -- si no cierra, hay error de filtrado.
+  n_por <- list()
+  for (f in test) n_por[[paste(f[[1]], f[[3]])]] <- c(n_control = f[[4]], n_lps = f[[6]])
+  particion_ok <- TRUE; particion_detalle <- character(0)
+  for (item in ITEMS) {
+    a <- n_por[[paste(item, "AMBOS_SEXOS")]]
+    h <- n_por[[paste(item, "HEMBRA")]]
+    m <- n_por[[paste(item, "MACHO")]]
+    ok_c <- as.integer(h["n_control"]) + as.integer(m["n_control"]) == as.integer(a["n_control"])
+    ok_l <- as.integer(h["n_lps"]) + as.integer(m["n_lps"]) == as.integer(a["n_lps"])
+    if (!ok_c || !ok_l) {
+      particion_ok <- FALSE
+      particion_detalle <- c(particion_detalle, item)
+    }
+  }
 
   ent <- sprintf(paste0("data/processed/qpcr_cuantificacion_long.tsv + ",
                         "qpcr_score_compuesto_long.tsv (de data/%s/%s)"),
@@ -581,7 +677,12 @@ main <- function() {
     list("outputs/tables/{R,python}/acto2_test_correlaciones.csv", "tabla",
          ESTE_SCRIPT, "PROPIO", ent, paste0("test reportado (prohibicion 4): ",
          "Fisher z sobre rho de Spearman Control vs LPS; SE Bonett-Wright ",
-         "primario + SE clasico + p_bh suplementario")),
+         "primario + SE clasico + p_bh suplementario; estratificado por ESTRATO ",
+         "(AMBOS_SEXOS/HEMBRA/MACHO, pedido explicito -- estratificacion pedida ",
+         "para ver si el promedio entre sexos tapaba efectos; alternativa ",
+         "descartada: dejar solo el estrato agrupado, descartada porque promedia ",
+         "correlaciones de signo opuesto, ver fatcd36; limitacion declarada: ",
+         "n<=9, potencia baja; BH dentro de cada estrato, no a traves de los tres)")),
     list("outputs/figures/acto2_dispersion_sd.png", "figura", ESTE_SCRIPT,
          "PROPIO", ent, "SD de -ddCt por item: placenta/cerebro x Control/LPS"),
     list("outputs/figures/acto2_test_delta_rho.png", "figura", ESTE_SCRIPT,
@@ -605,13 +706,27 @@ main <- function() {
     list("acto2_test_se_doble",
          "se reportan SE Bonett-Wright (primario) y SE clasico 1/sqrt(n-3)",
          "columnas se_bw_* y se_clasico_* + stat/p de cada uno", "ambos SE",
-         if (COLS_TEST[10] == "se_bw_control" &&
-             COLS_TEST[15] == "se_clasico_control") "TRUE" else "FALSE",
+         if (COLS_TEST[11] == "se_bw_control" &&
+             COLS_TEST[16] == "se_clasico_control") "TRUE" else "FALSE",
          ESTE_SCRIPT),
     list("acto2_test_bh_suplementario",
-         "p_bw_bh (BH entre items) es suplementario y no cambia conclusiones (D12)",
-         sprintf("%d items p_bw<.05; %d items p_bw_bh<.05", n_sig_bw, n_sig_bh),
+         paste0("p_bw_bh (BH DENTRO de cada ESTRATO) es suplementario y no ",
+                "cambia conclusiones (D12)"),
+         sprintf("AMBOS_SEXOS: %d items p_bw<.05; %d items p_bw_bh<.05",
+                 n_sig_bw, n_sig_bh),
          "columna rotulada, no dirige", "TRUE", ESTE_SCRIPT),
+    list("acto2_estratos_sexo",
+         "ESTRATO = AMBOS_SEXOS/HEMBRA/MACHO en Delta rho (2.4) y dispersion (2.3)",
+         paste(ESTRATOS, collapse = ";"), "AMBOS_SEXOS;HEMBRA;MACHO",
+         if (identical(ESTRATOS, c("AMBOS_SEXOS", "HEMBRA", "MACHO"))) "TRUE" else "FALSE",
+         ESTE_SCRIPT),
+    list("acto2_estrato_particion_test",
+         "n(HEMBRA) + n(MACHO) = n(AMBOS_SEXOS) por item y por grupo (Delta rho, 2.4)",
+         sprintf("particiona en %d/%d items%s", length(ITEMS) - length(particion_detalle),
+                 length(ITEMS), if (length(particion_detalle))
+                   paste0("; falla en: ", paste(particion_detalle, collapse = ", ")) else ""),
+         sprintf("particiona en %d/%d items", length(ITEMS), length(ITEMS)),
+         if (particion_ok) "TRUE" else "FALSE", ESTE_SCRIPT),
     list("acto2_dispersion_pares",
          "la dispersion se mide sobre los MISMOS pares por feto que la correlacion",
          "vector por lado = componente placenta/cerebro de pares(item, grupo)",
@@ -634,17 +749,25 @@ main <- function() {
 
   cat("== 09_acto2_dispersion.R ==\n")
   cat(sprintf("  fuente = %s\n", fuente))
-  cat(sprintf("  items testeados (n_par>=5 ambos grupos): %d / %d\n",
+  cat(sprintf("  items testeados (n_par>=5 ambos grupos), AMBOS_SEXOS: %d / %d\n",
               n_test, length(ITEMS)))
-  for (f in test) {
-    if (nzchar(f[[4]]))
+  for (f in test_ambos) {
+    if (nzchar(f[[5]]))
       cat(sprintf("    %-16s rhoC=%8s  rhoL=%8s  dRho=%8s  p_bw=%s  p_bh=%s\n",
-                  f[[1]], f[[4]], f[[6]], f[[7]], f[[13]], f[[14]]))
+                  f[[1]], f[[5]], f[[7]], f[[8]], f[[14]], f[[15]]))
     else
-      cat(sprintf("    %-16s nC=%s nL=%s  (sin test, piso)\n", f[[1]], f[[3]], f[[5]]))
+      cat(sprintf("    %-16s nC=%s nL=%s  (sin test, piso)\n", f[[1]], f[[4]], f[[6]]))
   }
-  cat(sprintf("  significativos: p_bw<.05 -> %d;  p_bw_bh<.05 -> %d\n",
+  cat(sprintf("  significativos AMBOS_SEXOS: p_bw<.05 -> %d;  p_bw_bh<.05 -> %d\n",
               n_sig_bw, n_sig_bh))
+  for (estrato in c("HEMBRA", "MACHO")) {
+    fs <- por_estrato(estrato)
+    cat(sprintf("  items testeados %s: %d / %d  (p_bw<.05 -> %d; p_bw_bh<.05 -> %d)\n",
+                estrato, .n_test(fs), length(ITEMS), .n_sig_bw(fs), .n_sig_bh(fs)))
+  }
+  cat(sprintf("  particion n(HEMBRA)+n(MACHO)=n(AMBOS_SEXOS): %s\n",
+              if (particion_ok) sprintf("OK en %d/%d items", length(ITEMS), length(ITEMS))
+              else paste0("FALLA en: ", paste(particion_detalle, collapse = ", "))))
   cat("  -> outputs/tables/{R,python}/acto2_dispersion.csv, acto2_test_correlaciones.csv\n")
   cat(sprintf("  -> %s, %s\n", basename(fig_sd), basename(fig_dr)))
 }
