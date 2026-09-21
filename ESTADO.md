@@ -1930,3 +1930,98 @@ el piso para algunos items. Corregido completando los 20 campos de
   explícitamente que quede pendiente en esta sesión. Al retomarlo: preguntar
   primero, luego `Y ~ X * TTO` dentro de cada sexo y tejido sobre los pares
   de transportadores, reportando el `p` de la interacción.
+
+---
+
+## Sesión 18 — 2026-09-21 — pedido: `cambios_informe_conclusiones.md`
+
+> Pedido completo en `pedidos/cambios_informe_conclusiones.md`: agregar
+> "Conclusión de la sección" al final de cada sección del informe, una
+> síntesis del eje madre→placenta→cerebro, una conclusión revisada (Acto 1
+> frente a Acto 2) y reescribir el Resumen. **Alcance: solo redacción** — no
+> se corrió ningún test nuevo ni se tocó ningún script de análisis (02–11).
+> Único archivo tocado: `12_informe.{R,py}` (más el propio pedido).
+> **Puntos 1–4 aplicados y verificados; punto 5 (opcional, correcciones de
+> figuras) queda sin aplicar**, tal como pide el pedido ("aplicalas solo si
+> confirmo").
+
+### Qué se completó
+
+- **Verificación previa de cada número citado en el borrador del pedido**
+  contra los CSV reales en `outputs/tables/R/` (fork de solo lectura, sin
+  tocar el repo): **todos los números coincidieron** con los CSV — Fisher MS
+  p=4.995e-03, Peto-Peto LA ♀p=0.302/♂p=0.333, 5 genes con `p_TTO<.05` en
+  placenta, 7 genes con interacción SEXO×TTO en cerebro (glut1/slc38a2/fatp1
+  con efecto en media; fatcd36/fatp4/gp130/slc38a1 con Holm mínimo=0.074),
+  pSTAT3 ♀1.976→4.805 (Holm p=1.271e-7) / ♂2.695→2.752 (p=0.883), Δρ 0/28
+  significativos (mínimo fatcd36 ♀ p=0.075), interacción sobre dispersión 5/18
+  en cerebro sobreviven BH (gp130/fatcd36/fatp4/fatp1/slc38a2; slc38a1
+  tendencia) y 0/10 en placenta, eigengene 76 %/82 % (placenta/cerebro,
+  81.55 % redondea a 82), simulación fatcd36/score_compuesto en el límite del
+  IC (estrato HEMBRA, escenario GLOBAL: 0.757 vs q975=0.755; 0.75 vs
+  q975=0.733), exclusión de feto fatcd36 0.107→0.211 / score 0.079→0.175
+  (0/11 cambian veredicto). **Ningún número tuvo que corregirse** — la única
+  precisión: "CD36" del borrador es `fatcd36` en los datos (se usó el nombre
+  de dato, no el informal).
+- **`numeros_conclusiones()`** (nueva, una por lenguaje): mismo principio que
+  `resumen_numeros()` — todo número y toda lista de genes citados en la nueva
+  prosa se leen/derivan de los CSV en tiempo de generación del informe, nunca
+  se escriben a mano (si los datos cambian en una corrida futura, el texto
+  cambia solo). Incluye clasificación programática de los 7 genes de cerebro
+  en "efecto en media" (algún contraste post hoc con `p_holm<.05`) vs "efecto
+  en dispersión" (ninguno), y detección de los ítems en el límite del IC de
+  la simulación (`ESTRATO=HEMBRA, ESCENARIO=GLOBAL, veredicto=FUERA`) — no se
+  hardcodeó qué genes/ítems caen en cada grupo.
+- **`conclusion_seccion(k, n)`**: bloque "Conclusión de la sección" (`<h4>`)
+  insertado al final de cada sección de `SECCIONES` excepto Acto 1.2
+  (cuantificación, de método — sin conclusión, como pide el punto 1). Prosa
+  fija idéntica R/Python, con los números/listas interpolados.
+- **Dos secciones nuevas**: "4. Síntesis del eje madre → placenta → cerebro"
+  (entre Acto 1 y Acto 2) y "6. Conclusión revisada (Acto 1 frente a Acto 2)"
+  (tabla de 3 filas + párrafo, entre Acto 2 y Reproducibilidad). Esto
+  renumeró las secciones existentes: Reproducibilidad 5→7, Descartados 6→8,
+  Limitaciones 7→9, Auditoría 8→10 (`items_toc`, títulos `<h2>` y el chequeo
+  `n_sec == 10L`/`== 10` en `main()`, antes 8).
+- **Resumen**: el bullet "Coordinación placenta↔cerebro" ahora agrega, tras
+  la conclusión negativa de Δρ/simulación, una frase sobre el resultado
+  positivo del Acto 2 (interacción SEXO×TTO sobre la dispersión en cerebro),
+  para que el Resumen no quede desactualizado respecto de la sesión 17.
+- **Redondeo determinista `.round_fmt()`/`_round_fmt()`** (floor manual, no
+  `round()`): las medias/porcentajes de la nueva prosa se redondean igual
+  bit a bit en R y Python sobre el mismo double, necesario porque este texto
+  se byte-compara entre lenguajes (`informe.textonly.html`). Los p-valores se
+  muestran tal cual vienen del CSV (mismo criterio que el Resumen preexistente),
+  sin redondear.
+- **Bug propio encontrado y corregido en el camino**: la tabla de
+  "Conclusión revisada" se armó primero con `c(...)` en R (tres fragmentos
+  de la fila de encabezado como elementos separados) mientras que Python los
+  concatenaba en un único string — daba paridad de render rota (una línea de
+  más en R al hacer `paste(..., collapse="\n")`). Corregido usando `paste0()`
+  para que ambos lenguajes produzcan una sola línea. También se cambiaron
+  `&female;`/`&male;` (no son entidades HTML5 válidas) por los caracteres
+  Unicode literales ♀/♂ (`♀`/`♂`, idénticos en ambos lenguajes).
+
+### Verificado
+
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 32/32 CSV byte-idénticos, paridad de
+  render OK, 100/100 verificaciones en TRUE (mismo total que sesión 17: no
+  se agregó ninguna verificación nueva, solo se regeneró el informe), PDF
+  ok, ~5.5 min.**
+- `docs/informe.html`: 10 secciones (antes 8), 26 figuras incrustadas (sin
+  cambios), `informe.textonly.html` R↔Python byte-idéntico (`diff` manual
+  sobre ambos snapshots, exit 0).
+
+### Pendiente / siguiente paso concreto
+
+- **Punto 5 del pedido principal (test de pendientes, Acto 2.5.1)** sigue
+  pendiente de sesiones anteriores — no es parte de este pedido.
+- **Sección 5 de `cambios_informe_conclusiones.md` (OPCIONAL, correcciones de
+  consistencia)** no se aplicó: el pedido dice explícitamente "aplicalas solo
+  si confirmo". Son 3 items: (a) agregar estratos HEMBRA/MACHO a las figuras
+  `acto2_dispersion_sd.png`/`acto2_test_delta_rho.png`/
+  `acto2_simulacion_delta_rho.png` (hoy solo muestran AMBOS_SEXOS); (b) quitar
+  `il6R` de las tablas/figuras del Acto 2 (se pidió excluirlo pero sigue
+  apareciendo); (c) el triángulo superior de los SPLOM por sexo muestra un
+  solo ρ (Control+LPS juntos) en vez de un ρ por tratamiento. Si el usuario
+  confirma, aplicar con un commit propio (separado del de los puntos 1–4).

@@ -158,6 +158,27 @@ def _csv_cell(x) -> str:
     return s
 
 
+def _round_fmt(x, nd: int = 2) -> str:
+    """Redondeo manual (floor(|x|*10^nd + .5)/10^nd): mismo resultado bit a
+    bit que R sobre el mismo double, sin depender de la regla de
+    redondeo-al-par de cada lenguaje -- estos numeros van al texto de
+    conclusiones y ese texto se byte-compara entre R y Python (99_verificar)."""
+    x = float(x)
+    s = -1.0 if x < 0 else 1.0
+    m = 10 ** nd
+    v = math.floor(abs(x) * m + 0.5) / m * s
+    return ("%." + str(nd) + "f") % v
+
+
+def _join_y(v) -> str:
+    v = list(v)
+    if not v:
+        return ""
+    if len(v) == 1:
+        return v[0]
+    return ", ".join(v[:-1]) + " y " + v[-1]
+
+
 def escribir_csv(ruta: Path, encabezado, filas) -> None:
     lineas = [",".join(_csv_cell(v) for v in encabezado)]
     lineas += [",".join(_csv_cell(v) for v in fila) for fila in filas]
@@ -519,6 +540,366 @@ def resumen_numeros():
 
 
 # =========================================================================
+# Numeros para las "Conclusion de la seccion", la sintesis y la conclusion
+# revisada (pedido pedidos/cambios_informe_conclusiones.md, puntos 1-4).
+# Mismo principio que resumen_numeros(): todo numero citado en prosa se lee
+# de un CSV, nunca se escribe a mano. Las listas de genes tambien se derivan
+# filtrando (no se copian del pedido) para que el texto siga los datos si
+# estos cambian.
+# =========================================================================
+def numeros_conclusiones():
+    n = {}
+
+    # --- ELISA (Acto 1.1) ---
+    h, f = _tab("elisa_fisher_deteccion.csv")
+    bl = _col(h, f, "bloque")
+    k = bl.index("MS")
+    n["ms_ctrl_det"] = _col(h, f, "control_detectado")[k]
+    n["ms_ctrl_n"] = _col(h, f, "control_n")[k]
+    n["ms_lps_det"] = _col(h, f, "lps_detectado")[k]
+    n["ms_lps_n"] = _col(h, f, "lps_n")[k]
+    n["ms_p"] = _col(h, f, "p_valor")[k]
+
+    h, f = _tab("elisa_petopeto_la.csv")
+    est = _col(h, f, "estrato")
+    pv = _col(h, f, "p_valor")
+    n["la_hembra_p"] = pv[est.index("HEMBRA")]
+    n["la_macho_p"] = pv[est.index("MACHO")]
+    n["la_n_control"] = _col(h, f, "n_control")[est.index("HEMBRA")]
+
+    h, f = _tab("elisa_descriptivo.csv")
+    bl = _col(h, f, "bloque")
+    tt = _col(h, f, "TTO")
+    sx = _col(h, f, "SEXO")
+    med = _col(h, f, "mediana_detectada")
+
+    def _med(tto, sexo):
+        for b, t, s, m in zip(bl, tt, sx, med):
+            if b == "LA" and t == tto and s == sexo:
+                return _round_fmt(m)
+        return "n/d"
+
+    n["la_h_ctrl_med"] = _med("CONTROL", "HEMBRA")
+    n["la_h_lps_med"] = _med("LPS", "HEMBRA")
+    n["la_m_ctrl_med"] = _med("CONTROL", "MACHO")
+    n["la_m_lps_med"] = _med("LPS", "MACHO")
+
+    # --- qPCR modelos (Acto 1.3) ---
+    h, f = _tab("qpcr_modelos_clasificacion.csv")
+    tej = _col(h, f, "TEJIDO")
+    gen = _col(h, f, "GEN")
+    via = _col(h, f, "via")
+    pTTO = _col(h, f, "p_TTO")
+    isig = _col(h, f, "interaccion_significativa")
+
+    def _num_or_none(s):
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+    pla_tto_genes = sorted(
+        g for g, t, v, p in zip(gen, tej, via, pTTO)
+        if t == "PLACENTA_E15" and v == "modelo"
+        and _num_or_none(p) is not None and _num_or_none(p) < 0.05)
+    n["pla_tto_genes"] = _join_y(pla_tto_genes)
+    bra_int_genes = sorted(
+        g for g, t, s in zip(gen, tej, isig) if t == "BRAIN_E15" and s == "TRUE")
+    n["bra_int_n_txt"] = len(bra_int_genes)
+
+    h, f = _tab("qpcr_modelos_posthoc.csv")
+    tej_p = _col(h, f, "TEJIDO")
+    gen_p = _col(h, f, "GEN")
+    pholm = _col(h, f, "p_holm")
+    media_genes = []
+    disp_genes = []
+    disp_holm_min = math.inf
+    for g in bra_int_genes:
+        ps = [_num_or_none(p) for t, gg, p in zip(tej_p, gen_p, pholm)
+              if t == "BRAIN_E15" and gg == g]
+        ps = [p for p in ps if p is not None]
+        if any(p < 0.05 for p in ps):
+            media_genes.append(g)
+        else:
+            disp_genes.append(g)
+            disp_holm_min = min(disp_holm_min, min(ps))
+    n["bra_media_genes"] = _join_y(sorted(media_genes))
+    n["bra_disp_genes"] = _join_y(sorted(disp_genes))
+    n["bra_disp_holm_min"] = _round_fmt(disp_holm_min, 3)
+
+    # --- pSTAT3 (Acto 1.4) ---
+    h, f = _tab("pstat3_descriptivo.csv")
+    gr = _col(h, f, "GRUPO")
+    me = _col(h, f, "mean_PSTAT3")
+
+    def _mean_grp(g):
+        return _round_fmt(me[gr.index(g)])
+
+    n["pstat3_hc"] = _mean_grp("HEMBRA_CONTROL")
+    n["pstat3_hl"] = _mean_grp("HEMBRA_LPS")
+    n["pstat3_mc"] = _mean_grp("MACHO_CONTROL")
+    n["pstat3_ml"] = _mean_grp("MACHO_LPS")
+    h, f = _tab("pstat3_posthoc.csv")
+    contr = _col(h, f, "contraste")
+    ph = _col(h, f, "p_holm")
+    n["pstat3_hh"] = ph[contr.index("HEMBRA_CONTROL-HEMBRA_LPS")]
+    n["pstat3_mm"] = ph[contr.index("MACHO_CONTROL-MACHO_LPS")]
+
+    # --- Acto 2.3-2.4: Delta rho + interaccion sobre dispersion ---
+    h, f = _tab("acto2_test_correlaciones.csv")
+    it = _col(h, f, "ITEM")
+    es = _col(h, f, "ESTRATO")
+    pbw = _col(h, f, "p_bw")
+    pares = [(a, b, c) for a, b, c in zip(it, es, pbw) if c]
+    n["delta_n_test"] = len(pares)
+    n["delta_n_sig"] = sum(1 for _, _, p in pares if float(p) < 0.05)
+    mn = min(pares, key=lambda x: float(x[2]))
+    n["delta_min_item"] = mn[0]
+    n["delta_min_p"] = mn[2]
+    lbl_estrato = {"AMBOS_SEXOS": "ambos sexos", "HEMBRA": "hembras", "MACHO": "machos"}
+    n["delta_min_estrato"] = lbl_estrato[mn[1]]
+
+    h, f = _tab("acto2_dispersion_interaccion.csv")
+    gen_d = _col(h, f, "GEN")
+    tej_d = _col(h, f, "TEJIDO")
+    bh = _col(h, f, "p_SEXOxTTO_BH")
+    bh_n = [float(x) for x in bh]
+    bra_sig = sorted(
+        (bh_n[i], gen_d[i]) for i in range(len(gen_d))
+        if tej_d[i] == "BRAIN_E15" and bh_n[i] < 0.05)
+    n["disp_bra_sig_genes"] = _join_y([g for _, g in bra_sig])
+    n["disp_bra_sig_n"] = len(bra_sig)
+    bra_tend = sorted(
+        gen_d[i] for i in range(len(gen_d))
+        if tej_d[i] == "BRAIN_E15" and 0.05 <= bh_n[i] < 0.10)
+    n["disp_bra_tend_genes"] = _join_y(bra_tend)
+    n["disp_pla_sig_n"] = sum(
+        1 for i in range(len(gen_d))
+        if tej_d[i] == "PLACENTA_E15" and bh_n[i] < 0.05)
+
+    # --- Acto 2.5: simulacion, items en el limite del IC (ESTRATO=HEMBRA, GLOBAL) ---
+    h, f = _tab("acto2_simulacion.csv")
+    it_s = _col(h, f, "ITEM")
+    es_s = _col(h, f, "ESTRATO")
+    esc_s = _col(h, f, "ESCENARIO")
+    ver_s = _col(h, f, "veredicto")
+    nombres_lim = [it_s[i].replace("_", " ") for i in range(len(it_s))
+                   if es_s[i] == "HEMBRA" and esc_s[i] == "GLOBAL"
+                   and ver_s[i] == "FUERA"]
+    n["sim_lim_genes"] = _join_y(nombres_lim)
+
+    # --- Acto 2.6: eigengene y sensibilidad de exclusion ---
+    h, f = _tab("acto2_sensibilidad_pca_varianza.csv")
+    tej_v = _col(h, f, "TEJIDO")
+    pc = _col(h, f, "PC")
+    pv_ = _col(h, f, "prop_var")
+
+    def _pc1_pct(tej):
+        for t, p, v in zip(tej_v, pc, pv_):
+            if t == tej and p == "1":
+                return _round_fmt(float(v) * 100, 0)
+        return "n/d"
+
+    n["eig_pla_pct"] = _pc1_pct("PLACENTA_E15")
+    n["eig_bra_pct"] = _pc1_pct("BRAIN_E15")
+
+    h, f = _tab("acto2_sensibilidad_excl_extremo.csv")
+    it_e = _col(h, f, "ITEM")
+    pf = _col(h, f, "p_bw_full")
+    ps = _col(h, f, "p_bw_sin")
+
+    def _excl(item):
+        i = it_e.index(item)
+        return _round_fmt(pf[i], 3), _round_fmt(ps[i], 3)
+
+    n["sens_fatcd36_full"], n["sens_fatcd36_sin"] = _excl("fatcd36")
+    n["sens_score_full"], n["sens_score_sin"] = _excl("score_compuesto")
+
+    return n
+
+
+# =========================================================================
+# "Conclusion de la seccion" (pedido, punto 1): un bloque de 2-5 oraciones al
+# final de cada seccion de SECCIONES, indexado igual (0-based aqui, 0..7). El
+# indice 1 (Acto 1.2, cuantificacion) no lleva conclusion -- es de metodo.
+# Prosa fija (igual en R/Python), numeros y listas de genes interpolados
+# desde `n` (numeros_conclusiones()).
+# =========================================================================
+def conclusion_seccion(k: int, n: dict) -> str:
+    if k == 0:
+        txt = (
+            "El LPS indujo una respuesta inflamatoria sistemica: la IL-6 fue "
+            "detectable en %s/%s madres LPS frente a %s/%s control (Fisher p = "
+            "<code>%s</code>), lo que valida el modelo. En liquido amniotico "
+            "ningun contraste alcanzo significancia (Peto-Peto ♀ p = "
+            "<code>%s</code>; ♂ p = <code>%s</code>), aunque la mediana "
+            "de los valores detectados fue mayor bajo LPS en ambos sexos "
+            "(♀ %s &rarr; %s; ♂ %s &rarr; %s). Con %s sacos "
+            "control por sexo, la ausencia de significancia no permite "
+            "concluir que la IL-6 no llegue al compartimento fetal." % (
+                n["ms_lps_det"], n["ms_lps_n"], n["ms_ctrl_det"], n["ms_ctrl_n"],
+                n["ms_p"], n["la_hembra_p"], n["la_macho_p"],
+                n["la_h_ctrl_med"], n["la_h_lps_med"],
+                n["la_m_ctrl_med"], n["la_m_lps_med"], n["la_n_control"]))
+    elif k == 2:
+        txt = (
+            "<p><strong>Placenta.</strong> Ningun gen mostro interaccion "
+            "SEXO&times;TTO. El LPS modifico la expresion de %s de forma "
+            "equivalente en ambos sexos (efecto principal de tratamiento).</p>\n"
+            "<p><strong>Cerebro fetal.</strong> %s genes mostraron interaccion "
+            "SEXO&times;TTO significativa, todas robustas a la correccion BH. "
+            "En %s el post hoc localiza el efecto en hembras: ♀Control "
+            "difiere de ♀LPS y ♀LPS difiere de ♂LPS, sin "
+            "cambios en machos. En %s la interaccion no se explica por "
+            "ninguna comparacion de medias (todos los p de Holm &ge; %s). La "
+            "seccion 2.3 muestra que en esos genes el efecto esta en la "
+            "dispersion y no en la media.</p>" % (
+                n["pla_tto_genes"], n["bra_int_n_txt"], n["bra_media_genes"],
+                n["bra_disp_genes"], n["bra_disp_holm_min"]))
+    elif k == 3:
+        txt = (
+            "El LPS aumento la abundancia de fosfo-STAT3 en placenta solo en "
+            "hembras (♀Control %s &rarr; ♀LPS %s; Holm p = "
+            "<code>%s</code>). En machos no cambio (%s &rarr; %s; p = "
+            "<code>%s</code>). Es el mismo patron que los genes con efecto en "
+            "media en cerebro. Como los transportadores placentarios "
+            "responden igual en ambos sexos, sus cambios no dependen de la "
+            "activacion de STAT3, o los machos los alcanzan por otra via. "
+            "Recordar D9: se mide abundancia de fosfo-STAT3, no fraccion "
+            "fosforilada." % (
+                n["pstat3_hc"], n["pstat3_hl"], n["pstat3_hh"],
+                n["pstat3_mc"], n["pstat3_ml"], n["pstat3_mm"]))
+    elif k == 4:
+        txt = (
+            "Descriptivamente, en hembras control la correlacion "
+            "placenta&ndash;cerebro es alta en varios genes y cae cerca de "
+            "cero con LPS; en machos no hay correlacion en ningun grupo. "
+            "Estas figuras describen y no testean (prohibicion 4). En los "
+            "diagramas triangulares de cerebro de hembras, la distribucion "
+            "♀Control es ancha con una cola hacia valores bajos, y la "
+            "♀LPS es un pico angosto: la reduccion de dispersion de "
+            "la seccion 2.3 es visible directamente.")
+    elif k == 5:
+        txt = (
+            "<p>Ningun &Delta;&rho; Control vs LPS es significativo, ni "
+            "agrupando sexos ni dentro de cada sexo (%s de %s; minimo "
+            "<code>%s</code> en %s, p = <code>%s</code>). El test de "
+            "interaccion SEXO&times;TTO sobre la dispersion es el resultado "
+            "positivo del Acto 2: en cerebro, %s genes sobreviven a BH (%s; "
+            "%s en tendencia), con un patron cruzado: el LPS reduce la "
+            "dispersion en hembras y la aumenta en machos. En placenta "
+            "ninguno sobrevive a BH (%s). Como los transportadores varian "
+            "mayormente juntos (el eigengene explica el %s %% de la varianza "
+            "en cerebro; seccion 2.6), estos genes no son efectos "
+            "independientes: reflejan un mismo patron compartido por el "
+            "conjunto de transportadores.</p>\n"
+            "<p>La figura de SD por item agrupa los sexos y por eso no "
+            "muestra este efecto: los cambios opuestos de hembras y machos "
+            "se cancelan al promediarlos. Es un ejemplo directo de lo que "
+            "oculta agrupar los sexos.</p>" % (
+                n["delta_n_sig"], n["delta_n_test"], n["delta_min_item"],
+                n["delta_min_estrato"], n["delta_min_p"], n["disp_bra_sig_n"],
+                n["disp_bra_sig_genes"], n["disp_bra_tend_genes"],
+                n["disp_pla_sig_n"], n["eig_bra_pct"]))
+    elif k == 6:
+        txt = (
+            "La caida de correlacion observada en hembras es compatible con "
+            "la compactacion de la expresion bajo LPS: cuando el rango de "
+            "una variable se reduce, la correlacion cae aunque la relacion "
+            "biologica no haya cambiado. Las excepciones (%s, en hembras) "
+            "quedan en el limite del intervalo y se toman como pista, no "
+            "como hallazgo. La perdida aparente de acoplamiento "
+            "placenta&ndash;cerebro en hembras no es un efecto independiente: "
+            "es la reduccion de dispersion vista desde otro angulo." % (
+                n["sim_lim_genes"],))
+    elif k == 7:
+        txt = (
+            "El eigengene (PC1) explica el %s %% de la varianza de los "
+            "transportadores en placenta y el %s %% en cerebro, con cargas "
+            "similares para los siete genes: los transportadores varian "
+            "mayormente juntos, como un unico eje por feto. Reemplazar el "
+            "score compuesto por el eigengene no cambia ninguna conclusion. "
+            "Excluir el feto mas influyente de cada item tampoco cambia "
+            "veredictos, pero aproximadamente duplica los p de los items que "
+            "estaban cerca del umbral (fatcd36 %s &rarr; %s; score %s "
+            "&rarr; %s): esas senales son sensibles a la exclusion de un "
+            "solo feto." % (
+                n["eig_pla_pct"], n["eig_bra_pct"], n["sens_fatcd36_full"],
+                n["sens_fatcd36_sin"], n["sens_score_full"],
+                n["sens_score_sin"]))
+    else:
+        return ""
+    cuerpo = txt if txt.startswith("<p>") else "<p>%s</p>" % txt
+    return "<h4>Conclusion de la seccion</h4>\n%s" % cuerpo
+
+
+# =========================================================================
+# Sintesis (punto 2) y conclusion revisada (punto 3) del pedido -- prosa fija,
+# numeros/listas interpolados desde `n` (numeros_conclusiones()).
+# =========================================================================
+def sintesis_eje_html(n: dict) -> str:
+    return (
+        "<p><strong>Madre.</strong> El LPS produjo una respuesta inflamatoria "
+        "sistemica inequivoca (IL-6 serica detectable en %s/%s madres "
+        "tratadas frente a %s/%s control).</p>\n"
+        "<p><strong>Liquido amniotico.</strong> Sin resultado concluyente: "
+        "con %s sacos control por sexo no se detecto diferencia, lo que no "
+        "descarta que la IL-6 llegue al compartimento fetal.</p>\n"
+        "<p><strong>Placenta.</strong> Dos respuestas que no coinciden. La "
+        "senalizacion IL-6/STAT3 se activa solo en placentas de fetos "
+        "hembra. La expresion de transportadores de nutrientes, en cambio, "
+        "se modifica en ambos sexos por igual.</p>\n"
+        "<p><strong>Cerebro fetal.</strong> La respuesta depende del sexo "
+        "del feto. En hembras, el LPS modifica la expresion de %s, con el "
+        "mismo patron que pSTAT3 en placenta; en machos, esos genes no "
+        "cambian.</p>\n"
+        "<p><strong>Lectura del Acto 1.</strong> El LPS materno induce en la "
+        "descendencia hembra una respuesta coherente a lo largo del eje: "
+        "activacion de STAT3 en placenta y cambio de la expresion de "
+        "transportadores en cerebro. En la descendencia macho, la respuesta "
+        "en cerebro no es detectable como cambio de nivel.</p>" % (
+            n["ms_lps_det"], n["ms_lps_n"], n["ms_ctrl_det"], n["ms_ctrl_n"],
+            n["la_n_control"], n["bra_media_genes"]))
+
+
+def conclusion_revisada_html(n: dict) -> str:
+    filas = [
+        ("Siete genes de cerebro responden con dimorfismo sexual",
+         "Test de interaccion SEXO&times;TTO sobre la dispersion",
+         "Se precisa: %s con desplazamiento de la media en hembras; en %s lo "
+         "que cambia es la variabilidad, como parte de un patron compartido "
+         "por los transportadores" % (n["bra_media_genes"], n["bra_disp_genes"])),
+        ("(Lectura intuitiva de las figuras) El LPS desacopla placenta y "
+         "cerebro en hembras",
+         "Test formal de &Delta;&rho; + simulacion de restriccion de rango",
+         "Se descarta: ningun &Delta;&rho; significativo (%s/%s); la caida "
+         "de correlacion se explica por la compactacion de la expresion" % (
+             n["delta_n_sig"], n["delta_n_test"])),
+        ("La respuesta resumida por el score compuesto es robusta",
+         "Eigengene PC1 y exclusion del feto extremo",
+         "Se sostiene: el eigengene no cambia conclusiones; las senales "
+         "cercanas al umbral son sensibles a la exclusion de un solo feto"),
+    ]
+    tabla = ["<table><thead><tr><th>Afirmacion del Acto 1</th>"
+             "<th>Que la puso a prueba en el Acto 2</th><th>Resultado</th></tr>"
+             "</thead><tbody>"]
+    for a, b, c in filas:
+        tabla.append("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" % (a, b, c))
+    tabla.append("</tbody></table>")
+    parrafo = (
+        "<p><strong>Conclusion revisada.</strong> En hembras, el LPS "
+        "materno produce una respuesta direccional y homogenea: activa "
+        "STAT3 en placenta, desplaza la expresion cerebral de %s, y reduce "
+        "la variabilidad entre individuos. En machos no hay respuesta "
+        "direccional, pero aumenta la heterogeneidad: cada individuo "
+        "responde distinto. La aparente perdida de acoplamiento "
+        "placenta&ndash;cerebro en hembras no es un segundo hallazgo, sino "
+        "la misma reduccion de dispersion vista a traves de la "
+        "correlacion.</p>" % (n["bra_media_genes"],))
+    return "\n".join(tabla + [parrafo])
+
+
+# =========================================================================
 # Figuras -> <img data:...>  (autocontenido).
 # =========================================================================
 def img_datauri(ruta: Path) -> str:
@@ -592,7 +973,7 @@ def _seccion(id_, titulo, cuerpo_html):
         id_, _esc(titulo), cuerpo_html)
 
 
-def construir_html(fuente: str, num: dict) -> str:
+def construir_html(fuente: str, num: dict, nc: dict) -> str:
     sint = fuente != "real"
     L = []
     ap = L.append
@@ -628,11 +1009,13 @@ def construir_html(fuente: str, num: dict) -> str:
         ("resumen", "1. Resumen"),
         ("metodos", "2. Diseno y metodos"),
         ("acto1", "3. Acto 1 &mdash; respuesta a la MIA y dependencia del sexo"),
-        ("acto2", "4. Acto 2 &mdash; coordinacion placenta&lt;-&gt;cerebro"),
-        ("reproducibilidad", "5. Reproducibilidad (R vs Python)"),
-        ("descartados", "6. Analisis descartados"),
-        ("limitaciones", "7. Limitaciones"),
-        ("auditoria", "8. Procedencia y verificaciones"),
+        ("sintesis", "4. Sintesis del eje madre &rarr; placenta &rarr; cerebro"),
+        ("acto2", "5. Acto 2 &mdash; coordinacion placenta&lt;-&gt;cerebro"),
+        ("conclusion_revisada", "6. Conclusion revisada (Acto 1 frente a Acto 2)"),
+        ("reproducibilidad", "7. Reproducibilidad (R vs Python)"),
+        ("descartados", "8. Analisis descartados"),
+        ("limitaciones", "9. Limitaciones"),
+        ("auditoria", "10. Procedencia y verificaciones"),
     ]
     ap('<nav class="toc"><strong>Contenido</strong><ol>')
     for id_, t in items_toc:
@@ -667,9 +1050,13 @@ def construir_html(fuente: str, num: dict) -> str:
         "<code>%s</code>, p_bw = <code>%s</code>). La simulacion de restriccion de "
         "rango deja %d de %d celdas FUERA del IC95. <strong>Sobre los datos reales "
         "no hay evidencia de que la coordinacion cambie entre Control y "
-        "LPS.</strong></li>" % (
+        "LPS.</strong> En cambio, el test de interaccion SEXO&times;TTO sobre la "
+        "dispersion si detecta un efecto sexo-dependiente en cerebro: %s genes "
+        "(%s) muestran menor dispersion en hembras y mayor en machos bajo LPS "
+        "(BH &lt; 0.05).</li>" % (
             num["acto2_n_sig"], num["acto2_n_test"], num["acto2_min_item"],
-            num["acto2_min_pbw"], num["sim_fuera"], num["sim_total"]))
+            num["acto2_min_pbw"], num["sim_fuera"], num["sim_total"],
+            nc["disp_bra_sig_n"], nc["disp_bra_sig_genes"]))
     res.append(
         "<li><strong>Robustez.</strong> El resultado negativo del Acto 2 se "
         "sostiene con el eigengene PC1 en vez del promedio de z (p_bw = "
@@ -721,13 +1108,22 @@ def construir_html(fuente: str, num: dict) -> str:
             partes.append(md_a_html(leer_texto(cfg.RUTA_TABLAS / md)))
             for fg in figuras_de_seccion(figs, criterio):
                 partes.append(fig_html(fg))
+            cl = conclusion_seccion(k, nc)
+            if cl:
+                partes.append(cl)
         return _seccion(ids, titulo, "\n".join(partes))
 
     L.append(bloque_secciones(
         "acto1", "3. Acto 1 -- respuesta a la MIA y dependencia del sexo",
         [0, 1, 2, 3]))
+    L.append(_seccion(
+        "sintesis", "4. Sintesis del eje madre -> placenta -> cerebro",
+        sintesis_eje_html(nc)))
     L.append(bloque_secciones(
-        "acto2", "4. Acto 2 -- coordinacion placenta<->cerebro", [4, 5, 6, 7]))
+        "acto2", "5. Acto 2 -- coordinacion placenta<->cerebro", [4, 5, 6, 7]))
+    L.append(_seccion(
+        "conclusion_revisada", "6. Conclusion revisada (Acto 1 frente a Acto 2)",
+        conclusion_revisada_html(nc)))
 
     # --- 5. reproducibilidad ---
     rep = []
@@ -741,22 +1137,22 @@ def construir_html(fuente: str, num: dict) -> str:
                "los <code>.md</code> y la proyeccion sin figuras de este "
                "informe.</p>" % cfg.SEMILLA)
     rep.append(md_a_html(leer_texto(cfg.RUTA_TABLAS / "comparacion_reporte.md")))
-    L.append(_seccion("reproducibilidad", "5. Reproducibilidad (R vs Python)",
+    L.append(_seccion("reproducibilidad", "7. Reproducibilidad (R vs Python)",
                       "\n".join(rep)))
 
-    # --- 6. descartados ---
+    # --- 8. descartados ---
     L.append(_seccion(
-        "descartados", "6. Analisis descartados",
+        "descartados", "8. Analisis descartados",
         md_a_html(leer_texto(cfg.RUTA_TABLAS / "analisis_descartados.md"))))
 
-    # --- 7. limitaciones ---
+    # --- 9. limitaciones ---
     lim = ["<ul>"]
     for x in LIMITACIONES:
         lim.append("<li>%s</li>" % _esc(x))
     lim.append("</ul>")
-    L.append(_seccion("limitaciones", "7. Limitaciones", "\n".join(lim)))
+    L.append(_seccion("limitaciones", "9. Limitaciones", "\n".join(lim)))
 
-    # --- 8. auditoria ---
+    # --- 10. auditoria ---
     aud = []
     aud.append("<p><code>procedencia.csv</code>: <strong>%d</strong> filas (una "
                "por figura y por tabla). <code>verificaciones.csv</code>: "
@@ -772,7 +1168,7 @@ def construir_html(fuente: str, num: dict) -> str:
                "<code>outputs/tables/verificaciones.csv</code>.</p>")
     aud.append(_csv_a_tabla(cfg.RUTA_TABLAS / "verificaciones.csv",
                             omitir=("valor_obtenido",)))
-    L.append(_seccion("auditoria", "8. Procedencia y verificaciones",
+    L.append(_seccion("auditoria", "10. Procedencia y verificaciones",
                       "\n".join(aud)))
 
     ap = L.append
@@ -871,7 +1267,8 @@ def generar_pdf(html_path: Path, pdf_path: Path) -> str:
 def main():
     fuente = cfg.fuente_datos(cfg.ARCHIVO_QPCR)
     num = resumen_numeros()
-    html = construir_html(fuente, num)
+    nc = numeros_conclusiones()
+    html = construir_html(fuente, num, nc)
 
     textonly = html_sin_figuras(html)
     ruta_html = cfg.RUTA_DOCS / "informe.html"
@@ -918,9 +1315,9 @@ def main():
         ["informe_html_generado",
          "docs/informe.html existe y no esta vacio",
          "%d secciones; %d figuras" % (html.count('<section id="'), n_fig),
-         "8 secciones",
+         "10 secciones",
          "TRUE" if (ruta_html.is_file() and ruta_html.stat().st_size > 0
-                    and html.count('<section id="') == 8) else "FALSE",
+                    and html.count('<section id="') == 10) else "FALSE",
          ESTE_SCRIPT],
         ["informe_figuras_incrustadas",
          "todas las figuras del Acto 1 y 2 estan incrustadas en el informe",
