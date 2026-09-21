@@ -24,9 +24,10 @@
 #     columna suplementaria rotulada, en el espiritu de D12 -- tampoco dirige la
 #     inferencia. Piso: se testea solo si Control y LPS tienen n_par >= 5.
 #
-# Items: los 9 genes con `-ddCt` en ambos tejidos (todos menos il6, D7) + el
-# score compuesto (D8). `il6R` suele quedar con n_par por grupo chico -> su test
-# tiene potencia casi nula; se deja explicito, no se omite.
+# Items: los 8 genes con `-ddCt` en ambos tejidos (todos menos il6, D7, y il6R,
+# excluido de todo el Acto 2 -- mismo criterio que 08_acto2_correlaciones,
+# GEN_EXCLUIDO_CORR) + el score compuesto (D8). Piso: si algun estrato de sexo
+# cae por debajo de n_par >= 5, se deja la fila con los n y sin estadistico.
 #
 # PARIDAD R/Python: rho, SD, cociente y sumas usan acumulador double explicito
 # (mismo orden que R) -> texto "%.10g" bit-identico; todo lo que pasa por
@@ -61,7 +62,9 @@ Z975 = 1.959963984540054                             # qnorm(0.975), literal exa
 PISO_PAR = 5                                         # min fetos emparejados por grupo
 
 GEN_SIN_CEREBRO = "il6"                              # D7: sin -ddCt en BRAIN_E15
-GENES_CORR = [g for g in cfg.GENES if g != GEN_SIN_CEREBRO]   # 9 genes
+GEN_EXCLUIDO_CORR = "il6R"   # pedido explicito (08_acto2_correlaciones): deteccion insuficiente en cerebro
+GENES_CORR = [g for g in cfg.GENES
+              if g not in (GEN_SIN_CEREBRO, GEN_EXCLUIDO_CORR)]   # 8 genes
 ITEMS = GENES_CORR + ["score_compuesto"]
 TEJIDOS = list(cfg.TEJIDOS_E15)                      # PLACENTA_E15, BRAIN_E15
 DPI = 300
@@ -604,40 +607,40 @@ def verificar_interaccion_vs_levene(D):
 # 3. Figuras.
 # ===========================================================================
 def figura_dispersion_sd(disp, ruta):
-    """SD de -ddCt por item: placenta/cerebro x Control/LPS. Un panel por item.
-    Solo AMBOS_SEXOS (comportamiento previo): los estratos por sexo se leen en
-    la tabla, no saturan este panel."""
-    disp = [f for f in disp if f[2] == "AMBOS_SEXOS"]
-    ncol, nrow = 4, 3
-    fig, axes = plt.subplots(nrow, ncol, figsize=(13.0, 8.5))
-    axl = axes.flatten()
+    """SD de -ddCt por item: placenta/cerebro x Control/LPS. Grilla de filas =
+    estrato (AMBOS_SEXOS + HEMBRA + MACHO) x columnas = item, para que el
+    patron cruzado que describe la seccion 2.3-2.4 (LPS baja la dispersion en
+    hembras, la sube en machos) se vea directamente en la figura."""
     idx = {}
     for f in disp:
-        idx.setdefault(f[0], {})[f[3]] = f
-    for k, item in enumerate(ITEMS):
-        ax = axl[k]
-        etiquetas = ["pla\nCtrl", "pla\nLPS", "cer\nCtrl", "cer\nLPS"]
-        vals, cols = [], []
-        for tej in ("PLACENTA_E15", "BRAIN_E15"):
-            row = idx[item][tej]
-            sdc = float(row[5]) if row[5] != "" else float("nan")
-            sdl = float(row[7]) if row[7] != "" else float("nan")
-            vals += [sdc, sdl]
-            cols += [COL_TTO["CONTROL"], COL_TTO["LPS"]]
-        ax.bar(range(4), vals, color=cols, edgecolor="0.3", linewidth=0.5)
-        ax.set_xticks(range(4))
-        ax.set_xticklabels(etiquetas, fontsize=6.5)
-        ax.tick_params(axis="y", labelsize=7)
-        nom = "score compuesto" if item == "score_compuesto" else item
-        ax.set_title(nom, fontsize=9.5,
-                     style="normal" if item == "score_compuesto" else "italic")
-        ax.set_ylabel("SD  -ΔΔCt", fontsize=7.5)
-    for k in range(len(ITEMS), len(axl)):
-        axl[k].set_visible(False)
+        idx[(f[0], f[3], f[2])] = f
+    ncol = len(ITEMS)
+    fig, axes = plt.subplots(len(ESTRATOS), ncol, figsize=(18.0, 9.5))
+    for i, estrato in enumerate(ESTRATOS):
+        for k, item in enumerate(ITEMS):
+            ax = axes[i, k]
+            etiquetas = ["pla\nCtrl", "pla\nLPS", "cer\nCtrl", "cer\nLPS"]
+            vals, cols = [], []
+            for tej in ("PLACENTA_E15", "BRAIN_E15"):
+                row = idx[(item, tej, estrato)]
+                sdc = float(row[5]) if row[5] != "" else float("nan")
+                sdl = float(row[7]) if row[7] != "" else float("nan")
+                vals += [sdc, sdl]
+                cols += [COL_TTO["CONTROL"], COL_TTO["LPS"]]
+            ax.bar(range(4), vals, color=cols, edgecolor="0.3", linewidth=0.5)
+            ax.set_xticks(range(4))
+            ax.set_xticklabels(etiquetas, fontsize=5.5)
+            ax.tick_params(axis="y", labelsize=6.5)
+            if i == 0:
+                nom = "score compuesto" if item == "score_compuesto" else item
+                ax.set_title(nom, fontsize=8,
+                             style="normal" if item == "score_compuesto" else "italic")
+            if k == 0:
+                ax.set_ylabel(f"{estrato}\nSD  -ΔΔCt", fontsize=6.5)
     fig.suptitle("Dispersion de -ΔΔCt dentro del par por feto (placenta y cerebro) "
-                 "por grupo\nUna caida marcada de la SD bajo LPS es la sospecha de "
-                 "restriccion de rango que dirime la simulacion (10, prohibicion 5)",
-                 fontsize=10)
+                 "por grupo\nFilas = estrato de sexo. Una caida marcada de la SD "
+                 "bajo LPS es la sospecha de restriccion de rango que dirime la "
+                 "simulacion (10, prohibicion 5)", fontsize=10)
     fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.92))
     fig.savefig(ruta, dpi=DPI)
     plt.close(fig)
@@ -645,39 +648,42 @@ def figura_dispersion_sd(disp, ruta):
 
 def figura_test_delta_rho(test, ruta):
     """Por item: rho_control vs rho_lps (puntos unidos) + Delta rho y p_bw.
-    Solo AMBOS_SEXOS (comportamiento previo de la figura): un forest por sexo
-    ademas saturaria el panel; los estratos por sexo se leen en la tabla."""
-    test = [f for f in test if f[2] == "AMBOS_SEXOS"]
-    fig, ax = plt.subplots(figsize=(9.5, 6.0))
+    Los 3 estratos lado a lado (columnas): AMBOS_SEXOS (agrupado, como antes)
+    + HEMBRA + MACHO, mismo eje y y mismo rango x en los tres paneles."""
+    fig, axes = plt.subplots(1, len(ESTRATOS), figsize=(16.0, 6.5), sharey=True)
     ys = list(range(len(ITEMS)))[::-1]
-    for y, item, row in zip(ys, ITEMS, test):
-        nom = "score compuesto" if item == "score_compuesto" else item
-        if row[4] == "" or row[6] == "":
-            ax.text(0.0, y, f"  {nom}: n<{PISO_PAR} en algun grupo (sin test)",
-                    va="center", fontsize=8, color="0.5")
-            continue
-        rc, rl = float(row[4]), float(row[6])
-        drho, p_bw = float(row[7]), float(row[13])
-        ax.plot([rc, rl], [y, y], "-", color="0.7", lw=1.2, zorder=1)
-        ax.plot(rc, y, "o", ms=7, color=COL_TTO["CONTROL"], zorder=2,
-                label="Control" if y == ys[0] else None)
-        ax.plot(rl, y, "o", ms=7, color=COL_TTO["LPS"], zorder=2,
-                label="LPS" if y == ys[0] else None)
-        estrellas = ("***" if p_bw < 0.001 else "**" if p_bw < 0.01
-                     else "*" if p_bw < 0.05 else "n.s.")
-        ax.text(1.02, y, f"Δρ={drho:+.2f}  p={p_bw:.3f} {estrellas}",
-                va="center", fontsize=7.5, transform=ax.get_yaxis_transform())
-    ax.axvline(0.0, color="0.4", lw=0.8, ls="--")
-    ax.set_yticks(ys)
-    ax.set_yticklabels(["score compuesto" if i == "score_compuesto" else i
-                        for i in ITEMS], fontsize=8)
-    ax.set_xlim(-1.05, 1.05)
-    ax.set_xlabel("ρ de Spearman (placenta ↔ cerebro por feto)", fontsize=9)
-    ax.legend(fontsize=8, loc="lower left", frameon=False)
-    ax.set_title("Test reportado (prohibicion 4): Fisher z sobre ρ de Spearman, "
-                 "Control vs LPS\nSE Bonett-Wright; p = p_bw con BH entre items "
-                 "(suplementario)", fontsize=9.5)
-    fig.tight_layout(rect=(0.0, 0.0, 0.80, 1.0))
+    for col, estrato in enumerate(ESTRATOS):
+        ax = axes[col]
+        filas = [f for f in test if f[2] == estrato]
+        for y, item, row in zip(ys, ITEMS, filas):
+            nom = "score compuesto" if item == "score_compuesto" else item
+            if row[4] == "" or row[6] == "":
+                ax.text(0.0, y, f"  {nom}: n<{PISO_PAR} en algun grupo (sin test)",
+                        va="center", fontsize=6.5, color="0.5")
+                continue
+            rc, rl = float(row[4]), float(row[6])
+            drho, p_bw = float(row[7]), float(row[13])
+            ax.plot([rc, rl], [y, y], "-", color="0.7", lw=1.2, zorder=1)
+            ax.plot(rc, y, "o", ms=6, color=COL_TTO["CONTROL"], zorder=2,
+                    label="Control" if (col == 0 and y == ys[0]) else None)
+            ax.plot(rl, y, "o", ms=6, color=COL_TTO["LPS"], zorder=2,
+                    label="LPS" if (col == 0 and y == ys[0]) else None)
+            estrellas = ("***" if p_bw < 0.001 else "**" if p_bw < 0.01
+                         else "*" if p_bw < 0.05 else "n.s.")
+            ax.text(1.1, y, f"Δρ={drho:+.2f}  p={p_bw:.3f} {estrellas}",
+                    va="center", fontsize=6)
+        ax.axvline(0.0, color="0.4", lw=0.8, ls="--")
+        ax.set_yticks(ys)
+        ax.set_yticklabels(["score compuesto" if i == "score_compuesto" else i
+                            for i in ITEMS], fontsize=7.5)
+        ax.set_xlim(-1.05, 2.55)
+        ax.set_title(estrato, fontsize=9)
+        ax.set_xlabel("ρ de Spearman", fontsize=8)
+    axes[0].legend(fontsize=8, loc="lower left", frameon=False)
+    fig.suptitle("Test reportado (prohibicion 4): Fisher z sobre ρ de Spearman, "
+                 "Control vs LPS\nColumnas = estrato de sexo. SE Bonett-Wright; "
+                 "p = p_bw con BH entre items (suplementario)", fontsize=10)
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.88))
     fig.savefig(ruta, dpi=DPI)
     plt.close(fig)
 
@@ -808,6 +814,32 @@ _DESCARTES = "\n".join([
     "TTO sobre la dispersion (Seccion 3, nuevo) y de la simulacion "
     "estratificada de `10_acto2_simulacion`.",
     "",
+    "### DESCARTADO -- Test de interaccion de pendientes (punto 5 de "
+    "`cambios_acto2_dispersion_por_sexo.md`)",
+    "",
+    "- **Pedido original**: dentro de cada sexo y tejido, `Y ~ X * TTO` sobre "
+    "los pares de transportadores (un gen contra otro, ambos en el mismo "
+    "tejido), reportando el `p` de la interaccion -- test de si la "
+    "PENDIENTE de la relacion entre dos genes cambia con el tratamiento. "
+    "Quedo pendiente en la sesion de ese pedido (exigia preguntar antes de "
+    "implementar) y se descarta ahora, con el usuario consultado.",
+    "- **Por que se descarta (tres razones)**: (1) **contesta una pregunta "
+    "distinta a la de este proyecto** -- la relacion entre PARES DE GENES "
+    "dentro de un mismo tejido (co-expresion) no es la coordinacion "
+    "PLACENTA<->CEREBRO (mismo gen, dos tejidos) que es el objeto del Acto "
+    "2; ya existe un control de co-expresion entre transportadores en el "
+    "Acto 2.6 (`acto2_coexpresion_transportadores.csv`, eigengene) para eso, "
+    "sin necesidad de una interaccion de pendientes por par. (2) **sumaria "
+    "muchos tests con `n <= 9` por celda**: 8 genes x 7 pares (C(8,2)=28) x "
+    "2 tejidos x 2 sexos = mas de 100 interacciones posibles, cada una con "
+    "la misma potencia baja que ya limita al resto del Acto 2 estratificado "
+    "por sexo -- inflaria el numero de comparaciones sin agregar potencia. "
+    "(3) **la pregunta que si es del proyecto -- si la coordinacion "
+    "placenta<->cerebro cambia entre Control y LPS -- ya esta respondida**: "
+    "el test formal de Delta rho (2.4, Fisher z, 0/28 significativos) y la "
+    "simulacion de restriccion de rango (2.5) cubren esa pregunta sin este "
+    "test adicional.",
+    "",
     "### NUEVO -- Test de interaccion SEXO x TTO sobre la dispersion (2.5)",
     "",
     "- **Por que hace falta**: estaba en la especificacion original del Acto "
@@ -849,12 +881,31 @@ _DESCARTES = "\n".join([
     "",
     "### Alcance y piso",
     "",
-    "- Items: 9 genes con `-ddCt` en ambos tejidos (todos menos `il6`, D7) + "
-    "score compuesto (D8).",
-    "- Se testea un item solo si Control **y** LPS tienen `n_par >= 5`. `il6R` "
-    "suele quedar por debajo en algun grupo -> su test tendria potencia casi "
-    "nula; se deja la fila con los `n` y sin estadistico, no se omite en "
-    "silencio.",
+    "- Items: 8 genes con `-ddCt` en ambos tejidos (todos menos `il6`, D7, y "
+    "`il6R`, excluido de todo el Acto 2 por deteccion insuficiente en "
+    "cerebro -- mismo criterio que `08_acto2_correlaciones`, ver bugfix mas "
+    "abajo) + score compuesto (D8).",
+    "- Se testea un item solo si Control **y** LPS tienen `n_par >= 5`. Si "
+    "algun estrato de sexo (`HEMBRA`/`MACHO`) cae por debajo, se deja la "
+    "fila con los `n` y sin estadistico, no se omite en silencio.",
+    "",
+    "### BUGFIX -- `il6R` no se excluia de este script (pedido "
+    "`cambios_informe_conclusiones.md`, punto 5b)",
+    "",
+    "- **Problema**: `08_acto2_correlaciones` excluye `il6R` de todo el Acto 2 "
+    "(`GEN_EXCLUIDO_CORR`, deteccion insuficiente en cerebro), pero "
+    "`09_acto2_dispersion`, `10_acto2_simulacion` y `11_sensibilidad` "
+    "definian `GENES_CORR` cada uno por su cuenta sin esa exclusion -> "
+    "`il6R` seguia apareciendo en sus tablas y figuras (Delta rho, "
+    "dispersion, simulacion, sensibilidad), aunque el informe ya decia que "
+    "estaba excluido.",
+    "- **Correccion**: mismo `GEN_EXCLUIDO_CORR <- \"il6R\"` agregado a "
+    "`GENES_CORR` en los tres scripts (antes 9 genes, ahora 8 -- consistente "
+    "con `08_acto2_correlaciones`). No afecta a la Seccion 3 (test de "
+    "interaccion sobre la dispersion, arriba): ese universo sale de la "
+    "clasificacion de T5 (`via == \"modelo\"`), no de `GENES_CORR`, y ahi "
+    "`il6R@PLACENTA_E15` se sigue modelando (es una pregunta distinta, por "
+    "tejido, no del par placenta-cerebro).",
     "",
     "### Paridad R / Python",
     "",
@@ -1111,7 +1162,7 @@ def main():
         ["acto2_test_items",
          "items con test formal Control vs LPS (n_par >= 5 en ambos grupos)",
          f"{n_test} de {len(ITEMS)} items testeados",
-         "9 genes + score, los que superan el piso", "TRUE", ESTE_SCRIPT],
+         "8 genes + score, los que superan el piso", "TRUE", ESTE_SCRIPT],
         ["acto2_test_piso",
          "piso de n_par por grupo para el Fisher z", str(PISO_PAR), "5",
          "TRUE" if PISO_PAR == 5 else "FALSE", ESTE_SCRIPT],

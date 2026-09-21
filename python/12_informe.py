@@ -793,10 +793,13 @@ def conclusion_seccion(k: int, n: dict) -> str:
             "en cerebro; seccion 2.6), estos genes no son efectos "
             "independientes: reflejan un mismo patron compartido por el "
             "conjunto de transportadores.</p>\n"
-            "<p>La figura de SD por item agrupa los sexos y por eso no "
-            "muestra este efecto: los cambios opuestos de hembras y machos "
-            "se cancelan al promediarlos. Es un ejemplo directo de lo que "
-            "oculta agrupar los sexos.</p>" % (
+            "<p>La figura de SD ahora muestra los tres estratos (agrupado, "
+            "hembras, machos) lado a lado: el patron cruzado se ve "
+            "directamente comparando las filas HEMBRA y MACHO, columna por "
+            "item -- y explica por que la fila AMBOS_SEXOS, arriba de las "
+            "otras dos, no lo muestra: los cambios opuestos de hembras y "
+            "machos se cancelan al promediarlos. Es un ejemplo directo de lo "
+            "que oculta agrupar los sexos.</p>" % (
                 n["delta_n_sig"], n["delta_n_test"], n["delta_min_item"],
                 n["delta_min_estrato"], n["delta_min_p"], n["disp_bra_sig_n"],
                 n["disp_bra_sig_genes"], n["disp_bra_tend_genes"],

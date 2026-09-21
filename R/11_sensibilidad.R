@@ -54,8 +54,9 @@ Z975 <- 1.959963984540054
 PISO_PAR <- 5L
 
 GEN_SIN_CEREBRO <- "il6"
-GENES_CORR <- setdiff(GENES, GEN_SIN_CEREBRO)               # 9 genes
-ITEMS_LOO <- c(GENES_CORR, "score_compuesto", "eigengene")  # 11 items para (B)
+GEN_EXCLUIDO_CORR <- "il6R"   # pedido explicito (08_acto2_correlaciones): deteccion insuficiente en cerebro
+GENES_CORR <- setdiff(GENES, c(GEN_SIN_CEREBRO, GEN_EXCLUIDO_CORR))  # 8 genes
+ITEMS_LOO <- c(GENES_CORR, "score_compuesto", "eigengene")  # 10 items para (B)
 ITEMS_A <- c("eigengene", "score_compuesto")                # (A): eigengene primero
 ESTRATOS <- c("GLOBAL", "CONTROL", "LPS")
 TRANSP <- GENES_TRANSPORTADORES                             # 7, base del PCA
@@ -689,10 +690,12 @@ paste0("- **No se re-estima el PC1** al quitar el feto: la pregunta es la ",
        "sensibilidad de la correlacion a un punto influyente, no la del PC1. ",
        "Para el item `eigengene` se usan las cargas calculadas sobre los 36 ",
        "fetos."),
-paste0("- Items: los 9 genes de T7/T8 (todos menos `il6`, D7) + score compuesto ",
-       "+ eigengene. Todos superan el piso de n>=5 por grupo en estos datos; si ",
-       "alguno no lo alcanzara, su fila llevaria los n y el impacto sobre rho ",
-       "GLOBAL, sin Fisher z."),
+paste0("- Items: los 8 genes de T7/T8 (todos menos `il6`, D7, y `il6R`, excluido ",
+       "de todo el Acto 2 -- bugfix `cambios_informe_conclusiones.md` punto 5b, ",
+       "ver `analisis_descartados.md` de `09_acto2_dispersion`) + score ",
+       "compuesto + eigengene. Todos superan el piso de n>=5 por grupo en estos ",
+       "datos; si alguno no lo alcanzara, su fila llevaria los n y el impacto ",
+       "sobre rho GLOBAL, sin Fisher z."),
 "",
 "### Paridad R / Python",
 "",
@@ -935,10 +938,10 @@ main <- function() {
          "argmax_i |rho_full - rho_sin_i| por item, sobre el estrato GLOBAL",
          "LOO sobre rho GLOBAL", "TRUE", ESTE_SCRIPT),
     list("sens_excl_extremo_items",
-         "items del control (B): 9 genes de T7/T8 + score compuesto + eigengene",
+         "items del control (B): 8 genes de T7/T8 + score compuesto + eigengene",
          sprintf("%d items; %d con Fisher z (n>=5 por grupo)",
                  length(ITEMS_LOO), n_testados_b),
-         "11 items", if (length(ITEMS_LOO) == 11L) "TRUE" else "FALSE",
+         "10 items", if (length(ITEMS_LOO) == 10L) "TRUE" else "FALSE",
          ESTE_SCRIPT),
     list("sens_excl_extremo_veredicto",
          "cuantos items cambian el veredicto p_bw<.05 al excluir su feto extremo",

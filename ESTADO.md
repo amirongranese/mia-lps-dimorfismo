@@ -1925,11 +1925,10 @@ el piso para algunos items. Corregido completando los 20 campos de
 ### Pendiente / siguiente paso concreto
 
 - **Puntos 1–4 del pedido completos y verificados** (`pedidos/cambios_acto2_dispersion_por_sexo.md`),
-  cada uno con su commit. **Punto 5 (test de pendientes) sigue pendiente**:
-  el pedido exige preguntar antes de implementarlo; el usuario dijo
-  explícitamente que quede pendiente en esta sesión. Al retomarlo: preguntar
-  primero, luego `Y ~ X * TTO` dentro de cada sexo y tejido sobre los pares
-  de transportadores, reportando el `p` de la interacción.
+  cada uno con su commit. **Punto 5 (test de pendientes)**: quedó pendiente en
+  esta sesión (exigía preguntar antes de implementar) y se **descartó en la
+  sesión 19** tras consultar al usuario — ver esa sesión y
+  `analisis_descartados.md` (`09_acto2_dispersion`). No es tarea pendiente.
 
 ---
 
@@ -2014,14 +2013,97 @@ el piso para algunos items. Corregido completando los 20 campos de
 
 ### Pendiente / siguiente paso concreto
 
-- **Punto 5 del pedido principal (test de pendientes, Acto 2.5.1)** sigue
-  pendiente de sesiones anteriores — no es parte de este pedido.
+- **Punto 5 del pedido principal (test de pendientes, Acto 2.5.1)**: sigue
+  pendiente al cerrar esta sesión — **descartado en la sesión 19** (ver esa
+  sesión). No es parte de este pedido.
 - **Sección 5 de `cambios_informe_conclusiones.md` (OPCIONAL, correcciones de
-  consistencia)** no se aplicó: el pedido dice explícitamente "aplicalas solo
-  si confirmo". Son 3 items: (a) agregar estratos HEMBRA/MACHO a las figuras
-  `acto2_dispersion_sd.png`/`acto2_test_delta_rho.png`/
-  `acto2_simulacion_delta_rho.png` (hoy solo muestran AMBOS_SEXOS); (b) quitar
-  `il6R` de las tablas/figuras del Acto 2 (se pidió excluirlo pero sigue
-  apareciendo); (c) el triángulo superior de los SPLOM por sexo muestra un
-  solo ρ (Control+LPS juntos) en vez de un ρ por tratamiento. Si el usuario
-  confirma, aplicar con un commit propio (separado del de los puntos 1–4).
+  consistencia)**: puntos (a) y (b) **aplicados en la sesión 19** (confirmados
+  por el usuario). Sigue pendiente **(c)**: el triángulo superior de los SPLOM
+  por sexo muestra un solo ρ (Control+LPS juntos) en vez de un ρ por
+  tratamiento — no se aplicó, sin confirmación del usuario.
+
+---
+
+## Sesión 19 — 2026-09-21 — sección 5 (a)(b) de `cambios_informe_conclusiones.md` + descarte del test de pendientes
+
+> Pedido: aplicar solo los puntos (a) y (b) de la sección 5 (opcional) del
+> pedido de la sesión 18. (a) conservar el panel agrupado y agregar HEMBRA/
+> MACHO al lado en las 3 figuras del Acto 2.3-2.5, de modo que la figura
+> muestre el contraste que describe el texto; ajustar la conclusión si hace
+> falta. (b) `il6R` seguía apareciendo en tablas/figuras del Acto 2 pese a
+> estar excluido — corregir. El punto (c) (SPLOM) queda sin tocar. Además:
+> descartar formalmente el "test de pendientes" (punto 5 de
+> `cambios_acto2_dispersion_por_sexo.md`, sesión 17) en `analisis_descartados.md`,
+> con las razones que dio el usuario, y sacarlo de "pendiente" en `ESTADO.md`.
+
+### Qué se completó
+
+- **Bug (b) encontrado y corregido**: `08_acto2_correlaciones` excluye `il6R`
+  de todo el Acto 2 (`GEN_EXCLUIDO_CORR`, detección insuficiente en cerebro),
+  pero `09_acto2_dispersion`, `10_acto2_simulacion` y `11_sensibilidad`
+  definían `GENES_CORR` cada uno por su cuenta sin esa exclusión — `il6R`
+  seguía en sus tablas y figuras (9 genes en vez de 8). Mismo
+  `GEN_EXCLUIDO_CORR <- "il6R"` agregado a los tres scripts (R y Python).
+  **No toca** la Sección 3 (test de interacción SEXO×TTO sobre dispersión,
+  sesión 17): ese universo sale de T5 (`via == "modelo"`), no de
+  `GENES_CORR` — es una pregunta distinta (por tejido, no del par
+  placenta-cerebro) y `il6R@PLACENTA_E15` se sigue modelando ahí.
+  **Efecto colateral encontrado y corregido**: esto bajaba `ITEMS_LOO` de 11
+  a 10 en `11_sensibilidad`, y una verificación (`sens_excl_extremo_items`)
+  tenía el `11` hardcodeado (`length(ITEMS_LOO) == 11L`) — habría quedado en
+  FALSE sin este segundo fix.
+- **(a) Las 3 figuras ganan grilla de 3 estratos** (`AMBOS_SEXOS` conservado +
+  `HEMBRA` + `MACHO`), en vez de mostrar solo el agrupado:
+  - `acto2_dispersion_sd.png` (09): `facet_grid(estrato ~ item)` en R /
+    grilla `subplots(3, len(ITEMS))` en Python — filas = estrato, columnas =
+    item. Se ve directamente el patrón cruzado (LPS baja SD en HEMBRA, la
+    sube en MACHO).
+  - `acto2_test_delta_rho.png` (09): `facet_grid(~ estrato)` en R / 3 ejes
+    lado a lado en Python — mismo eje y (items) y mismo rango x en los 3
+    paneles. Se extendió el `xlim` para que la anotación de texto quede
+    dentro de cada panel (con `facet_grid` ya no sirve el truco de
+    `clip="off"` + margen grande de un solo panel).
+  - `acto2_simulacion_delta_rho.png` (10): mismo patrón que 09 (a),
+    `facet_grid(estrato ~ item)`.
+  - Verificado visualmente (R): las 3 figuras muestran el contraste
+    correctamente (ver figuras en `outputs/figures/`).
+- **`12_informe`**: la frase de la conclusión de 2.3-2.4 que decía "la figura
+  de SD agrupa los sexos y por eso no muestra este efecto" ya no era cierta
+  — reescrita para decir que la figura ahora muestra los 3 estratos y que el
+  patrón se ve comparando las filas HEMBRA/MACHO (texto idéntico R/Python,
+  verificado por la paridad de render).
+- **Descarte del test de pendientes** (`analisis_descartados.md`, sección
+  `09_acto2_dispersion`, nueva): tres razones dadas por el usuario — (1)
+  contesta una pregunta distinta (co-expresión entre pares de genes dentro
+  de un tejido, no coordinación placenta↔cerebro); (2) sumaría más de 100
+  tests con `n<=9` por celda; (3) la pregunta de coordinación ya está
+  respondida por Δρ (2.4) + simulación (2.5). Ya hay un control de
+  co-expresión entre transportadores en 2.6 (eigengene) que cubre lo que el
+  test de pendientes buscaría, sin necesidad de un test por par.
+- Comentarios y textos de "9 genes"/conteos de items actualizados a "8
+  genes"/nuevos totales en `09_acto2_dispersion`, `10_acto2_simulacion` y
+  `11_sensibilidad` (R y Python), incluida la sección "Alcance y piso" de
+  `analisis_descartados.md` (texto byte-idéntico R/Python, con un párrafo
+  nuevo "BUGFIX" explicando la corrección de `il6R`).
+
+### Verificado
+
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 32/32 CSV byte-idénticos, paridad de
+  render OK, 100/100 verificaciones en TRUE, ~4.9 min.**
+- `il6R` ausente de `acto2_dispersion.csv`, `acto2_test_correlaciones.csv`,
+  `acto2_simulacion.csv` y `acto2_sensibilidad_excl_extremo.csv` (grep, 0
+  coincidencias en las 4 tablas).
+- Números del informe se recalculan solos con el nuevo universo de 8 genes
+  (nada hardcodeado): Δρ pasa de "0 de 28" a "0 de 27" (se pierde 1 test
+  válido de `il6R`), `sens_excl_extremo_items` pasa a "10 items; 10 con
+  Fisher z" (antes 11).
+- Figuras inspeccionadas visualmente (ver arriba): las 3 muestran el
+  contraste HEMBRA/MACHO correctamente.
+
+### Pendiente / siguiente paso concreto
+
+- **Punto (c) de la sección 5** (SPLOM por sexo, un solo ρ en el triángulo
+  superior en vez de uno por tratamiento): sigue sin aplicarse, sin
+  confirmación del usuario.
+- Ningún otro pendiente conocido de esta sesión.

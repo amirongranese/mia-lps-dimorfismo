@@ -68,7 +68,9 @@ Z975 = 1.959963984540054
 PISO_PAR = 5
 
 GEN_SIN_CEREBRO = "il6"
-GENES_CORR = [g for g in cfg.GENES if g != GEN_SIN_CEREBRO]
+GEN_EXCLUIDO_CORR = "il6R"   # pedido explicito (08_acto2_correlaciones): deteccion insuficiente en cerebro
+GENES_CORR = [g for g in cfg.GENES
+              if g not in (GEN_SIN_CEREBRO, GEN_EXCLUIDO_CORR)]   # 8 genes
 ITEMS = GENES_CORR + ["score_compuesto"]
 ESCENARIOS = ["GLOBAL", "CONTROL"]
 # Estratificacion por sexo (pedido explicito, punto 4/4): AMBOS_SEXOS =
@@ -379,55 +381,54 @@ def tabla_simulacion(D, rng):
 # 3. Figura.
 # ===========================================================================
 def figura_simulacion(sim, ruta):
-    # Solo AMBOS_SEXOS (comportamiento previo): los estratos por sexo se leen
-    # en la tabla completa, no saturan este panel.
-    sim = [f for f in sim if f[2] == "AMBOS_SEXOS"]
-    ncol, nrow = 4, 3
-    fig, axes = plt.subplots(nrow, ncol, figsize=(13.0, 9.0))
-    axl = axes.flatten()
+    # Los 3 estratos lado a lado (fila = estrato, columna = item): AMBOS_SEXOS
+    # (agrupado, como antes) + HEMBRA + MACHO.
     poritem = {}
     for f in sim:
-        poritem.setdefault(f[0], []).append(f)
+        poritem.setdefault((f[0], f[2]), []).append(f)
+    fig, axes = plt.subplots(len(ESTRATOS), len(ITEMS), figsize=(18.0, 9.5))
     col_esc = {"GLOBAL": "#4C4C4C", "CONTROL": COL_TTO["CONTROL"]}
     col_ver = {"DENTRO": "#009E73", "FUERA": "#D55E00"}
-    for k, item in enumerate(ITEMS):
-        ax = axl[k]
-        filas = poritem[item]
-        ymap = {"GLOBAL": 1.0, "CONTROL": 0.0}
-        tiene = False
-        for f in filas:
-            esc = f[3]
-            y = ymap[esc]
-            if f[19] == "sin_test":
-                ax.text(0.5, 0.5, "n<5 en algun grupo\n(sin simulacion)",
-                        ha="center", va="center", fontsize=8, color="0.5",
-                        transform=ax.transAxes)
-                break
-            tiene = True
-            q025, q975 = float(f[15]), float(f[16])
-            media = float(f[13])
-            drho_obs = float(f[12])
-            ax.plot([q025, q975], [y, y], "-", color=col_esc[esc], lw=3,
-                    alpha=0.55, solid_capstyle="butt")
-            ax.plot(media, y, "|", color=col_esc[esc], ms=12, mew=1.5)
-            ax.plot(drho_obs, y, "D", color=col_ver[f[19]], ms=7, mec="black",
-                    mew=0.5, zorder=3)
-        if tiene:
-            ax.axvline(0.0, color="0.6", lw=0.6, ls=":")
-            ax.set_yticks([0.0, 1.0])
-            ax.set_yticklabels(["r=ρ Control", "r=ρ GLOBAL"], fontsize=7)
-            ax.set_ylim(-0.6, 1.6)
-            ax.tick_params(axis="x", labelsize=7)
-        nom = "score compuesto" if item == "score_compuesto" else item
-        ax.set_title(nom, fontsize=9.5,
-                     style="normal" if item == "score_compuesto" else "italic")
-        ax.set_xlabel("Δρ  (ρ Control − ρ LPS)", fontsize=7.5)
-    for k in range(len(ITEMS), len(axl)):
-        axl[k].set_visible(False)
+    for i, estrato in enumerate(ESTRATOS):
+        for k, item in enumerate(ITEMS):
+            ax = axes[i, k]
+            filas = poritem[(item, estrato)]
+            ymap = {"GLOBAL": 1.0, "CONTROL": 0.0}
+            tiene = False
+            for f in filas:
+                esc = f[3]
+                y = ymap[esc]
+                if f[19] == "sin_test":
+                    ax.text(0.5, 0.5, "n<5\n(sin simulacion)",
+                            ha="center", va="center", fontsize=6.5, color="0.5",
+                            transform=ax.transAxes)
+                    break
+                tiene = True
+                q025, q975 = float(f[15]), float(f[16])
+                media = float(f[13])
+                drho_obs = float(f[12])
+                ax.plot([q025, q975], [y, y], "-", color=col_esc[esc], lw=3,
+                        alpha=0.55, solid_capstyle="butt")
+                ax.plot(media, y, "|", color=col_esc[esc], ms=10, mew=1.3)
+                ax.plot(drho_obs, y, "D", color=col_ver[f[19]], ms=6, mec="black",
+                        mew=0.5, zorder=3)
+            if tiene:
+                ax.axvline(0.0, color="0.6", lw=0.6, ls=":")
+                ax.set_yticks([0.0, 1.0])
+                ax.set_yticklabels(["r=ρ Control", "r=ρ GLOBAL"], fontsize=5.5)
+                ax.set_ylim(-0.6, 1.6)
+                ax.tick_params(axis="x", labelsize=6)
+            if i == 0:
+                nom = "score compuesto" if item == "score_compuesto" else item
+                ax.set_title(nom, fontsize=8,
+                             style="normal" if item == "score_compuesto" else "italic")
+            if k == 0:
+                ax.set_ylabel(estrato, fontsize=6.5)
     fig.suptitle("Δρ observado (rombo) vs intervalo 95% del Δρ simulado bajo r "
                  "verdadera comun y solo diferencia de dispersion\n"
-                 "verde = DENTRO (no se puede descartar restriccion de rango, "
-                 "prohibicion 5) · naranja = FUERA", fontsize=10)
+                 "Filas = estrato de sexo. verde = DENTRO (no se puede descartar "
+                 "restriccion de rango, prohibicion 5) · naranja = FUERA",
+                 fontsize=10)
     fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.92))
     fig.savefig(ruta, dpi=DPI)
     plt.close(fig)

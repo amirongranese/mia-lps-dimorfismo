@@ -18,8 +18,10 @@
 #     varianzas LPS/Control y Levene Brown-Forsythe (centro = mediana) por lado.
 #     No alcanza para descartar restriccion de rango: eso lo hace 10.
 #
-# Piso: se testea un item solo con n_par >= 5 en Control y en LPS. `il6R` suele
-# quedar por debajo -> fila con n y sin estadistico, no se omite.
+# Piso: se testea un item solo con n_par >= 5 en Control y en LPS; si algun
+# estrato de sexo cae por debajo, fila con n y sin estadistico, no se omite.
+# `il6R` se excluye de todo el Acto 2 (item completo, no por el piso): mismo
+# criterio que 08_acto2_correlaciones (GEN_EXCLUIDO_CORR).
 #
 # PARIDAD R/Python: rho, SD, cociente y sumas usan acumulador double explicito
 # (mismo orden) -> texto "%.10g" bit-identico; z (atanh), p (normal) y F de
@@ -46,7 +48,8 @@ Z975 <- 1.959963984540054
 PISO_PAR <- 5L
 
 GEN_SIN_CEREBRO <- "il6"
-GENES_CORR <- setdiff(GENES, GEN_SIN_CEREBRO)          # 9 genes
+GEN_EXCLUIDO_CORR <- "il6R"   # pedido explicito (08_acto2_correlaciones): deteccion insuficiente en cerebro
+GENES_CORR <- setdiff(GENES, c(GEN_SIN_CEREBRO, GEN_EXCLUIDO_CORR))  # 8 genes
 ITEMS <- c(GENES_CORR, "score_compuesto")
 TEJIDOS <- TEJIDOS_E15                                 # PLACENTA_E15, BRAIN_E15
 DPI <- 300
@@ -495,9 +498,10 @@ verificar_interaccion_vs_levene <- function(D) {
 # 3. Figuras.
 # ===========================================================================
 figura_dispersion_sd <- function(disp, ruta) {
-  # Solo AMBOS_SEXOS (comportamiento previo): los estratos por sexo se leen
-  # en la tabla, no saturan este panel.
-  disp <- Filter(function(f) f[[3]] == "AMBOS_SEXOS", disp)
+  # Los 3 estratos lado a lado (fila = estrato, columna = item): AMBOS_SEXOS
+  # (agrupado, como antes) + HEMBRA + MACHO, para que el patron cruzado que
+  # describe la seccion 2.3-2.4 (LPS baja la dispersion en hembras, la sube
+  # en machos) se vea directamente en la figura, no solo en la tabla.
   reg <- list()
   for (f in disp) {
     nom <- if (f[[1]] == "score_compuesto") "score compuesto" else f[[1]]
@@ -505,82 +509,90 @@ figura_dispersion_sd <- function(disp, ruta) {
     sdc <- if (nzchar(f[[6]])) as.numeric(f[[6]]) else NA_real_
     sdl <- if (nzchar(f[[8]])) as.numeric(f[[8]]) else NA_real_
     reg[[length(reg) + 1L]] <- data.frame(item = nom, lado = lado,
-      tto = "Control", sd = sdc, stringsAsFactors = FALSE)
+      tto = "Control", sd = sdc, estrato = f[[3]], stringsAsFactors = FALSE)
     reg[[length(reg) + 1L]] <- data.frame(item = nom, lado = lado,
-      tto = "LPS", sd = sdl, stringsAsFactors = FALSE)
+      tto = "LPS", sd = sdl, estrato = f[[3]], stringsAsFactors = FALSE)
   }
   d <- do.call(rbind, reg)
   d$item <- factor(d$item, levels = vapply(ITEMS, function(i)
     if (i == "score_compuesto") "score compuesto" else i, character(1)))
   d$grp <- factor(paste(d$lado, d$tto), levels = c(
     "placenta Control", "placenta LPS", "cerebro Control", "cerebro LPS"))
+  d$estrato <- factor(d$estrato, levels = ESTRATOS)
   p <- ggplot(d, aes(grp, sd, fill = tto)) +
     geom_col(colour = "grey30", linewidth = 0.3) +
     scale_fill_manual(values = c(Control = unname(COL_TTO["CONTROL"]),
                                  LPS = unname(COL_TTO["LPS"])), name = NULL) +
-    facet_wrap(~ item, scales = "free_y", ncol = 4) +
+    facet_grid(estrato ~ item, scales = "free_y") +
     labs(title = paste0("Dispersion de -ddCt dentro del par por feto ",
                         "(placenta y cerebro) por grupo"),
-         subtitle = paste0("Una caida marcada de la SD bajo LPS es la sospecha ",
-                           "de restriccion de rango que dirime 10 (prohibicion 5)"),
+         subtitle = paste0("Filas = estrato de sexo. Una caida marcada de la SD ",
+                           "bajo LPS es la sospecha de restriccion de rango que ",
+                           "dirime 10 (prohibicion 5)"),
          x = NULL, y = "SD  -ddCt") +
-    theme_bw(base_size = 9) +
+    theme_bw(base_size = 8) +
     theme(panel.grid.minor = element_blank(), legend.position = "top",
-          axis.text.x = element_text(angle = 40, hjust = 1, size = 6.5),
+          axis.text.x = element_text(angle = 40, hjust = 1, size = 6),
           strip.background = element_rect(fill = "grey93", colour = NA),
+          strip.text.y = element_text(size = 7),
           plot.subtitle = element_text(size = 8))
-  ggsave(ruta, p, width = 13.0, height = 8.5, dpi = DPI)
+  ggsave(ruta, p, width = 18.0, height = 9.5, dpi = DPI)
 }
 
 figura_test_delta_rho <- function(test, ruta) {
-  # Solo AMBOS_SEXOS (comportamiento previo de la figura): un forest por sexo
-  # ademas saturaria el panel; los estratos por sexo se leen en la tabla.
-  test <- Filter(function(f) f[[3]] == "AMBOS_SEXOS", test)
+  # Los 3 estratos lado a lado (columnas): AMBOS_SEXOS (agrupado, como antes)
+  # + HEMBRA + MACHO, mismo eje y (items) y mismo rango x en los tres paneles
+  # para que el contraste entre sexos sea directamente comparable.
   reg <- list(); ann <- list()
   ord <- vapply(ITEMS, function(i)
     if (i == "score_compuesto") "score compuesto" else i, character(1))
   for (f in test) {
     nom <- if (f[[1]] == "score_compuesto") "score compuesto" else f[[1]]
+    estrato <- f[[3]]
     if (!nzchar(f[[5]]) || !nzchar(f[[7]])) {
-      ann[[length(ann) + 1L]] <- data.frame(item = nom,
+      ann[[length(ann) + 1L]] <- data.frame(item = nom, estrato = estrato,
         lab = sprintf("n<%d en algun grupo (sin test)", PISO_PAR),
         stringsAsFactors = FALSE)
       next
     }
     rc <- as.numeric(f[[5]]); rl <- as.numeric(f[[7]])
     drho <- as.numeric(f[[8]]); p_bw <- as.numeric(f[[14]])
-    reg[[length(reg) + 1L]] <- data.frame(item = nom, tto = "Control", rho = rc,
-                                          stringsAsFactors = FALSE)
-    reg[[length(reg) + 1L]] <- data.frame(item = nom, tto = "LPS", rho = rl,
-                                          stringsAsFactors = FALSE)
+    reg[[length(reg) + 1L]] <- data.frame(item = nom, estrato = estrato,
+      tto = "Control", rho = rc, stringsAsFactors = FALSE)
+    reg[[length(reg) + 1L]] <- data.frame(item = nom, estrato = estrato,
+      tto = "LPS", rho = rl, stringsAsFactors = FALSE)
     est <- if (p_bw < 0.001) "***" else if (p_bw < 0.01) "**" else
       if (p_bw < 0.05) "*" else "n.s."
-    ann[[length(ann) + 1L]] <- data.frame(item = nom,
+    ann[[length(ann) + 1L]] <- data.frame(item = nom, estrato = estrato,
       lab = sprintf("dRho=%+.2f  p=%.3f %s", drho, p_bw, est),
       stringsAsFactors = FALSE)
   }
   d <- do.call(rbind, reg); a <- do.call(rbind, ann)
   d$item <- factor(d$item, levels = rev(ord))
   a$item <- factor(a$item, levels = rev(ord))
+  d$estrato <- factor(d$estrato, levels = ESTRATOS)
+  a$estrato <- factor(a$estrato, levels = ESTRATOS)
   p <- ggplot(d, aes(rho, item, colour = tto)) +
     geom_line(aes(group = item), colour = "grey70", linewidth = 0.6) +
     geom_point(size = 2.6) +
     geom_vline(xintercept = 0, linetype = "dashed", colour = "grey40",
                linewidth = 0.3) +
-    geom_text(data = a, aes(x = 1.08, y = item, label = lab), inherit.aes = FALSE,
-              hjust = 0, size = 2.6, colour = "grey15") +
+    geom_text(data = a, aes(x = 1.1, y = item, label = lab), inherit.aes = FALSE,
+              hjust = 0, size = 2.3, colour = "grey15") +
     scale_colour_manual(values = c(Control = unname(COL_TTO["CONTROL"]),
                                    LPS = unname(COL_TTO["LPS"])), name = NULL) +
-    coord_cartesian(xlim = c(-1.05, 1.05), clip = "off") +
+    coord_cartesian(xlim = c(-1.05, 2.55), clip = "off") +
+    facet_grid(~ estrato) +
     labs(title = paste0("Test reportado (prohibicion 4): Fisher z sobre rho de ",
                         "Spearman, Control vs LPS"),
-         subtitle = "SE Bonett-Wright; p = p_bw con BH entre items (suplementario)",
+         subtitle = paste0("Columnas = estrato de sexo. SE Bonett-Wright; ",
+                           "p = p_bw con BH entre items (suplementario)"),
          x = "rho de Spearman (placenta <-> cerebro por feto)", y = NULL) +
     theme_bw(base_size = 9) +
     theme(panel.grid.minor = element_blank(), legend.position = "bottom",
-          plot.margin = margin(5.5, 120, 5.5, 5.5),
+          strip.background = element_rect(fill = "grey93", colour = NA),
           plot.subtitle = element_text(size = 8))
-  ggsave(ruta, p, width = 9.5, height = 6.0, dpi = DPI)
+  ggsave(ruta, p, width = 16.0, height = 6.5, dpi = DPI)
 }
 
 # ===========================================================================
@@ -706,6 +718,31 @@ paste0("- La tabla de dispersion (`acto2_dispersion.csv`) gana la misma ",
        "interaccion SEXO x TTO sobre la dispersion (Seccion 3, nuevo) y de la ",
        "simulacion estratificada de `10_acto2_simulacion`."),
 "",
+"### DESCARTADO -- Test de interaccion de pendientes (punto 5 de `cambios_acto2_dispersion_por_sexo.md`)",
+"",
+paste0("- **Pedido original**: dentro de cada sexo y tejido, `Y ~ X * TTO` sobre ",
+       "los pares de transportadores (un gen contra otro, ambos en el mismo ",
+       "tejido), reportando el `p` de la interaccion -- test de si la ",
+       "PENDIENTE de la relacion entre dos genes cambia con el tratamiento. ",
+       "Quedo pendiente en la sesion de ese pedido (exigia preguntar antes de ",
+       "implementar) y se descarta ahora, con el usuario consultado."),
+paste0("- **Por que se descarta (tres razones)**: (1) **contesta una pregunta ",
+       "distinta a la de este proyecto** -- la relacion entre PARES DE GENES ",
+       "dentro de un mismo tejido (co-expresion) no es la coordinacion ",
+       "PLACENTA<->CEREBRO (mismo gen, dos tejidos) que es el objeto del Acto ",
+       "2; ya existe un control de co-expresion entre transportadores en el ",
+       "Acto 2.6 (`acto2_coexpresion_transportadores.csv`, eigengene) para eso, ",
+       "sin necesidad de una interaccion de pendientes por par. (2) **sumaria ",
+       "muchos tests con `n <= 9` por celda**: 8 genes x 7 pares (C(8,2)=28) x ",
+       "2 tejidos x 2 sexos = mas de 100 interacciones posibles, cada una con ",
+       "la misma potencia baja que ya limita al resto del Acto 2 estratificado ",
+       "por sexo -- inflaria el numero de comparaciones sin agregar potencia. ",
+       "(3) **la pregunta que si es del proyecto -- si la coordinacion ",
+       "placenta<->cerebro cambia entre Control y LPS -- ya esta respondida**: ",
+       "el test formal de Delta rho (2.4, Fisher z, 0/28 significativos) y la ",
+       "simulacion de restriccion de rango (2.5) cubren esa pregunta sin este ",
+       "test adicional."),
+"",
 "### NUEVO -- Test de interaccion SEXO x TTO sobre la dispersion (2.5)",
 "",
 paste0("- **Por que hace falta**: estaba en la especificacion original del ",
@@ -747,12 +784,30 @@ paste0("- BH (D12) de cada termino, DENTRO de cada tejido (mismo criterio que ",
 "",
 "### Alcance y piso",
 "",
-paste0("- Items: 9 genes con `-ddCt` en ambos tejidos (todos menos `il6`, D7) + ",
-       "score compuesto (D8)."),
-paste0("- Se testea un item solo si Control **y** LPS tienen `n_par >= 5`. ",
-       "`il6R` suele quedar por debajo en algun grupo -> su test tendria ",
-       "potencia casi nula; se deja la fila con los `n` y sin estadistico, no se ",
-       "omite en silencio."),
+paste0("- Items: 8 genes con `-ddCt` en ambos tejidos (todos menos `il6`, D7, y ",
+       "`il6R`, excluido de todo el Acto 2 por deteccion insuficiente en ",
+       "cerebro -- mismo criterio que `08_acto2_correlaciones`, ver bugfix mas ",
+       "abajo) + score compuesto (D8)."),
+paste0("- Se testea un item solo si Control **y** LPS tienen `n_par >= 5`. Si ",
+       "algun estrato de sexo (`HEMBRA`/`MACHO`) cae por debajo, se deja la ",
+       "fila con los `n` y sin estadistico, no se omite en silencio."),
+"",
+"### BUGFIX -- `il6R` no se excluia de este script (pedido `cambios_informe_conclusiones.md`, punto 5b)",
+"",
+paste0("- **Problema**: `08_acto2_correlaciones` excluye `il6R` de todo el Acto 2 ",
+       "(`GEN_EXCLUIDO_CORR`, deteccion insuficiente en cerebro), pero ",
+       "`09_acto2_dispersion`, `10_acto2_simulacion` y `11_sensibilidad` ",
+       "definian `GENES_CORR` cada uno por su cuenta sin esa exclusion -> ",
+       "`il6R` seguia apareciendo en sus tablas y figuras (Delta rho, ",
+       "dispersion, simulacion, sensibilidad), aunque el informe ya decia que ",
+       "estaba excluido."),
+paste0("- **Correccion**: mismo `GEN_EXCLUIDO_CORR <- \"il6R\"` agregado a ",
+       "`GENES_CORR` en los tres scripts (antes 9 genes, ahora 8 -- consistente ",
+       "con `08_acto2_correlaciones`). No afecta a la Seccion 3 (test de ",
+       "interaccion sobre la dispersion, arriba): ese universo sale de la ",
+       "clasificacion de T5 (`via == \"modelo\"`), no de `GENES_CORR`, y ahi ",
+       "`il6R@PLACENTA_E15` se sigue modelando (es una pregunta distinta, por ",
+       "tejido, no del par placenta-cerebro)."),
 "",
 "### Paridad R / Python",
 "",
@@ -1009,7 +1064,7 @@ main <- function() {
     list("acto2_test_items",
          "items con test formal Control vs LPS (n_par >= 5 en ambos grupos)",
          sprintf("%d de %d items testeados", n_test, length(ITEMS)),
-         "9 genes + score, los que superan el piso", "TRUE", ESTE_SCRIPT),
+         "8 genes + score, los que superan el piso", "TRUE", ESTE_SCRIPT),
     list("acto2_test_piso",
          "piso de n_par por grupo para el Fisher z", as.character(PISO_PAR), "5",
          if (PISO_PAR == 5L) "TRUE" else "FALSE", ESTE_SCRIPT),

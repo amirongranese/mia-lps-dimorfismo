@@ -49,7 +49,8 @@ Z975 <- 1.959963984540054
 PISO_PAR <- 5L
 
 GEN_SIN_CEREBRO <- "il6"
-GENES_CORR <- setdiff(GENES, GEN_SIN_CEREBRO)
+GEN_EXCLUIDO_CORR <- "il6R"   # pedido explicito (08_acto2_correlaciones): deteccion insuficiente en cerebro
+GENES_CORR <- setdiff(GENES, c(GEN_SIN_CEREBRO, GEN_EXCLUIDO_CORR))  # 8 genes
 ITEMS <- c(GENES_CORR, "score_compuesto")
 ESCENARIOS <- c("GLOBAL", "CONTROL")
 # Estratificacion por sexo (pedido explicito, punto 4/4): AMBOS_SEXOS =
@@ -276,26 +277,27 @@ tabla_simulacion <- function(D, rng) {
 # 3. Figura.
 # ===========================================================================
 figura_simulacion <- function(sim, ruta) {
-  # Solo AMBOS_SEXOS (comportamiento previo): los estratos por sexo se leen
-  # en la tabla completa, no saturan este panel.
-  sim <- Filter(function(f) f[[3]] == "AMBOS_SEXOS", sim)
+  # Los 3 estratos lado a lado (fila = estrato, columna = item): AMBOS_SEXOS
+  # (agrupado, como antes) + HEMBRA + MACHO.
   ord <- vapply(ITEMS, function(i)
     if (i == "score_compuesto") "score compuesto" else i, character(1))
   seg <- list(); pts <- list(); med <- list(); txt <- list()
   ymap <- c(GLOBAL = 1, CONTROL = 0)
   for (f in sim) {
     nom <- if (f[[1]] == "score_compuesto") "score compuesto" else f[[1]]
+    estrato <- f[[3]]
     if (f[[20]] == "sin_test") {
-      txt[[length(txt) + 1L]] <- data.frame(item = nom, lab = "n<5 (sin simulacion)",
-                                            stringsAsFactors = FALSE)
+      txt[[length(txt) + 1L]] <- data.frame(item = nom, estrato = estrato,
+        lab = "n<5 (sin simulacion)", stringsAsFactors = FALSE)
       next
     }
     y <- ymap[[f[[4]]]]
-    seg[[length(seg) + 1L]] <- data.frame(item = nom, esc = f[[4]], y = y,
-      x0 = as.numeric(f[[16]]), x1 = as.numeric(f[[17]]), stringsAsFactors = FALSE)
-    med[[length(med) + 1L]] <- data.frame(item = nom, esc = f[[4]], y = y,
-      x = as.numeric(f[[14]]), stringsAsFactors = FALSE)
-    pts[[length(pts) + 1L]] <- data.frame(item = nom, y = y,
+    seg[[length(seg) + 1L]] <- data.frame(item = nom, estrato = estrato,
+      esc = f[[4]], y = y, x0 = as.numeric(f[[16]]), x1 = as.numeric(f[[17]]),
+      stringsAsFactors = FALSE)
+    med[[length(med) + 1L]] <- data.frame(item = nom, estrato = estrato,
+      esc = f[[4]], y = y, x = as.numeric(f[[14]]), stringsAsFactors = FALSE)
+    pts[[length(pts) + 1L]] <- data.frame(item = nom, estrato = estrato, y = y,
       x = as.numeric(f[[13]]), ver = f[[20]], stringsAsFactors = FALSE)
   }
   d_seg <- do.call(rbind, seg); d_pts <- do.call(rbind, pts)
@@ -303,6 +305,9 @@ figura_simulacion <- function(sim, ruta) {
   d_seg$item <- factor(d_seg$item, levels = ord)
   d_pts$item <- factor(d_pts$item, levels = ord)
   d_med$item <- factor(d_med$item, levels = ord)
+  d_seg$estrato <- factor(d_seg$estrato, levels = ESTRATOS)
+  d_pts$estrato <- factor(d_pts$estrato, levels = ESTRATOS)
+  d_med$estrato <- factor(d_med$estrato, levels = ESTRATOS)
   p <- ggplot() +
     geom_segment(data = d_seg, aes(x = x0, xend = x1, y = y, yend = y,
                                    colour = esc), linewidth = 2.6, alpha = 0.55) +
@@ -320,18 +325,20 @@ figura_simulacion <- function(sim, ruta) {
     scale_y_continuous(breaks = c(0, 1),
                        labels = c("r=rho Control", "r=rho GLOBAL"),
                        limits = c(-0.6, 1.6)) +
-    facet_wrap(~ item, scales = "free_x", ncol = 4) +
+    facet_grid(estrato ~ item, scales = "free_x") +
     labs(title = paste0("Delta rho observado (rombo) vs intervalo 95% del ",
                         "Delta rho simulado bajo r verdadera comun y solo ",
                         "diferencia de dispersion"),
-         subtitle = paste0("verde = DENTRO (no se puede descartar restriccion ",
-                           "de rango, prohibicion 5) - naranja = FUERA"),
+         subtitle = paste0("Filas = estrato de sexo. verde = DENTRO (no se puede ",
+                           "descartar restriccion de rango, prohibicion 5) - ",
+                           "naranja = FUERA"),
          x = "Delta rho  (rho Control - rho LPS)", y = NULL) +
-    theme_bw(base_size = 9) +
+    theme_bw(base_size = 8) +
     theme(panel.grid.minor = element_blank(),
           strip.background = element_rect(fill = "grey93", colour = NA),
+          strip.text.y = element_text(size = 7),
           plot.subtitle = element_text(size = 8))
-  ggsave(ruta, p, width = 13.0, height = 9.0, dpi = DPI)
+  ggsave(ruta, p, width = 18.0, height = 9.5, dpi = DPI)
 }
 
 # ===========================================================================
