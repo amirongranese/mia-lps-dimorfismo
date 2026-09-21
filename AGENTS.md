@@ -2,7 +2,7 @@
 
 > **Todo agente que abra este proyecto debe leer este archivo y `ESTADO.md` completos
 > antes de ejecutar nada.** Este archivo fija las convenciones y decisiones; `ESTADO.md`
-> es la bitácora de avance entre sesiones. No se reabren las decisiones D1–D12.
+> es la bitácora de avance entre sesiones. No se reabren las decisiones D1–D13.
 
 ---
 
@@ -125,10 +125,10 @@ MIA_LPS_reanalisis/
 
 ---
 
-## 4. Decisiones metodológicas no negociables (D1–D12)
+## 4. Decisiones metodológicas no negociables (D1–D13)
 
 > Si hay una razón técnica de peso para que alguna sea inaplicable en un caso puntual,
-> **parar y preguntar**. No se cambian por cuenta propia. No se reabren D1–D11.
+> **parar y preguntar**. No se cambian por cuenta propia. No se reabren D1–D12.
 
 | # | Decisión | Justificación (1 línea) |
 |---|---|---|
@@ -144,6 +144,7 @@ MIA_LPS_reanalisis/
 | **D10** | ELISA con censura a izquierda: columna indicadora `censurado = TRUE`, valor guardado como `NA`, `LOD` registrado aparte. Reportar **% de censura por grupo antes** de cualquier estadístico. Métodos que manejan censura: KM/ROS (`NADA` en R) o no paramétricos con censurados como empates en el rango más bajo (Peto-Peto / Gehan). Si un grupo tiene censura tan alta que ningún estimador es defendible, decirlo y reportar solo proporción de detección. | Un valor "< blanco" no es un número negativo ni un 0; es información parcial. |
 | **D11** | Anotación de boxplots de expresión y de pSTAT3, en **cascada de 3 ramas** (ver 4.2 — **ampliada por pedido explícito del usuario, 2026-09-11**, revierte la restricción previa "solo si la interacción es significativa"): (a) `SEXO×TTO` significativa → brackets por par del post hoc D6, como antes. (b) interacción NO significativa y efecto principal de `TTO` significativo/tendencia → **un solo bracket** que abarca los 4 grupos, etiqueta `Control vs LPS` + estrellas/`p`. (c) interacción NO significativa y efecto principal de `SEXO` significativo/tendencia → bracket entre los centros de cada sexo, etiqueta `♀ vs ♂` + estrellas/`p`. (b) y (c) no son excluyentes entre sí. Símbolos (las 3 ramas): `p<0.001` → `***`; `p<0.01` → `**`; `p<0.05` → `*` (bracket línea llena); `0.05≤p<0.1` → tendencia: bracket punteado + `p` (3 decimales); `p≥0.1` → sin anotar. **Una sola función decide qué anotar** (una en R, una en Python), usada en todas las figuras. | El modelo no sostiene que el efecto difiera entre sexos cuando la interacción no es significativa: marcar los 4 pares sugeriría un dimorfismo no sostenido; el efecto principal es la conclusión que el modelo sí sostiene. |
 | **D12** | Corrección entre genes: criterio **primario = sin corrección**. Agregar igualmente, como **columna suplementaria rotulada**, el `p` ajustado por **Benjamini-Hochberg dentro de cada tejido** a través de los genes. **No cambiar ninguna conclusión** por esa columna; mencionar en el informe cuántos resultados sobreviven. | Decisión abierta declarada; la columna BH queda disponible sin dirigir la inferencia. |
+| **D13** | Sin término de camada. Los modelos no incluyen `MADRE`, ni como efecto fijo ni aleatorio. En análisis previos de este mismo modelo experimental se evaluó incluirla y no modificaba los resultados. Se asume independencia entre los fetos para el análisis; la limitación se declara en el informe. | En análisis previos de este mismo modelo experimental, agregar `MADRE` no modificaba los resultados; con 2 fetos por camada (1 hembra + 1 macho) no hay grados de libertad para estimarla como aleatoria dentro de cada celda SEXO×TTO. |
 
 ### 4.1 Cascada de supuestos (D5)
 
@@ -192,7 +193,7 @@ MIA_LPS_reanalisis/
 6. **No correr el análisis principal sobre el fold-change** (ver D2).
 7. **No usar `emmeans` directo sobre modelos ART** (ver D5).
 8. **No llamar "TONE" al score compuesto** (ver D8).
-9. **No reabrir las decisiones D1–D11.**
+9. **No reabrir las decisiones D1–D12.**
 10. **No inventar datos**, ni completar celdas faltantes, ni "arreglar" un archivo de entrada. Si algo no cierra: parar y preguntar.
 11. **No hardcodear rutas absolutas** en los scripts.
 12. **No dejar figuras sin su fila** en `procedencia.csv`.

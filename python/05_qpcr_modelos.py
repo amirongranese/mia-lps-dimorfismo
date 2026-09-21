@@ -864,6 +864,14 @@ def _bloque_descartes(resumen_rama, resumen_bh):
     L = [
         "## 05_qpcr_modelos",
         "",
+        "### D13 -- MADRE (camada) no se incluye en el modelo",
+        "",
+        "- Se evaluo incluir `MADRE` como efecto aleatorio (18 madres, 2 fetos "
+        "por camada -- 1 hembra + 1 macho). **No se incorporo**: "
+        "<<< COMPLETAR: evidencia de analisis previos >>>. Se asume "
+        "independencia entre fetos para el analisis (D13, AGENTS.md); la "
+        "limitacion se declara en el informe (Seccion 7).",
+        "",
         "### Eleccion de rama de la cascada D5 por gen x tejido",
         "",
         "- Se ajusta `neg_ddCt ~ SEXO * TTO` (OLS, contr.sum) y se decide la rama con "

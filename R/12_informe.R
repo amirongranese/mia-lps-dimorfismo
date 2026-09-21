@@ -94,7 +94,10 @@ DECISIONES <- list(
     "significativos; una sola funcion de brackets por lenguaje.")),
   c("D12", paste0("Correccion entre genes: primario sin correccion; columna ",
     "suplementaria con p ajustado por Benjamini-Hochberg dentro de cada tejido. ",
-    "No cambia conclusiones."))
+    "No cambia conclusiones.")),
+  c("D13", paste0("Sin termino de camada: los modelos no incluyen MADRE, ni fijo ",
+    "ni aleatorio. Se asume independencia entre fetos; la limitacion se declara ",
+    "en el informe."))
 )
 
 LIMITACIONES <- c(
@@ -116,8 +119,25 @@ LIMITACIONES <- c(
   paste0("Acto 2: la comparacion de correlaciones entre grupos es de baja potencia ",
     "(n_par ~= 15-18 por estrato). La ausencia de significancia no es evidencia ",
     "de igualdad; se reporta el test formal (Fisher z) y la simulacion de ",
-    "restriccion de rango, no el patron descriptivo.")
+    "restriccion de rango, no el patron descriptivo."),
+  paste0("Independencia asumida entre fetos (D13): el LPS se administra a la ",
+    "madre y cada camada aporta un feto de cada sexo, asi que los dos fetos ",
+    "de una camada no son estrictamente independientes. El analisis asume ",
+    "independencia (los modelos no incluyen MADRE, ni fijo ni aleatorio). Si ",
+    "existiera variacion entre camadas, afectaria sobre todo a la precision ",
+    "de los efectos principales de tratamiento.")
 )
+
+# El informe sabe con que datos se genero (punto 3.4 de la revision): con
+# fuente sintetica, las secciones interpretativas (conclusion de cada
+# seccion, sintesis, conclusion revisada) se reemplazan por este aviso --
+# nunca se llama a las funciones que arman esa prosa, para que sea
+# estructuralmente imposible que aparezca una conclusion biologica sobre
+# datos sinteticos.
+AVISO_SINTETICO <- paste0(
+  "<p><em>Informe generado con datos sinteticos. Los efectos son simulados ",
+  "y arbitrarios; las conclusiones biologicas corresponden a los datos ",
+  "reales, que no se incluyen en este repositorio.</em></p>")
 
 # =========================================================================
 # Formateo y escritura -- identicos a 02..11/98.
@@ -477,12 +497,24 @@ numeros_conclusiones <- function() {
   t <- .tab("qpcr_modelos_clasificacion.csv")
   tej <- .col(t, "TEJIDO"); gen <- .col(t, "GEN"); via <- .col(t, "via")
   pTTO <- .col(t, "p_TTO"); isig <- .col(t, "interaccion_significativa")
+  bh_int <- suppressWarnings(as.numeric(.col(t, "p_SEXOxTTO_BH")))
   i_pla <- tej == "PLACENTA_E15" & via == "modelo" & !is.na(suppressWarnings(as.numeric(pTTO))) &
     as.numeric(pTTO) < 0.05
   n$pla_tto_genes <- .join_y(sort(gen[i_pla], method = "radix"))
+  # C3: derivar "ningun gen mostro interaccion en placenta" del conteo real,
+  # no darlo por sentado -- si algun gen x tejido de placenta tuviera
+  # interaccion significativa, la frase cambia sola.
+  i_pla_int <- tej == "PLACENTA_E15" & isig == "TRUE"
+  n$pla_int_n <- sum(i_pla_int)
+  n$pla_int_genes <- .join_y(sort(gen[i_pla_int], method = "radix"))
   i_bra_int <- tej == "BRAIN_E15" & isig == "TRUE"
   bra_int_genes <- sort(gen[i_bra_int], method = "radix")
   n$bra_int_n_txt <- length(bra_int_genes)
+  # D12/C1: "robusta a BH" se calcula, no se asume -- numerador/denominador de
+  # los que ademas tienen p_SEXOxTTO_BH < .05 entre los primariamente
+  # significativos.
+  i_bra_int_bh <- i_bra_int & !is.na(bh_int) & bh_int < 0.05
+  n$bra_int_bh_n <- sum(i_bra_int_bh)
 
   t <- .tab("qpcr_modelos_posthoc.csv")
   tej_p <- .col(t, "TEJIDO"); gen_p <- .col(t, "GEN"); pholm <- .col(t, "p_holm")
@@ -589,12 +621,21 @@ conclusion_seccion <- function(k, n) {
       "significancia no permite concluir que la IL-6 no llegue al ",
       "compartimento fetal."),
     "3" = paste0(
-      "<p><strong>Placenta.</strong> Ningun gen mostro interaccion ",
-      "SEXO&times;TTO. El LPS modifico la expresion de ", n$pla_tto_genes,
-      " de forma equivalente en ambos sexos (efecto principal de ",
-      "tratamiento).</p>\n<p><strong>Cerebro fetal.</strong> ", n$bra_int_n_txt,
-      " genes mostraron interaccion SEXO&times;TTO significativa, todas ",
-      "robustas a la correccion BH. En ", n$bra_media_genes, " el post hoc ",
+      "<p><strong>Placenta.</strong> ",
+      if (n$pla_int_n == 0L) paste0(
+        "Ningun gen mostro interaccion SEXO&times;TTO. El LPS modifico la ",
+        "expresion de ", n$pla_tto_genes, " de forma equivalente en ambos ",
+        "sexos (efecto principal de tratamiento).")
+      else paste0(
+        n$pla_int_n, " gen x tejido mostraron interaccion SEXO&times;TTO ",
+        "significativa (", n$pla_int_genes, "). El LPS tambien modifico la ",
+        "expresion de ", n$pla_tto_genes, " de forma equivalente en ambos ",
+        "sexos en los genes sin interaccion (efecto principal de ",
+        "tratamiento)."),
+      "</p>\n<p><strong>Cerebro fetal.</strong> ", n$bra_int_n_txt,
+      " genes mostraron interaccion SEXO&times;TTO significativa (",
+      n$bra_int_bh_n, " de ", n$bra_int_n_txt, " sobreviven a la ",
+      "correccion BH). En ", n$bra_media_genes, " el post hoc ",
       "localiza el efecto en hembras: ♀Control difiere de ♀LPS ",
       "y ♀LPS difiere de ♂LPS, sin cambios en machos. En ",
       n$bra_disp_genes, " la interaccion no se explica por ninguna ",
@@ -608,9 +649,10 @@ conclusion_seccion <- function(k, n) {
       "cambio (", n$pstat3_mc, " &rarr; ", n$pstat3_ml, "; p = <code>",
       n$pstat3_mm, "</code>). Es el mismo patron que los genes con efecto en ",
       "media en cerebro. Como los transportadores placentarios responden ",
-      "igual en ambos sexos, sus cambios no dependen de la activacion de ",
-      "STAT3, o los machos los alcanzan por otra via. Recordar D9: se mide ",
-      "abundancia de fosfo-STAT3, no fraccion fosforilada."),
+      "igual en ambos sexos, es compatible con que sus cambios no dependan ",
+      "de la activacion de STAT3, o con que los machos los alcancen por ",
+      "otra via. Recordar D9: se mide abundancia de fosfo-STAT3, no fraccion ",
+      "fosforilada."),
     "5" = paste0(
       "Descriptivamente, en hembras control la correlacion placenta&ndash;",
       "cerebro es alta en varios genes y cae cerca de cero con LPS; en ",
@@ -631,8 +673,9 @@ conclusion_seccion <- function(k, n) {
       "aumenta en machos. En placenta ninguno sobrevive a BH (", n$disp_pla_sig_n,
       "). Como los transportadores varian mayormente juntos (el eigengene ",
       "explica el ", n$eig_bra_pct, " % de la varianza en cerebro; seccion ",
-      "2.6), estos genes no son efectos independientes: reflejan un mismo ",
-      "patron compartido por el conjunto de transportadores.</p>\n",
+      "2.6), es compatible con que estos genes no sean efectos ",
+      "independientes, sino que reflejen un patron compartido por el ",
+      "conjunto de transportadores.</p>\n",
       "<p>La figura de SD ahora muestra los tres estratos (agrupado, hembras, ",
       "machos) lado a lado: el patron cruzado se ve directamente comparando ",
       "las filas HEMBRA y MACHO, columna por item -- y explica por que la ",
@@ -646,8 +689,9 @@ conclusion_seccion <- function(k, n) {
       "no haya cambiado. Las excepciones (", n$sim_lim_genes,
       ", en hembras) quedan en el limite del intervalo y se toman como ",
       "pista, no como hallazgo. La perdida aparente de acoplamiento ",
-      "placenta&ndash;cerebro en hembras no es un efecto independiente: es ",
-      "la reduccion de dispersion vista desde otro angulo."),
+      "placenta&ndash;cerebro en hembras es compatible con la reduccion de ",
+      "dispersion vista desde otro angulo, aunque no permite descartar un ",
+      "cambio de coordinacion."),
     "8" = paste0(
       "El eigengene (PC1) explica el ", n$eig_pla_pct,
       " % de la varianza de los transportadores en placenta y el ",
@@ -725,10 +769,11 @@ conclusion_revisada_html <- function(n) {
     "produce una respuesta direccional y homogenea: activa STAT3 en ",
     "placenta, desplaza la expresion cerebral de ", n$bra_media_genes,
     ", y reduce la variabilidad entre individuos. En machos no hay ",
-    "respuesta direccional, pero aumenta la heterogeneidad: cada individuo ",
-    "responde distinto. La aparente perdida de acoplamiento ",
-    "placenta&ndash;cerebro en hembras no es un segundo hallazgo, sino la ",
-    "misma reduccion de dispersion vista a traves de la correlacion.</p>")
+    "respuesta direccional, pero aumenta la variabilidad entre fetos. La ",
+    "aparente perdida de acoplamiento placenta&ndash;cerebro en hembras es ",
+    "compatible con la reduccion de dispersion; la simulacion muestra que ",
+    "esta alcanza para explicarla, aunque no permite descartar un cambio de ",
+    "coordinacion.</p>")
   paste(c(tabla, parrafo), collapse = "\n")
 }
 
@@ -934,7 +979,7 @@ construir_html <- function(fuente, num, nc) {
       "grupo. Tejidos analizados: placenta E15 y cerebro fetal E15 (BRAIN_P1 ",
       "fuera de alcance). El ELISA de IL-6 y el western de pSTAT3 se analizan con ",
       "su propio n.</p>"),
-    "<h3>2.2 Decisiones metodologicas fijas (D1&ndash;D12)</h3>",
+    "<h3>2.2 Decisiones metodologicas fijas (D1&ndash;D13)</h3>",
     "<table><thead><tr><th>#</th><th>Decision</th></tr></thead><tbody>"
   )
   for (d in DECISIONES)
@@ -961,7 +1006,11 @@ construir_html <- function(fuente, num, nc) {
       partes <- c(partes, sprintf("<h3>%s</h3>", .esc(sec[[1]])))
       partes <- c(partes, md_a_html(leer_texto(file.path(RUTA_TABLAS, sec[[2]]))))
       for (fg in figuras_de_seccion(figs, sec[[3]])) partes <- c(partes, fig_html(fg))
-      cl <- conclusion_seccion(k, nc)
+      # 3.4: con fuente sintetica, ni siquiera se llama a conclusion_seccion
+      # (nunca se arma la prosa interpretativa) -- se inserta el aviso.
+      cl <- if (sint) {
+        if (k == 2L) "" else paste0("<h4>Conclusion de la seccion</h4>\n", AVISO_SINTETICO)
+      } else conclusion_seccion(k, nc)
       if (nzchar(cl)) partes <- c(partes, cl)
     }
     .seccion(ids, titulo, paste(partes, collapse = "\n"))
@@ -970,12 +1019,13 @@ construir_html <- function(fuente, num, nc) {
     "acto1", "3. Acto 1 -- respuesta a la MIA y dependencia del sexo",
     c(1L, 2L, 3L, 4L)))
   L <- c(L, .seccion("sintesis",
-    "4. Sintesis del eje madre -> placenta -> cerebro", sintesis_eje_html(nc)))
+    "4. Sintesis del eje madre -> placenta -> cerebro",
+    if (sint) AVISO_SINTETICO else sintesis_eje_html(nc)))
   L <- c(L, bloque_secciones(
     "acto2", "5. Acto 2 -- coordinacion placenta<->cerebro", c(5L, 6L, 7L, 8L)))
   L <- c(L, .seccion("conclusion_revisada",
     "6. Conclusion revisada (Acto 1 frente a Acto 2)",
-    conclusion_revisada_html(nc)))
+    if (sint) AVISO_SINTETICO else conclusion_revisada_html(nc)))
 
   # --- 5. reproducibilidad ---
   rep_ <- c(
@@ -1025,7 +1075,7 @@ construir_html <- function(fuente, num, nc) {
   ap("<footer>Reanalisis MIA-LPS &mdash; placenta E15 / cerebro fetal E15. ",
      "Generado por <code>12_informe</code>; R y Python producen este HTML ",
      "identico salvo los PNG incrustados. Ver <code>AGENTS.md</code> para las ",
-     "decisiones D1&ndash;D12 y <code>ESTADO.md</code> para la bitacora.</footer>")
+     "decisiones D1&ndash;D13 y <code>ESTADO.md</code> para la bitacora.</footer>")
   ap("</main>")
   ap("</body>")
   ap("</html>")
@@ -1135,6 +1185,15 @@ main <- function() {
 
   n_sec <- length(gregexpr('<section id="', html, fixed = TRUE)[[1]])
 
+  # 3.4: con fuente sintetica, ninguna frase interpretativa puede aparecer --
+  # se recalcula contando cuantas veces aparece el aviso en el HTML final
+  # (9 = 7 conclusiones de seccion + sintesis + conclusion revisada) contra
+  # el esperado segun `sint`.
+  sint <- fuente != "real"
+  m_aviso <- gregexpr(AVISO_SINTETICO, html, fixed = TRUE)[[1]]
+  n_aviso <- if (length(m_aviso) == 1L && m_aviso[1] == -1L) 0L else length(m_aviso)
+  n_aviso_esperado <- if (sint) 9L else 0L
+
   ent <- "outputs/tables/*.md + outputs/tables/{R,python}/*.csv + outputs/figures/*.png"
   registrar_procedencia(list(
     list("docs/informe.html", "informe", ESTE_SCRIPT, "PROPIO", ent,
@@ -1185,7 +1244,14 @@ main <- function() {
                 "pdf_status.txt"),
          "snapshot escrito",
          if (file.exists(file.path(snap, "informe.textonly.html"))) "TRUE" else "FALSE",
-         ESTE_SCRIPT)
+         ESTE_SCRIPT),
+    list("informe_sintetico_sin_interpretacion",
+         paste0("con fuente sintetica, las secciones interpretativas (conclusion ",
+                "de seccion, sintesis, conclusion revisada) se reemplazan por el ",
+                "aviso de datos sinteticos -- nunca se arma la prosa biologica"),
+         sprintf("fuente=%s; aviso=%d/%d", fuente, n_aviso, n_aviso_esperado),
+         "aviso = 9 si fuente sintetica, 0 si fuente real",
+         if (n_aviso == n_aviso_esperado) "TRUE" else "FALSE", ESTE_SCRIPT)
   ))
 
   cat("== 12_informe.R ==\n")

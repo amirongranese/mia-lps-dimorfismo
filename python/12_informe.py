@@ -107,6 +107,9 @@ DECISIONES = [
     ("D12", "Correccion entre genes: primario sin correccion; columna "
      "suplementaria con p ajustado por Benjamini-Hochberg dentro de cada tejido. "
      "No cambia conclusiones."),
+    ("D13", "Sin termino de camada: los modelos no incluyen MADRE, ni fijo "
+     "ni aleatorio. Se asume independencia entre fetos; la limitacion se "
+     "declara en el informe."),
 ]
 
 LIMITACIONES = [
@@ -129,7 +132,24 @@ LIMITACIONES = [
     "(n_par ~= 15-18 por estrato). La ausencia de significancia no es evidencia "
     "de igualdad; se reporta el test formal (Fisher z) y la simulacion de "
     "restriccion de rango, no el patron descriptivo.",
+    "Independencia asumida entre fetos (D13): el LPS se administra a la "
+    "madre y cada camada aporta un feto de cada sexo, asi que los dos fetos "
+    "de una camada no son estrictamente independientes. El analisis asume "
+    "independencia (los modelos no incluyen MADRE, ni fijo ni aleatorio). Si "
+    "existiera variacion entre camadas, afectaria sobre todo a la precision "
+    "de los efectos principales de tratamiento.",
 ]
+
+# El informe sabe con que datos se genero (punto 3.4 de la revision): con
+# fuente sintetica, las secciones interpretativas (conclusion de cada
+# seccion, sintesis, conclusion revisada) se reemplazan por este aviso --
+# nunca se llama a las funciones que arman esa prosa, para que sea
+# estructuralmente imposible que aparezca una conclusion biologica sobre
+# datos sinteticos.
+AVISO_SINTETICO = (
+    "<p><em>Informe generado con datos sinteticos. Los efectos son simulados "
+    "y arbitrarios; las conclusiones biologicas corresponden a los datos "
+    "reales, que no se incluyen en este repositorio.</em></p>")
 
 
 # =========================================================================
@@ -603,9 +623,25 @@ def numeros_conclusiones():
         if t == "PLACENTA_E15" and v == "modelo"
         and _num_or_none(p) is not None and _num_or_none(p) < 0.05)
     n["pla_tto_genes"] = _join_y(pla_tto_genes)
+    # C3: derivar "ningun gen mostro interaccion en placenta" del conteo
+    # real, no darlo por sentado -- si algun gen x tejido de placenta
+    # tuviera interaccion significativa, la frase cambia sola.
+    pla_int_genes = sorted(
+        g for g, t, s in zip(gen, tej, isig) if t == "PLACENTA_E15" and s == "TRUE")
+    n["pla_int_n"] = len(pla_int_genes)
+    n["pla_int_genes"] = _join_y(pla_int_genes)
     bra_int_genes = sorted(
         g for g, t, s in zip(gen, tej, isig) if t == "BRAIN_E15" and s == "TRUE")
     n["bra_int_n_txt"] = len(bra_int_genes)
+    # D12/C1: "robusta a BH" se calcula, no se asume -- numerador/denominador
+    # de los que ademas tienen p_SEXOxTTO_BH < .05 entre los primariamente
+    # significativos.
+    bh_int = _col(h, f, "p_SEXOxTTO_BH")
+    bh_map = dict(zip(zip(gen, tej), bh_int))
+    n["bra_int_bh_n"] = sum(
+        1 for g in bra_int_genes
+        if _num_or_none(bh_map.get((g, "BRAIN_E15"))) is not None
+        and _num_or_none(bh_map[(g, "BRAIN_E15")]) < 0.05)
 
     h, f = _tab("qpcr_modelos_posthoc.csv")
     tej_p = _col(h, f, "TEJIDO")
@@ -742,20 +778,30 @@ def conclusion_seccion(k: int, n: dict) -> str:
                 n["la_h_ctrl_med"], n["la_h_lps_med"],
                 n["la_m_ctrl_med"], n["la_m_lps_med"], n["la_n_control"]))
     elif k == 2:
+        if n["pla_int_n"] == 0:
+            pla_txt = (
+                "Ningun gen mostro interaccion SEXO&times;TTO. El LPS "
+                "modifico la expresion de %s de forma equivalente en ambos "
+                "sexos (efecto principal de tratamiento)." % (n["pla_tto_genes"],))
+        else:
+            pla_txt = (
+                "%s gen x tejido mostraron interaccion SEXO&times;TTO "
+                "significativa (%s). El LPS tambien modifico la expresion de "
+                "%s de forma equivalente en ambos sexos en los genes sin "
+                "interaccion (efecto principal de tratamiento)." % (
+                    n["pla_int_n"], n["pla_int_genes"], n["pla_tto_genes"]))
         txt = (
-            "<p><strong>Placenta.</strong> Ningun gen mostro interaccion "
-            "SEXO&times;TTO. El LPS modifico la expresion de %s de forma "
-            "equivalente en ambos sexos (efecto principal de tratamiento).</p>\n"
+            "<p><strong>Placenta.</strong> " + pla_txt + "</p>\n"
             "<p><strong>Cerebro fetal.</strong> %s genes mostraron interaccion "
-            "SEXO&times;TTO significativa, todas robustas a la correccion BH. "
-            "En %s el post hoc localiza el efecto en hembras: ♀Control "
-            "difiere de ♀LPS y ♀LPS difiere de ♂LPS, sin "
-            "cambios en machos. En %s la interaccion no se explica por "
-            "ninguna comparacion de medias (todos los p de Holm &ge; %s). La "
-            "seccion 2.3 muestra que en esos genes el efecto esta en la "
-            "dispersion y no en la media.</p>" % (
-                n["pla_tto_genes"], n["bra_int_n_txt"], n["bra_media_genes"],
-                n["bra_disp_genes"], n["bra_disp_holm_min"]))
+            "SEXO&times;TTO significativa (%s de %s sobreviven a la "
+            "correccion BH). En %s el post hoc localiza el efecto en hembras: "
+            "♀Control difiere de ♀LPS y ♀LPS difiere de "
+            "♂LPS, sin cambios en machos. En %s la interaccion no se "
+            "explica por ninguna comparacion de medias (todos los p de Holm "
+            "&ge; %s). La seccion 2.3 muestra que en esos genes el efecto "
+            "esta en la dispersion y no en la media.</p>" % (
+                n["bra_int_n_txt"], n["bra_int_bh_n"], n["bra_int_n_txt"],
+                n["bra_media_genes"], n["bra_disp_genes"], n["bra_disp_holm_min"]))
     elif k == 3:
         txt = (
             "El LPS aumento la abundancia de fosfo-STAT3 en placenta solo en "
@@ -763,10 +809,10 @@ def conclusion_seccion(k: int, n: dict) -> str:
             "<code>%s</code>). En machos no cambio (%s &rarr; %s; p = "
             "<code>%s</code>). Es el mismo patron que los genes con efecto en "
             "media en cerebro. Como los transportadores placentarios "
-            "responden igual en ambos sexos, sus cambios no dependen de la "
-            "activacion de STAT3, o los machos los alcanzan por otra via. "
-            "Recordar D9: se mide abundancia de fosfo-STAT3, no fraccion "
-            "fosforilada." % (
+            "responden igual en ambos sexos, es compatible con que sus "
+            "cambios no dependan de la activacion de STAT3, o con que los "
+            "machos los alcancen por otra via. Recordar D9: se mide "
+            "abundancia de fosfo-STAT3, no fraccion fosforilada." % (
                 n["pstat3_hc"], n["pstat3_hl"], n["pstat3_hh"],
                 n["pstat3_mc"], n["pstat3_ml"], n["pstat3_mm"]))
     elif k == 4:
@@ -790,9 +836,9 @@ def conclusion_seccion(k: int, n: dict) -> str:
             "dispersion en hembras y la aumenta en machos. En placenta "
             "ninguno sobrevive a BH (%s). Como los transportadores varian "
             "mayormente juntos (el eigengene explica el %s %% de la varianza "
-            "en cerebro; seccion 2.6), estos genes no son efectos "
-            "independientes: reflejan un mismo patron compartido por el "
-            "conjunto de transportadores.</p>\n"
+            "en cerebro; seccion 2.6), es compatible con que estos genes no "
+            "sean efectos independientes, sino que reflejen un patron "
+            "compartido por el conjunto de transportadores.</p>\n"
             "<p>La figura de SD ahora muestra los tres estratos (agrupado, "
             "hembras, machos) lado a lado: el patron cruzado se ve "
             "directamente comparando las filas HEMBRA y MACHO, columna por "
@@ -812,8 +858,9 @@ def conclusion_seccion(k: int, n: dict) -> str:
             "biologica no haya cambiado. Las excepciones (%s, en hembras) "
             "quedan en el limite del intervalo y se toman como pista, no "
             "como hallazgo. La perdida aparente de acoplamiento "
-            "placenta&ndash;cerebro en hembras no es un efecto independiente: "
-            "es la reduccion de dispersion vista desde otro angulo." % (
+            "placenta&ndash;cerebro en hembras es compatible con la "
+            "reduccion de dispersion vista desde otro angulo, aunque no "
+            "permite descartar un cambio de coordinacion." % (
                 n["sim_lim_genes"],))
     elif k == 7:
         txt = (
@@ -894,11 +941,11 @@ def conclusion_revisada_html(n: dict) -> str:
         "materno produce una respuesta direccional y homogenea: activa "
         "STAT3 en placenta, desplaza la expresion cerebral de %s, y reduce "
         "la variabilidad entre individuos. En machos no hay respuesta "
-        "direccional, pero aumenta la heterogeneidad: cada individuo "
-        "responde distinto. La aparente perdida de acoplamiento "
-        "placenta&ndash;cerebro en hembras no es un segundo hallazgo, sino "
-        "la misma reduccion de dispersion vista a traves de la "
-        "correlacion.</p>" % (n["bra_media_genes"],))
+        "direccional, pero aumenta la variabilidad entre fetos. La "
+        "aparente perdida de acoplamiento placenta&ndash;cerebro en "
+        "hembras es compatible con la reduccion de dispersion; la "
+        "simulacion muestra que esta alcanza para explicarla, aunque no "
+        "permite descartar un cambio de coordinacion.</p>" % (n["bra_media_genes"],))
     return "\n".join(tabla + [parrafo])
 
 
@@ -1082,7 +1129,7 @@ def construir_html(fuente: str, num: dict, nc: dict) -> str:
                "9 fetos por grupo. Tejidos analizados: placenta E15 y cerebro "
                "fetal E15 (BRAIN_P1 fuera de alcance). El ELISA de IL-6 y el "
                "western de pSTAT3 se analizan con su propio n.</p>")
-    met.append("<h3>2.2 Decisiones metodologicas fijas (D1&ndash;D12)</h3>")
+    met.append("<h3>2.2 Decisiones metodologicas fijas (D1&ndash;D13)</h3>")
     met.append('<table><thead><tr><th>#</th><th>Decision</th></tr></thead><tbody>')
     for k, v in DECISIONES:
         met.append("<tr><td>%s</td><td>%s</td></tr>" % (k, _esc(v)))
@@ -1111,7 +1158,14 @@ def construir_html(fuente: str, num: dict, nc: dict) -> str:
             partes.append(md_a_html(leer_texto(cfg.RUTA_TABLAS / md)))
             for fg in figuras_de_seccion(figs, criterio):
                 partes.append(fig_html(fg))
-            cl = conclusion_seccion(k, nc)
+            # 3.4: con fuente sintetica, ni siquiera se llama a
+            # conclusion_seccion (nunca se arma la prosa interpretativa) --
+            # se inserta el aviso.
+            if sint:
+                cl = "" if k == 1 else (
+                    "<h4>Conclusion de la seccion</h4>\n" + AVISO_SINTETICO)
+            else:
+                cl = conclusion_seccion(k, nc)
             if cl:
                 partes.append(cl)
         return _seccion(ids, titulo, "\n".join(partes))
@@ -1121,12 +1175,12 @@ def construir_html(fuente: str, num: dict, nc: dict) -> str:
         [0, 1, 2, 3]))
     L.append(_seccion(
         "sintesis", "4. Sintesis del eje madre -> placenta -> cerebro",
-        sintesis_eje_html(nc)))
+        AVISO_SINTETICO if sint else sintesis_eje_html(nc)))
     L.append(bloque_secciones(
         "acto2", "5. Acto 2 -- coordinacion placenta<->cerebro", [4, 5, 6, 7]))
     L.append(_seccion(
         "conclusion_revisada", "6. Conclusion revisada (Acto 1 frente a Acto 2)",
-        conclusion_revisada_html(nc)))
+        AVISO_SINTETICO if sint else conclusion_revisada_html(nc)))
 
     # --- 5. reproducibilidad ---
     rep = []
@@ -1178,7 +1232,7 @@ def construir_html(fuente: str, num: dict, nc: dict) -> str:
     ap("<footer>Reanalisis MIA-LPS &mdash; placenta E15 / cerebro fetal E15. "
        "Generado por <code>12_informe</code>; R y Python producen este HTML "
        "identico salvo los PNG incrustados. Ver <code>AGENTS.md</code> para las "
-       "decisiones D1&ndash;D12 y <code>ESTADO.md</code> para la bitacora.</footer>")
+       "decisiones D1&ndash;D13 y <code>ESTADO.md</code> para la bitacora.</footer>")
     ap("</main>")
     ap("</body>")
     ap("</html>")
@@ -1304,6 +1358,14 @@ def main():
     todas_en_procedencia = sorted({Path(a).name for a, _s in figs_proc})
     sin_embeber = sorted(set(todas_en_procedencia) - set(figs_todas))
 
+    # 3.4: con fuente sintetica, ninguna frase interpretativa puede aparecer --
+    # se recalcula contando cuantas veces aparece el aviso en el HTML final
+    # (9 = 7 conclusiones de seccion + sintesis + conclusion revisada) contra
+    # el esperado segun la fuente.
+    sint = fuente != "real"
+    n_aviso = html.count(AVISO_SINTETICO)
+    n_aviso_esperado = 9 if sint else 0
+
     ent = "outputs/tables/*.md + outputs/tables/{R,python}/*.csv + outputs/figures/*.png"
     registrar_procedencia([
         ["docs/informe.html", "informe", ESTE_SCRIPT, "PROPIO", ent,
@@ -1354,6 +1416,13 @@ def main():
          "snapshot escrito",
          "TRUE" if (snap / "informe.textonly.html").is_file() else "FALSE",
          ESTE_SCRIPT],
+        ["informe_sintetico_sin_interpretacion",
+         "con fuente sintetica, las secciones interpretativas (conclusion "
+         "de seccion, sintesis, conclusion revisada) se reemplazan por el "
+         "aviso de datos sinteticos -- nunca se arma la prosa biologica",
+         "fuente=%s; aviso=%d/%d" % (fuente, n_aviso, n_aviso_esperado),
+         "aviso = 9 si fuente sintetica, 0 si fuente real",
+         "TRUE" if n_aviso == n_aviso_esperado else "FALSE", ESTE_SCRIPT],
     ])
 
     print("== 12_informe.py ==")
