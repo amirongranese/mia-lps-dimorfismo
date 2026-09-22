@@ -2107,3 +2107,132 @@ el piso para algunos items. Corregido completando los 20 campos de
   superior en vez de uno por tratamiento): sigue sin aplicarse, sin
   confirmación del usuario.
 - Ningún otro pendiente conocido de esta sesión.
+
+---
+
+## Sesión 20 — 2026-09-21 — `pedidos/cambios_revision_codex.md`: puntos 1, 3 y 2
+
+> El repositorio se revisó con un agente externo (Codex) sin contexto previo,
+> en dos pruebas sobre clones limpios: `revisiones/AUDITORIA.md` (auditoría
+> escéptica) y `revisiones/PRUEBA_REPRODUCCION.md` (prueba de reproducción).
+> Pedido de correcciones en `pedidos/cambios_revision_codex.md`, con orden
+> explícito: puntos 1+3 primero (cambian el informe), después 2
+> (verificaciones), después 4 (reproducibilidad), después 5+6. **No se agregó
+> ningún análisis estadístico nuevo** — D1–D13, los datos y los resultados no
+> cambiaron. Todo lo de esta sesión es documentación, calidad de las
+> verificaciones y derivación del texto desde las tablas.
+
+### Punto 1 — D13 y moderar lenguaje (commit `a42e792`)
+
+- **D13** (sin término de camada) agregada a `AGENTS.md`/`CLAUDE.md` como
+  decisión ya tomada pero nunca escrita; no reabre D1–D12 (la regla "no
+  reabrir" ahora cubre D1–D12, D13 es la nueva "fresca").
+- Entrada en `analisis_descartados.md` (vía `05_qpcr_modelos`) con marcador
+  `<<< COMPLETAR: evidencia de analisis previos >>>` para que el usuario
+  complete el dato concreto — **sigue pendiente de completar**.
+- Limitación nueva en el informe: independencia asumida entre fetos.
+- Moderadas 5 frases (2 señaladas explícitamente por la auditoría + 3 más
+  con el mismo patrón: "no son efectos independientes", "no dependen de")
+  que atribuían una causa única donde los tests solo muestran compatibilidad.
+
+### Punto 3 — texto derivado de tablas (commit `a42e792`)
+
+- "Todas robustas a BH" (C1) ahora cuenta `p_SEXOxTTO_BH` real: "7 de 7
+  sobreviven a BH" en vez de una afirmación sin cálculo.
+- "Ningún gen mostró interacción en placenta" (C3) ahora se deriva del
+  conteo real (`pla_int_n`); si placenta tuviera alguna interacción
+  significativa en una corrida futura, la frase cambia sola.
+- **3.4 — el informe sabe con qué datos se generó**: con fuente sintética,
+  las 9 secciones interpretativas (7 conclusiones de sección + síntesis +
+  conclusión revisada) nunca llaman a las funciones que arman esa prosa —
+  se reemplazan por un aviso fijo. Verificación nueva
+  `informe_sintetico_sin_interpretacion` (recalculo) cuenta el aviso en el
+  HTML final (9/9 con `MIA_LPS_FORZAR_SINTETICO=1`, 0/0 con datos reales,
+  probado en R y Python).
+- Bug propio encontrado y corregido en el camino: el chequeo de esa
+  verificación usaba `identical(gregexpr(...), -1L)`, que nunca es `TRUE`
+  porque `gregexpr` sin match devuelve un objeto con atributos — exactamente
+  el tipo de "verificación que no puede fallar" que señala la auditoría.
+
+### Punto 2 — dejar de contar lo que no verifica (commit siguiente)
+
+- **Columna `tipo`** agregada a `verificaciones.csv` (posición 2, después de
+  `id`) en los 13 scripts que escriben ahí (02–11, 98, 12; R y Python),
+  clasificando las **108** filas actuales: **50 `recalculo`** (recalculan o
+  contrastan un resultado de forma independiente), **9 `existencia`**
+  (confirman que un archivo existe y no está vacío), **49 `declaracion`**
+  (registran una decisión de método o una constante, no verifican su
+  aplicación caso por caso). Mecánica: header + índice de columna `script`
+  en el `clave_orden` de cada `registrar_verificaciones` (script→posición 7
+  en vez de 6 en R, `f[6]` en vez de `f[5]` en Python).
+- **12_informe** (§10 Auditoría) y **98_comparacion** (`comparacion_reporte.md`
+  y consola) ya no dicen "X/Y en TRUE" sin desglose: reportan
+  recalculo/existencia/declaración por separado, más un aviso `NO_EJECUTADA`
+  cuando corresponda (ver abajo). Ninguna otra mención de "100/100
+  verificaciones" en el repo (grep confirmado: no está en README).
+- **Estado `NO_EJECUTADA`** agregado a la columna `ok` (además de
+  `TRUE`/`FALSE`): una verificación que no corrió en esta corrida (PDF sin
+  motor, o comparación R↔Python en `-Only R`, punto 4) no cuenta como pase
+  ni como fallo. `99_verificar` (chequeo duro #4) y `98_comparacion`
+  (`audit_verificaciones_ok`) tratan `NO_EJECUTADA` como advertencia, no
+  como fallo — "TODAS LAS VERIFICACIONES PASARON" sigue siendo válido con
+  filas `NO_EJECUTADA`, pero quedan listadas aparte.
+- **Los 4 checks rotos, arreglados** (no solo reclasificados):
+  - `informe_pdf`: antes aprobaba también con `fallo:*`. Ahora `ok` → TRUE,
+    `sin_motor` → NO_EJECUTADA, `fallo:*` → FALSE.
+  - `pstat3_rama_cascada` (06_pstat3): antes exigía `rama == "anova3"` fijo.
+    Ahora recalcula la rama esperada desde los p de Shapiro/Levene
+    registrados y la compara contra la elegida (cualquiera sea).
+  - `modelos_rama_conteo` (05_qpcr_modelos): antes solo sumaba que las 3
+    ramas dieran 18. Ahora valida, **gen por gen**, que la rama de cada uno
+    corresponde a sus propios diagnósticos.
+  - `acto2_test_items` (09_acto2_dispersion): antes solo reportaba
+    `n_test`/`length(ITEMS)`. Ahora exige `n_test == length(ITEMS)`.
+- **Bugs propios encontrados en el camino** (independientes del pedido):
+  - `acto2_estratos` (08_acto2_correlaciones) estaba mal clasificado como
+    `recalculo` en mi primer pase: `ESTRATOS` ahí es una constante
+    hardcodeada (igual que en 09/10), no algo derivado de datos — corregido
+    a `declaracion` antes de commitear.
+  - Al borrar `verificaciones.csv` para poder migrar el schema (el guard de
+    encabezado incompatible lo exige), la primera corrida completa mostró
+    una paridad R/Python rota (94 vs 101 filas en el snapshot de
+    `comparacion_reporte.md`) — es un artefacto transitorio de arrancar de
+    un archivo vacío (98_comparacion en la pasada R ve el archivo antes de
+    que 12_informe haya corrido nunca; en la pasada Python ya lo ve con las
+    filas de 12_informe de la pasada R anterior). Se autocorrige solo en la
+    segunda corrida completa (el archivo persiste entre corridas en uso
+    normal). No se tocó código por esto.
+
+### Verificado
+
+- **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python — 77/77 chequeos duros, 32/32 CSV byte-idénticos, paridad de
+  render OK, ~4.8 min (segunda corrida; la primera mostró el artefacto
+  transitorio de arriba).**
+- `verificaciones.csv`: 108 filas, 50/50 recalculo + 9/9 existencia + 49/49
+  declaracion en TRUE (verificado con `csv.DictReader` de Python, no con
+  parseo naive de comas).
+- `informe_pdf` en TRUE real (antes hubiera sido TRUE incluso con
+  `fallo:*`); confirmado leyendo la fila de `verificaciones.csv`.
+
+### Pendiente / siguiente paso concreto
+
+- **`<<< COMPLETAR: evidencia de analisis previos >>>`** en
+  `analisis_descartados.md` (sección `05_qpcr_modelos`, D13): el usuario
+  tiene que dar el dato concreto de qué análisis previo mostró que `MADRE`
+  no modificaba los resultados.
+- **Punto 4 (reproducibilidad)** sin empezar: detectar Python en PATH y
+  documentarlo en el README; `run_all.ps1 -Only R` no debe exigir Python;
+  `99_verificar` con una sola implementación (usar el `NO_EJECUTADA` ya
+  agregado en este punto para la comparación R↔Python); ruta de R buscada
+  en PATH/instalación estándar, no hardcodeada; documentar
+  `-ExecutionPolicy Bypass` y la caché de red de `renv` en el README.
+- **Puntos 5 y 6** sin empezar: `revisiones/conciliacion_auditoria.md` (las
+  5 afirmaciones de la auditoría contra la fila exacta del CSV) y
+  `revisiones/RESPUESTA.md` (una fila por hallazgo de los dos informes).
+- **Corrida final pedida**: `run_all.ps1` completo + `run_all.ps1 -Only R
+  -FromSynthetic` (para probar que la corrida de una sola implementación
+  con datos sintéticos funciona y no muestra conclusiones biológicas) —
+  esto último depende de que el punto 4 esté resuelto (`-Only R` hoy sigue
+  exigiendo Python).
+- Punto (c) de la sección 5 de la sesión 19 (SPLOM) sigue sin aplicar.

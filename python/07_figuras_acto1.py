@@ -613,9 +613,9 @@ def registrar_procedencia(filas_nuevas):
 
 
 def registrar_verificaciones(filas_nuevas):
-    header = ["id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
+    header = ["id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
     merge_por_script(cfg.RUTA_TABLAS / "verificaciones.csv", header, filas_nuevas,
-                     "script", lambda f: (f[5], f[0]))
+                     "script", lambda f: (f[6], f[0]))
 
 
 _DESCARTES = "\n".join([
@@ -803,36 +803,36 @@ def main():
     ok_figs = (fig_pla.is_file() and fig_bra.is_file() and fig_pst.is_file()
                and all(figs_elisa))
     registrar_verificaciones([
-        ["figuras_acto1_generadas",
+        ["figuras_acto1_generadas", "existencia",
          "figuras del Acto 1: 2 de expresion + pSTAT3 (+ 2 de ELISA de 03_elisa)",
          f"placenta={_fmt(fig_pla.is_file())};brain={_fmt(fig_bra.is_file())};"
          f"pstat3={_fmt(fig_pst.is_file())};elisa_ms={_fmt(figs_elisa[0])};"
          f"elisa_la={_fmt(figs_elisa[1])}",
          "las 5 figuras del Acto 1 existen",
          "TRUE" if ok_figs else "FALSE", ESTE_SCRIPT],
-        ["figuras_d11_una_funcion",
+        ["figuras_d11_una_funcion", "declaracion",
          "una sola funcion de anotacion D11 (d11_brackets_especificacion) usada en todas las figuras",
          "d11_texto + d11_brackets_especificacion (identica R/Python), 3 figuras",
          "una funcion, todas las figuras", "TRUE", ESTE_SCRIPT],
-        ["figuras_d11_cascada",
+        ["figuras_d11_cascada", "declaracion",
          "D11 ampliada: (a) interaccion->por par; (b) TTO principal->bracket 0-3; (c) SEXO principal->bracket 0.5-2.5",
          f"expresion: {len(anotadas)} brackets "
          f"({'; '.join(anotadas) if anotadas else 'ninguno'}); "
          f"pSTAT3: {len(pst_anot)} ({'; '.join(pst_anot) if pst_anot else 'ninguno'})",
          "cascada de 3 ramas, (b)/(c) no excluyentes", "TRUE", ESTE_SCRIPT],
-        ["figuras_fc_log",
+        ["figuras_fc_log", "declaracion",
          "boxplots de expresion en FC = 2^(-ddCt) con eje Y logaritmico (D2)",
          "FC = 2**neg_ddCt; ax en escala log; linea de referencia en FC = 1",
          "FC log", "TRUE", ESTE_SCRIPT],
-        ["figuras_il6_brain_deteccion",
+        ["figuras_il6_brain_deteccion", "declaracion",
          "il6 @ BRAIN_E15 se grafica como proporcion de deteccion, no como boxplot de FC (D7)",
          "panel de barras % detectado Control vs LPS por sexo + p de Fisher",
          "panel de deteccion", "TRUE", ESTE_SCRIPT],
-        ["figuras_pstat3_membrana",
+        ["figuras_pstat3_membrana", "declaracion",
          "pSTAT3: valores crudos por SEXO x TTO, MEMBRANA como forma de punto (bloque tecnico)",
          "boxplot de PSTAT3 sin ajustar; marcador o/cuadrado/triangulo por membrana",
          "crudo + forma por membrana", "TRUE", ESTE_SCRIPT],
-        ["figuras_expresion_r_base",
+        ["figuras_expresion_r_base", "declaracion",
          "boxplots de expresion en R base (bxp/boxplot), no ggplot2 -- pedido explicito",
          "boxplot() con whisklty/staplelty/border distintos; Acto 2 sigue en ggplot2",
          "R base para expresion", "TRUE", ESTE_SCRIPT],

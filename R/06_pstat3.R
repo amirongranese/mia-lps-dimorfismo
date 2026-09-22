@@ -716,10 +716,10 @@ registrar_procedencia <- function(filas_nuevas) {
                      method = "radix"))
 }
 registrar_verificaciones <- function(filas_nuevas) {
-  header <- c("id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
+  header <- c("id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
   merge_por_script(file.path(RUTA_TABLAS, "verificaciones.csv"), header, filas_nuevas,
                    "script", function(fs) order(
-                     vapply(fs, `[[`, character(1), 6), vapply(fs, `[[`, character(1), 1),
+                     vapply(fs, `[[`, character(1), 7), vapply(fs, `[[`, character(1), 1),
                      method = "radix"))
 }
 
@@ -883,33 +883,36 @@ main <- function() {
   ))
   ok_ph <- (sig && n_ph == 4L) || (!sig && n_ph == 0L)
   registrar_verificaciones(list(
-    list("pstat3_via", "via del modelo pSTAT3 (D9)", rec$via, "modelo",
+    list("pstat3_via", "recalculo", "via del modelo pSTAT3 (D9)", rec$via, "modelo",
          if (rec$via == "modelo") "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("pstat3_rama_cascada", "rama de la cascada D5 elegida por diagnostico",
+    list("pstat3_rama_cascada", "recalculo",
+         "rama de la cascada D5 corresponde a los p de Shapiro/Levene registrados",
          sprintf("%s (Shapiro p=%s, Levene p=%s)", rec$rama, p6e(rec$shapiro_p),
                  p6e(rec$levene_p)),
-         "anova3 (residuos normales, varianzas homogeneas)",
-         if (rec$rama == "anova3") "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("pstat3_modelo_d9", "modelo D9 con MEMBRANA como bloque fijo",
+         "rama = anova3 si Shapiro>=alfa & Levene>=alfa; hc3 si Shapiro>=alfa & Levene<alfa; art si Shapiro<alfa",
+         if (rec$rama == (if (rec$shapiro_p < ALFA) "art"
+                          else if (rec$levene_p < ALFA) "hc3" else "anova3"))
+           "TRUE" else "FALSE", ESTE_SCRIPT),
+    list("pstat3_modelo_d9", "declaracion", "modelo D9 con MEMBRANA como bloque fijo",
          "PSTAT3 ~ SEXO * TTO + MEMBRANA (contr.sum, df_resid = n-6)",
          "PSTAT3 ~ SEXO * TTO + MEMBRANA", "TRUE", ESTE_SCRIPT),
-    list("pstat3_bloque_balanceado", "las 3 membranas estan balanceadas",
+    list("pstat3_bloque_balanceado", "recalculo", "las 3 membranas estan balanceadas",
          paste(sprintf("%s:%d", membranas, memb_cont), collapse = ";"),
          "12;12;12",
          if (balanceado && all(memb_cont == 12L)) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("pstat3_alfa", "alfa para gate D6 y pretests de supuestos",
+    list("pstat3_alfa", "declaracion", "alfa para gate D6 y pretests de supuestos",
          g10(ALFA), "0.05", if (ALFA == 0.05) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("pstat3_posthoc_holm",
+    list("pstat3_posthoc_holm", "recalculo",
          "post hoc D6: 4 comparaciones fijas con Holm, solo si interaccion p < alfa",
          if (sig) sprintf("interaccion p=%s < alfa -> %d comparaciones, Holm", p6e(ip), n_ph)
          else sprintf("interaccion p=%s >= alfa -> sin post hoc", p6e(ip)),
          "4 comparaciones + Holm si y solo si interaccion significativa",
          if (ok_ph) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("pstat3_limitacion_d9",
+    list("pstat3_limitacion_d9", "declaracion",
          "limitacion obligatoria: abundancia de fosfo-STAT3, no fraccion fosforilada",
          "escrita en pstat3_reporte.md (seccion 6) y analisis_descartados.md",
          "presente", "TRUE", ESTE_SCRIPT),
-    list("pstat3_core_vs_libs",
+    list("pstat3_core_vs_libs", "declaracion",
          "R cruza-verifica anova3/hc3/emmeans contra car::Anova / emmeans (stopifnot 1e-6)",
          paste0("nucleo PROPIO identico R/Python; Shapiro-Wilk por libreria; ART ",
                 "aditivo auto-verificado (ARTool no admite el bloque)"),

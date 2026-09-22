@@ -490,9 +490,9 @@ def registrar_procedencia(filas_nuevas):
 
 
 def registrar_verificaciones(filas_nuevas):
-    header = ["id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
+    header = ["id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
     merge_por_script(cfg.RUTA_TABLAS / "verificaciones.csv", header, filas_nuevas,
-                     "script", lambda f: (f[5], f[0]))
+                     "script", lambda f: (f[6], f[0]))
 
 
 _DESCARTES = "\n".join([
@@ -727,41 +727,41 @@ def main():
          "PROPIO", ent, "reporte legible del Acto 2.5 (T8)"],
     ])
     registrar_verificaciones([
-        ["acto2_sim_proposito",
+        ["acto2_sim_proposito", "declaracion",
          "la simulacion descarta (o no) restriccion de rango antes de interpretar "
          "(prohibicion 5)",
          "normal bivariada en -ddCt con r verdadera comun y SD por grupo "
          "observadas; veredicto DENTRO/FUERA por escenario",
          "prohibicion 5 atendida", "TRUE", ESTE_SCRIPT],
-        ["acto2_sim_escenarios",
+        ["acto2_sim_escenarios", "declaracion",
          "r verdadera comun probada como rango: GLOBAL (rho T7) y CONTROL (rho Control)",
          ";".join(ESCENARIOS), "GLOBAL;CONTROL",
          "TRUE" if ESCENARIOS == ["GLOBAL", "CONTROL"] else "FALSE", ESTE_SCRIPT],
-        ["acto2_sim_inversion_rho_r",
+        ["acto2_sim_inversion_rho_r", "declaracion",
          "inversion rho_Spearman -> r_Pearson generativo para la normal bivariada",
          "r = 2*sin(pi*rho_S/6), recorte +/- 0.999999",
          "2*sin(pi*rho/6)", "TRUE", ESTE_SCRIPT],
-        ["acto2_sim_B_semilla",
+        ["acto2_sim_B_semilla", "declaracion",
          "repeticiones y semilla de la simulacion",
          f"B={B_SIM}; semilla={cfg.SEMILLA}; RNG PROPIO LCG+polar",
          f"B={B_SIM}, semilla 20260101",
          "TRUE" if (B_SIM == 2000 and cfg.SEMILLA == 20260101) else "FALSE",
          ESTE_SCRIPT],
-        ["acto2_sim_SD_por_grupo",
+        ["acto2_sim_SD_por_grupo", "declaracion",
          "las SD marginales simuladas por grupo son las SD observadas de ese grupo",
          "sd_pla/sd_bra de pares(item, grupo); unica diferencia entre grupos en "
          "la simulacion", "SD observadas", "TRUE", ESTE_SCRIPT],
-        ["acto2_sim_veredicto",
+        ["acto2_sim_veredicto", "declaracion",
          "veredicto por item x escenario (AMBOS_SEXOS): DENTRO (no se descarta "
          "rango) / FUERA",
          f"{n_sim} celdas simuladas; DENTRO={n_dentro}; FUERA={n_fuera}",
          "DENTRO/FUERA/sin_test", "TRUE", ESTE_SCRIPT],
-        ["acto2_sim_estratos_sexo",
+        ["acto2_sim_estratos_sexo", "declaracion",
          "ESTRATO = AMBOS_SEXOS/HEMBRA/MACHO, mismo diseno con SD observadas por sexo",
          ";".join(ESTRATOS), "AMBOS_SEXOS;HEMBRA;MACHO",
          "TRUE" if ESTRATOS == ["AMBOS_SEXOS", "HEMBRA", "MACHO"] else "FALSE",
          ESTE_SCRIPT],
-        ["acto2_sim_estrato_particion",
+        ["acto2_sim_estrato_particion", "recalculo",
          "n(HEMBRA) + n(MACHO) = n(AMBOS_SEXOS) por item x escenario x grupo",
          "particiona en %d/%d celdas item x escenario%s" % (
              len(ITEMS) * len(ESCENARIOS) - len(particion_sim_detalle),
@@ -771,12 +771,12 @@ def main():
          "particiona en %d/%d celdas" % (len(ITEMS) * len(ESCENARIOS),
                                           len(ITEMS) * len(ESCENARIOS)),
          "TRUE" if particion_sim_ok else "FALSE", ESTE_SCRIPT],
-        ["acto2_sim_tasa_fisher",
+        ["acto2_sim_tasa_fisher", "declaracion",
          "se reporta la tasa de falsos positivos del Fisher z (09) bajo pura "
          "restriccion de rango",
          "columna sim_tasa_fisher_sig por celda", "tasa reportada", "TRUE",
          ESTE_SCRIPT],
-        ["acto2_sim_figura",
+        ["acto2_sim_figura", "existencia",
          "figura Acto 2.5: Delta rho observado vs intervalo simulado",
          f"sim={fig_sim.is_file()}".replace("True", "TRUE").replace("False", "FALSE"),
          "1 figura existe", "TRUE" if fig_sim.is_file() else "FALSE", ESTE_SCRIPT],

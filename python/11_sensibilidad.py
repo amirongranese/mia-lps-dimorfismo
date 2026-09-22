@@ -753,9 +753,9 @@ def registrar_procedencia(filas_nuevas):
 
 
 def registrar_verificaciones(filas_nuevas):
-    header = ["id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
+    header = ["id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
     merge_por_script(cfg.RUTA_TABLAS / "verificaciones.csv", header, filas_nuevas,
-                     "script", lambda f: (f[5], f[0]))
+                     "script", lambda f: (f[6], f[0]))
 
 
 _DESCARTES = "\n".join([
@@ -1037,60 +1037,60 @@ def main():
          "PROPIO", ent, "reporte legible del Acto 2.6 (T9)"],
     ])
     registrar_verificaciones([
-        ["sens_eigengene_pca_propio",
+        ["sens_eigengene_pca_propio", "recalculo",
          "PC1 por eigendescomposicion PROPIA (Jacobi sin trigonometria), no "
          "prcomp/sklearn en el resultado",
          f"peor |dif| PC1 vs libreria de referencia = {peor_pca:.2e}", "< 1e-6",
          "TRUE" if peor_pca < 1e-6 else "FALSE", ESTE_SCRIPT],
-        ["sens_eigengene_pc1_signo",
+        ["sens_eigengene_pc1_signo", "recalculo",
          "signo de PC1 fijado a cargas mayoritariamente positivas (suma>0)",
          f"cargas>0: placenta {cargas_pos['PLACENTA_E15']}/7, cerebro "
          f"{cargas_pos['BRAIN_E15']}/7",
          "mayoria positiva por tejido",
          "TRUE" if (cargas_pos["PLACENTA_E15"] >= 4 and
                     cargas_pos["BRAIN_E15"] >= 4) else "FALSE", ESTE_SCRIPT],
-        ["sens_eigengene_var_pc1",
+        ["sens_eigengene_var_pc1", "recalculo",
          "proporcion de varianza de PC1 por tejido (contexto del eigengene)",
          f"placenta {pv_pla:.3f}; cerebro {pv_bra:.3f}", "0 < prop <= 1",
          "TRUE" if (0.0 < pv_pla <= 1.0 and 0.0 < pv_bra <= 1.0) else "FALSE",
          ESTE_SCRIPT],
-        ["sens_eigengene_matriz_psd",
+        ["sens_eigengene_matriz_psd", "recalculo",
          "la matriz de correlacion pairwise-complete puede ser levemente "
          "indefinida; PC1 domina y no se afecta",
          f"min autovalor: placenta {min_ev_pla:.3f}; cerebro {min_ev_bra:.3f}; "
          f"PC1 var {pv_pla:.2f}/{pv_bra:.2f}",
          "PC1 >> resto (traza = 7)",
          "TRUE" if (pv_pla > 0.5 and pv_bra > 0.5) else "FALSE", ESTE_SCRIPT],
-        ["sens_eigengene_correlacion_global",
+        ["sens_eigengene_correlacion_global", "declaracion",
          "rho GLOBAL placenta<->cerebro: eigengene vs score compuesto",
          f"eigengene rho={ei_glob[3]} (n={ei_glob[2]}); score rho={sc_glob[3]} "
          f"(n={sc_glob[2]})", "ambos descritos, misma direccion cualitativa",
          "TRUE", ESTE_SCRIPT],
-        ["sens_eigengene_fisher_z",
+        ["sens_eigengene_fisher_z", "recalculo",
          "Fisher z Control vs LPS: el eigengene no cambia el veredicto del score",
          f"eigengene p_bw={ei_test[11]}; score p_bw={sc_test[11]}",
          "ninguno alcanza p_bw<.05 (consistente con T8)",
          "TRUE" if (ei_test[11] != "" and sc_test[11] != "" and
                     float(ei_test[11]) >= 0.05 and float(sc_test[11]) >= 0.05)
          else "REVISAR", ESTE_SCRIPT],
-        ["sens_excl_extremo_criterio",
+        ["sens_excl_extremo_criterio", "declaracion",
          "feto extremo = leave-one-out sobre rho GLOBAL (no Cook); blanco rho "
          "GLOBAL (decision del usuario)",
          "argmax_i |rho_full - rho_sin_i| por item, sobre el estrato GLOBAL",
          "LOO sobre rho GLOBAL", "TRUE", ESTE_SCRIPT],
-        ["sens_excl_extremo_items",
+        ["sens_excl_extremo_items", "recalculo",
          "items del control (B): 8 genes de T7/T8 + score compuesto + eigengene",
          f"{len(ITEMS_LOO)} items; {n_testados_b} con Fisher z (n>=5 por grupo)",
          "10 items", "TRUE" if len(ITEMS_LOO) == 10 else "FALSE", ESTE_SCRIPT],
-        ["sens_excl_extremo_veredicto",
+        ["sens_excl_extremo_veredicto", "declaracion",
          "cuantos items cambian el veredicto p_bw<.05 al excluir su feto extremo",
          f"{n_cambia} de {n_testados_b} items testeados cambian de veredicto",
          "reportado; el informe menciona el numero", "TRUE", ESTE_SCRIPT],
-        ["sens_excl_extremo_no_reestima_pc1",
+        ["sens_excl_extremo_no_reestima_pc1", "declaracion",
          "en el item eigengene NO se re-estima PC1 al quitar el feto extremo",
          "cargas de PC1 calculadas sobre los 36 fetos, fijas en el LOO",
          "PC1 fijo", "TRUE", ESTE_SCRIPT],
-        ["sens_figuras",
+        ["sens_figuras", "existencia",
          "figuras Acto 2.6: eigengene (cargas + dispersion + rho) y exclusion "
          "del extremo",
          f"eigengene={fig_e.is_file()};excl_extremo={fig_x.is_file()}".replace(

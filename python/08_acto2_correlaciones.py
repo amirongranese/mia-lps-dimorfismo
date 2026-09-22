@@ -641,9 +641,9 @@ def registrar_procedencia(filas_nuevas):
 
 
 def registrar_verificaciones(filas_nuevas):
-    header = ["id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
+    header = ["id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
     merge_por_script(cfg.RUTA_TABLAS / "verificaciones.csv", header, filas_nuevas,
-                     "script", lambda f: (f[5], f[0]))
+                     "script", lambda f: (f[6], f[0]))
 
 
 _DESCARTES = "\n".join([
@@ -936,59 +936,59 @@ def main():
     registrar_procedencia(filas_proced)
 
     registrar_verificaciones([
-        ["acto2_items_correlacionados",
+        ["acto2_items_correlacionados", "recalculo",
          "correlaciones placenta<->cerebro: 8 genes (sin il6, sin il6R) + score compuesto",
          f"{n_items} items x {len(ESTRATOS)} estratos; {n_con_rho} con rho (n_par>=5)",
          "8 genes + score_compuesto", "TRUE" if n_items == 9 else "FALSE",
          ESTE_SCRIPT],
-        ["acto2_coeficiente",
+        ["acto2_coeficiente", "declaracion",
          "coeficiente = Spearman rho (no Pearson); p t-aprox df n-2; IC Bonett-Wright",
          "rho = Pearson sobre rangos; p = 2*pt(|t|, n-2); IC via tanh/atanh",
          "Spearman", "TRUE", ESTE_SCRIPT],
-        ["acto2_il6_fuera_cerebro",
+        ["acto2_il6_fuera_cerebro", "recalculo",
          "il6 excluido del brazo placenta<->cerebro por gen (D7, sin -ddCt en cerebro)",
          "ITEMS sin il6" if GEN_SIN_CEREBRO not in ITEMS else "il6 presente (ERROR)",
          "il6 fuera", "TRUE" if GEN_SIN_CEREBRO not in ITEMS else "FALSE", ESTE_SCRIPT],
-        ["acto2_il6R_fuera",
+        ["acto2_il6R_fuera", "recalculo",
          "il6R excluido de todo el Acto 2 (tablas y SPLOM), pedido explicito",
          "il6R ausente de ITEMS y de ambos GENES_SPLOM" if il6r_fuera else "il6R presente (ERROR)",
          "il6R fuera", "TRUE" if il6r_fuera else "FALSE", ESTE_SCRIPT],
-        ["acto2_no_compara_grupos",
+        ["acto2_no_compara_grupos", "declaracion",
          "T7 describe pero NO compara correlaciones entre estratos (prohibicion 4)",
          "reporte y analisis_descartados lo dicen explicitamente; el test formal es T8",
          "no se compara en T7", "TRUE", ESTE_SCRIPT],
-        ["acto2_pareo_por_feto",
+        ["acto2_pareo_por_feto", "declaracion",
          "el emparejamiento placenta<->cerebro es por FETO (ambos lados detectados)",
          "par = (PLACENTA_E15, BRAIN_E15) del mismo FETO con ambos valores no NA",
          "por feto", "TRUE", ESTE_SCRIPT],
-        ["acto2_estratos",
+        ["acto2_estratos", "declaracion",
          "estratos de correlacion: GLOBAL + TTO + SEXOxTTO (extension por pedido explicito)",
          ";".join(ESTRATOS),
          "GLOBAL;CONTROL;LPS;HEMBRA_CONTROL;HEMBRA_LPS;MACHO_CONTROL;MACHO_LPS",
          "TRUE" if ESTRATOS == ["GLOBAL", "CONTROL", "LPS", "HEMBRA_CONTROL",
                                  "HEMBRA_LPS", "MACHO_CONTROL", "MACHO_LPS"]
          else "FALSE", ESTE_SCRIPT],
-        ["acto2_estratos_particion",
+        ["acto2_estratos_particion", "recalculo",
          "n(HEMBRA_x)+n(MACHO_x) == n(x) para x en {CONTROL, LPS}, por item",
          "particion exacta en todos los items" if particion_ok else "particion falla (ERROR)",
          "particion exacta", "TRUE" if particion_ok else "FALSE", ESTE_SCRIPT],
-        ["acto2_paneles_n_leyenda",
+        ["acto2_paneles_n_leyenda", "recalculo",
          "cada panel sexo x tratamiento de las figuras por item tiene n<=9",
          f"n_panel_max={n_panel_max}", "n<=9",
          "TRUE" if n_panel_ok else "FALSE", ESTE_SCRIPT],
-        ["acto2_sin_pearson",
+        ["acto2_sin_pearson", "recalculo",
          "ninguna figura ni tabla del Acto 2 contiene Pearson (solo Spearman)",
          "sin menciones de Pearson" if sin_pearson else "Pearson mencionado (ERROR)",
          "sin Pearson", "TRUE" if sin_pearson else "FALSE", ESTE_SCRIPT],
-        ["acto2_piso_par",
+        ["acto2_piso_par", "recalculo",
          "n_par < 5 -> sin rho/IC/p reportado (solo n)",
          "cumple en todas las filas" if piso_ok else "excepcion encontrada (ERROR)",
          "sin rho si n<5", "TRUE" if piso_ok else "FALSE", ESTE_SCRIPT],
-        ["acto2_splom_variables",
+        ["acto2_splom_variables", "declaracion",
          "SPLOM placenta = 9 variables (7 transp+il6+gp130), cerebro = 8 (7 transp+gp130)",
          f"placenta={len(cfg.GENES_SPLOM_PLACENTA)};cerebro={len(cfg.GENES_SPLOM_BRAIN)}",
          "placenta=9;cerebro=8", "TRUE" if splom_ok else "FALSE", ESTE_SCRIPT],
-        ["acto2_figuras",
+        ["acto2_figuras", "existencia",
          "figuras Acto 2.1-2.2: dispersion global + 9 por item + 6 SPLOM",
          f"disp={fig_disp.is_file()};por_item={sum(1 for r in fig_gen.values() if r.is_file())}/{n_items};"
          f"splom={sum(1 for r in fig_splom.values() if r.is_file())}/6"

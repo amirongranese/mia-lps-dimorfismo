@@ -439,9 +439,9 @@ def registrar_procedencia(filas_nuevas):
 
 
 def registrar_verificaciones(filas_nuevas):
-    header = ["id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
+    header = ["id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
     merge_por_script(cfg.RUTA_TABLAS / "verificaciones.csv", header, filas_nuevas,
-                     "script", lambda f: (f[5], f[0]))
+                     "script", lambda f: (f[6], f[0]))
 
 
 BLOQUE_DESCARTES = """\
@@ -556,24 +556,24 @@ def main():
          "PROPIO", ent, "reporte legible de la cuantificacion qPCR"],
     ])
     registrar_verificaciones([
-        ["cuant_filas_long", "qpcr_cuantificacion_long tiene 36x2x10 = 720 filas",
+        ["cuant_filas_long", "recalculo", "qpcr_cuantificacion_long tiene 36x2x10 = 720 filas",
          str(len(long_rows)), "720", "TRUE" if len(long_rows) == 720 else "FALSE",
          ESTE_SCRIPT],
-        ["cuant_score_filas", "score compuesto: 36x2 = 72 filas",
+        ["cuant_score_filas", "recalculo", "score compuesto: 36x2 = 72 filas",
          str(len(score_rows)), "72", "TRUE" if len(score_rows) == 72 else "FALSE",
          ESTE_SCRIPT],
-        ["cuant_no_cuantificables", "gen x tejido no cuantificables por D7",
+        ["cuant_no_cuantificables", "recalculo", "gen x tejido no cuantificables por D7",
          ";".join(no_cuant) if no_cuant else "(ninguno)", "il6@BRAIN_E15",
          "TRUE" if no_cuant == ["il6@BRAIN_E15"] else "FALSE", ESTE_SCRIPT],
-        ["cuant_sin_imputacion", "cantidad de dCt NA == cantidad de no detectados (no se imputa)",
+        ["cuant_sin_imputacion", "recalculo", "cantidad de dCt NA == cantidad de no detectados (no se imputa)",
          f"{n_dct_na}=={n_nodet}", "iguales", "TRUE" if n_dct_na == n_nodet else "FALSE",
          ESTE_SCRIPT],
-        ["cuant_sd_metodo", "z-score con desvio estandar muestral (n-1)",
+        ["cuant_sd_metodo", "declaracion", "z-score con desvio estandar muestral (n-1)",
          "muestral_n-1", "muestral_n-1", "TRUE", ESTE_SCRIPT],
-        ["cuant_transportadores_score", "score compuesto sobre 7 transportadores",
+        ["cuant_transportadores_score", "declaracion", "score compuesto sobre 7 transportadores",
          str(len(cfg.GENES_TRANSPORTADORES)), "7",
          "TRUE" if len(cfg.GENES_TRANSPORTADORES) == 7 else "FALSE", ESTE_SCRIPT],
-        ["cuant_calibrador_grupo", "calibrador de la cuantificacion relativa (D1)",
+        ["cuant_calibrador_grupo", "declaracion", "calibrador de la cuantificacion relativa (D1)",
          CAL_GRUPO, "HEMBRA_CONTROL", "TRUE" if CAL_GRUPO == "HEMBRA_CONTROL" else "FALSE",
          ESTE_SCRIPT],
     ])

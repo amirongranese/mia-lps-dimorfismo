@@ -272,17 +272,25 @@ main <- function() {
                            "render/python (corrida de un solo lenguaje)"))
   }
 
-  # --- 4. verificaciones.csv todas en TRUE --------------------
+  # --- 4. verificaciones.csv: ninguna en FALSE (NO_EJECUTADA no es fallo) ----
+  # NO_EJECUTADA marca una verificacion que no corrio en esta corrida (ej.
+  # comparacion R<->Python en -Only R, o PDF sin motor disponible) -- no es
+  # ni un pase ni un fallo, y no bloquea "TODAS LAS VERIFICACIONES PASARON".
   vf <- leer_csv(file.path(RUTA_TABLAS, "verificaciones.csv"))
-  v_no_true <- character(0)
+  v_no_true <- character(0); v_no_ejec <- character(0)
   if (!is.null(vf$header) && "ok" %in% vf$header) {
     j <- match("ok", vf$header); jd <- match("id", vf$header)
     if (is.na(jd)) jd <- 1L
-    v_no_true <- vapply(vf$filas, function(f)
-      if (j <= length(f) && f[[j]] == "TRUE") "" else f[[jd]], character(1))
-    v_no_true <- v_no_true[nzchar(v_no_true)]
+    ok_col <- vapply(vf$filas, function(f) if (j <= length(f)) f[[j]] else "", character(1))
+    id_col <- vapply(vf$filas, function(f) if (jd <= length(f)) f[[jd]] else "", character(1))
+    v_no_true <- id_col[ok_col == "FALSE"]
+    v_no_ejec <- id_col[ok_col == "NO_EJECUTADA"]
   }
-  chequear(sprintf("verificaciones.csv: %d filas, todas TRUE", length(vf$filas)),
+  if (length(v_no_ejec))
+    warn <- c(warn, sprintf("verificaciones.csv: %d fila(s) NO_EJECUTADA: %s",
+                            length(v_no_ejec), paste(v_no_ejec, collapse = ", ")))
+  chequear(sprintf("verificaciones.csv: %d filas, ninguna en FALSE (%d NO_EJECUTADA)",
+                   length(vf$filas), length(v_no_ejec)),
            !is.null(vf$header) && !length(v_no_true))
 
   # --- 5. log de corrida -------------------------------------

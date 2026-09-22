@@ -589,10 +589,10 @@ registrar_procedencia <- function(filas_nuevas) {
 }
 
 registrar_verificaciones <- function(filas_nuevas) {
-  header <- c("id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
+  header <- c("id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
   merge_por_script(file.path(RUTA_TABLAS, "verificaciones.csv"), header, filas_nuevas,
                    "script", function(fs) order(
-                     vapply(fs, `[[`, character(1), 6), vapply(fs, `[[`, character(1), 1),
+                     vapply(fs, `[[`, character(1), 7), vapply(fs, `[[`, character(1), 1),
                      method = "radix"))
 }
 
@@ -748,24 +748,24 @@ main <- function() {
          q3, "reporte de QC legible")
   ))
   registrar_verificaciones(list(
-    list("ingesta_qpcr_fetos_e15", "qPCR E15 tiene 36 fetos",
+    list("ingesta_qpcr_fetos_e15", "recalculo", "qPCR E15 tiene 36 fetos",
          .fmt(qd$n_fetos_e15), "36", if (qd$n_fetos_e15 == 36) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("ingesta_qpcr_filas_e15", "qPCR E15 tiene 36x2x10 = 720 filas",
+    list("ingesta_qpcr_filas_e15", "recalculo", "qPCR E15 tiene 36x2x10 = 720 filas",
          .fmt(qd$n_filas_e15), "720", if (qd$n_filas_e15 == 720) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("ingesta_qpcr_tejidos", "tejidos E15 = PLACENTA_E15;BRAIN_E15 (sin BRAIN_P1)",
+    list("ingesta_qpcr_tejidos", "recalculo", "tejidos E15 = PLACENTA_E15;BRAIN_E15 (sin BRAIN_P1)",
          paste(sort(unique(qpcr_e15$TEJIDO)), collapse = ";"),
          paste(sort(TEJIDOS_E15), collapse = ";"),
          if (identical(sort(unique(qpcr_e15$TEJIDO)), sort(TEJIDOS_E15))) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("ingesta_ct_no_numerico", "no hay CT_CRUDO no numerico fuera de vacio",
+    list("ingesta_ct_no_numerico", "recalculo", "no hay CT_CRUDO no numerico fuera de vacio",
          .fmt(qd$n_ct_no_num), "0", if (qd$n_ct_no_num == 0) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("ingesta_pstat3_balanceado", "pSTAT3: 3 membranas con igual n",
+    list("ingesta_pstat3_balanceado", "recalculo", "pSTAT3: 3 membranas con igual n",
          pd$balinstr, "1:12|2:12|3:12", if (pd$balanceado) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("ingesta_elisa_bloques", "ELISA parte en MS y LA con n>0",
+    list("ingesta_elisa_bloques", "recalculo", "ELISA parte en MS y LA con n>0",
          sprintf("MS=%d;LA=%d", ed$MS, ed$LA), "MS>0;LA>0",
          if (ed$MS > 0 && ed$LA > 0) "TRUE" else "FALSE", ESTE_SCRIPT)
   ))

@@ -587,9 +587,9 @@ def registrar_procedencia(filas_nuevas):
 
 
 def registrar_verificaciones(filas_nuevas):
-    header = ["id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
+    header = ["id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
     merge_por_script(cfg.RUTA_TABLAS / "verificaciones.csv", header, filas_nuevas,
-                     "script", lambda f: (f[5], f[0]))
+                     "script", lambda f: (f[6], f[0]))
 
 
 BLOQUE_DESCARTES = """\
@@ -720,23 +720,23 @@ def main():
 
     ms_ok = fish[0][0] == "MS"
     registrar_verificaciones([
-        ["elisa_ms_metodo", "MS: solo deteccion + Fisher exacto (D10, censura Control alta)",
+        ["elisa_ms_metodo", "declaracion", "MS: solo deteccion + Fisher exacto (D10, censura Control alta)",
          "fisher_deteccion", "fisher_deteccion", "TRUE" if ms_ok else "FALSE", ESTE_SCRIPT],
-        ["elisa_la_metodo", "LA: Peto-Peto G-rho=1 Control vs LPS, estratificado por sexo",
+        ["elisa_la_metodo", "declaracion", "LA: Peto-Peto G-rho=1 Control vs LPS, estratificado por sexo",
          "petopeto_por_sexo", "petopeto_por_sexo", "TRUE", ESTE_SCRIPT],
-        ["elisa_la_estratos", "estratos de LA", ";".join(SEXOS_LA), "HEMBRA;MACHO",
+        ["elisa_la_estratos", "recalculo", "estratos de LA", ";".join(SEXOS_LA), "HEMBRA;MACHO",
          "TRUE" if SEXOS_LA == ["HEMBRA", "MACHO"] else "FALSE", ESTE_SCRIPT],
-        ["elisa_descriptivo_grupos", "grupos en el descriptivo (MSx2 + LAx4)",
+        ["elisa_descriptivo_grupos", "recalculo", "grupos en el descriptivo (MSx2 + LAx4)",
          str(len(desc)), "6", "TRUE" if len(desc) == 6 else "FALSE", ESTE_SCRIPT],
-        ["elisa_lod", "LOD primario del ELISA (el blanco de la placa)",
+        ["elisa_lod", "declaracion", "LOD primario del ELISA (el blanco de la placa)",
          _fmt(LOD_ELISA), "0", "TRUE" if LOD_ELISA == 0 else "FALSE", ESTE_SCRIPT],
-        ["elisa_reflexion_M", "constante de reflexion M = ceil(max Conc detectada)+1",
+        ["elisa_reflexion_M", "recalculo", "constante de reflexion M = ceil(max Conc detectada)+1",
          _fmt(M), ">0", "TRUE" if M > 0 else "FALSE", ESTE_SCRIPT],
-        ["elisa_figura_ms", "figura Acto 1.1 suero materno existe",
+        ["elisa_figura_ms", "existencia", "figura Acto 1.1 suero materno existe",
          "acto1_elisa_ms.png",
          "existe", "TRUE" if (cfg.RUTA_FIGURAS / "acto1_elisa_ms.png").is_file() else "FALSE",
          ESTE_SCRIPT],
-        ["elisa_figura_la", "figura Acto 1.1 liquido amniotico existe",
+        ["elisa_figura_la", "existencia", "figura Acto 1.1 liquido amniotico existe",
          "acto1_elisa_la.png",
          "existe", "TRUE" if (cfg.RUTA_FIGURAS / "acto1_elisa_la.png").is_file() else "FALSE",
          ESTE_SCRIPT],

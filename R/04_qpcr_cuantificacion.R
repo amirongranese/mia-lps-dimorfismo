@@ -379,10 +379,10 @@ registrar_procedencia <- function(filas_nuevas) {
                      method = "radix"))
 }
 registrar_verificaciones <- function(filas_nuevas) {
-  header <- c("id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
+  header <- c("id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
   merge_por_script(file.path(RUTA_TABLAS, "verificaciones.csv"), header, filas_nuevas,
                    "script", function(fs) order(
-                     vapply(fs, `[[`, character(1), 6), vapply(fs, `[[`, character(1), 1),
+                     vapply(fs, `[[`, character(1), 7), vapply(fs, `[[`, character(1), 1),
                      method = "radix"))
 }
 
@@ -501,25 +501,25 @@ main <- function() {
          "PROPIO", ent, "reporte legible de la cuantificacion qPCR")
   ))
   registrar_verificaciones(list(
-    list("cuant_filas_long", "qpcr_cuantificacion_long tiene 36x2x10 = 720 filas",
+    list("cuant_filas_long", "recalculo", "qpcr_cuantificacion_long tiene 36x2x10 = 720 filas",
          as.character(length(long)), "720", if (length(long) == 720L) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("cuant_score_filas", "score compuesto: 36x2 = 72 filas",
+    list("cuant_score_filas", "recalculo", "score compuesto: 36x2 = 72 filas",
          as.character(length(score)), "72", if (length(score) == 72L) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("cuant_no_cuantificables", "gen x tejido no cuantificables por D7",
+    list("cuant_no_cuantificables", "recalculo", "gen x tejido no cuantificables por D7",
          if (length(no_cuant)) paste(no_cuant, collapse = ";") else "(ninguno)",
          "il6@BRAIN_E15", if (identical(no_cuant, "il6@BRAIN_E15")) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("cuant_sin_imputacion", "cantidad de dCt NA == cantidad de no detectados (no se imputa)",
+    list("cuant_sin_imputacion", "recalculo", "cantidad de dCt NA == cantidad de no detectados (no se imputa)",
          sprintf("%d==%d", n_dct_na, n_nodet), "iguales",
          if (n_dct_na == n_nodet) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("cuant_sd_metodo", "z-score con desvio estandar muestral (n-1)",
+    list("cuant_sd_metodo", "declaracion", "z-score con desvio estandar muestral (n-1)",
          "muestral_n-1", "muestral_n-1", "TRUE", ESTE_SCRIPT),
-    list("cuant_transportadores_score", "score compuesto sobre 7 transportadores",
+    list("cuant_transportadores_score", "declaracion", "score compuesto sobre 7 transportadores",
          as.character(length(GENES_TRANSPORTADORES)), "7",
          if (length(GENES_TRANSPORTADORES) == 7L) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("cuant_calibrador_grupo", "calibrador de la cuantificacion relativa (D1)",
+    list("cuant_calibrador_grupo", "declaracion", "calibrador de la cuantificacion relativa (D1)",
          CAL_GRUPO, "HEMBRA_CONTROL", if (CAL_GRUPO == "HEMBRA_CONTROL") "TRUE" else "FALSE",
          ESTE_SCRIPT)
   ))

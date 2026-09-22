@@ -605,10 +605,10 @@ registrar_procedencia <- function(filas_nuevas) {
                      method = "radix"))
 }
 registrar_verificaciones <- function(filas_nuevas) {
-  header <- c("id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
+  header <- c("id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
   merge_por_script(file.path(RUTA_TABLAS, "verificaciones.csv"), header, filas_nuevas,
                    "script", function(fs) order(
-                     vapply(fs, `[[`, character(1), 6), vapply(fs, `[[`, character(1), 1),
+                     vapply(fs, `[[`, character(1), 7), vapply(fs, `[[`, character(1), 1),
                      method = "radix"))
 }
 
@@ -804,18 +804,18 @@ main <- function() {
   ok_figs <- file.exists(fig_pla) && file.exists(fig_bra) && file.exists(fig_pst) &&
              all(figs_elisa)
   registrar_verificaciones(list(
-    list("figuras_acto1_generadas",
+    list("figuras_acto1_generadas", "existencia",
          "figuras del Acto 1: 2 de expresion + pSTAT3 (+ 2 de ELISA de 03_elisa)",
          sprintf("placenta=%s;brain=%s;pstat3=%s;elisa_ms=%s;elisa_la=%s",
                  file.exists(fig_pla), file.exists(fig_bra), file.exists(fig_pst),
                  figs_elisa[1], figs_elisa[2]),
          "las 5 figuras del Acto 1 existen",
          if (ok_figs) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("figuras_d11_una_funcion",
+    list("figuras_d11_una_funcion", "declaracion",
          "una sola funcion de anotacion D11 (d11_brackets_especificacion) usada en todas las figuras",
          "d11_texto + d11_brackets_especificacion (identica R/Python), 3 figuras",
          "una funcion, todas las figuras", "TRUE", ESTE_SCRIPT),
-    list("figuras_d11_cascada",
+    list("figuras_d11_cascada", "declaracion",
          "D11 ampliada: (a) interaccion->por par; (b) TTO principal->bracket 0-3; (c) SEXO principal->bracket 0.5-2.5",
          sprintf(paste0("expresion: %d brackets (%s); pSTAT3: %d (%s)"),
                  length(anotadas),
@@ -823,19 +823,19 @@ main <- function() {
                  length(pst_anot),
                  if (length(pst_anot)) paste(pst_anot, collapse = "; ") else "ninguno"),
          "cascada de 3 ramas, (b)/(c) no excluyentes", "TRUE", ESTE_SCRIPT),
-    list("figuras_fc_log",
+    list("figuras_fc_log", "declaracion",
          "boxplots de expresion en FC = 2^(-ddCt) con eje Y logaritmico (D2)",
          "FC = 2**neg_ddCt; ax en escala log; linea de referencia en FC = 1",
          "FC log", "TRUE", ESTE_SCRIPT),
-    list("figuras_il6_brain_deteccion",
+    list("figuras_il6_brain_deteccion", "declaracion",
          "il6 @ BRAIN_E15 se grafica como proporcion de deteccion, no como boxplot de FC (D7)",
          "panel de barras % detectado Control vs LPS por sexo + p de Fisher",
          "panel de deteccion", "TRUE", ESTE_SCRIPT),
-    list("figuras_pstat3_membrana",
+    list("figuras_pstat3_membrana", "declaracion",
          "pSTAT3: valores crudos por SEXO x TTO, MEMBRANA como forma de punto (bloque tecnico)",
          "boxplot de PSTAT3 sin ajustar; marcador o/cuadrado/triangulo por membrana",
          "crudo + forma por membrana", "TRUE", ESTE_SCRIPT),
-    list("figuras_expresion_r_base",
+    list("figuras_expresion_r_base", "declaracion",
          "boxplots de expresion en R base (bxp/boxplot), no ggplot2 -- pedido explicito",
          "boxplot() con whisklty/staplelty/border distintos; Acto 2 sigue en ggplot2",
          "R base para expresion", "TRUE", ESTE_SCRIPT)

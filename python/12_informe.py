@@ -285,9 +285,9 @@ def registrar_procedencia(filas_nuevas):
 
 
 def registrar_verificaciones(filas_nuevas):
-    header = ["id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
+    header = ["id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
     merge_por_script(cfg.RUTA_TABLAS / "verificaciones.csv", header, filas_nuevas,
-                     lambda f: (f[5], f[0]))
+                     lambda f: (f[6], f[0]))
 
 
 # =========================================================================
@@ -554,8 +554,17 @@ def resumen_numeros():
     r["n_procedencia"] = len(f)
     h, f = leer_csv_sin_este(cfg.RUTA_TABLAS / "verificaciones.csv")
     okc = _col(h, f, "ok")
+    tipoc = _col(h, f, "tipo")
     r["n_verif"] = len(f)
     r["n_verif_true"] = sum(1 for v in okc if v == "TRUE")
+    r["n_verif_no_ejec"] = sum(1 for v in okc if v == "NO_EJECUTADA")
+    # 2.2: desglose por tipo (recalculo/existencia/declaracion) -- "100/100
+    # verificaciones" sin desglose no dice cuanto de eso es evidencia real.
+    for ti in ("recalculo", "existencia", "declaracion"):
+        idx = [t == ti for t in tipoc]
+        r["n_verif_%s" % ti] = sum(idx)
+        r["n_verif_%s_true" % ti] = sum(
+            1 for i, v in zip(idx, okc) if i and v == "TRUE")
     return r
 
 
@@ -1211,18 +1220,38 @@ def construir_html(fuente: str, num: dict, nc: dict) -> str:
 
     # --- 10. auditoria ---
     aud = []
+    no_ejec_txt = (", <strong>%d</strong> NO_EJECUTADA" % num["n_verif_no_ejec"]
+                   if num["n_verif_no_ejec"] > 0 else "")
     aud.append("<p><code>procedencia.csv</code>: <strong>%d</strong> filas (una "
                "por figura y por tabla). <code>verificaciones.csv</code>: "
-               "<strong>%d</strong> filas, <strong>%d</strong> en TRUE. Tablas "
-               "completas en <code>outputs/tables/</code>.</p>"
-               % (num["n_procedencia"], num["n_verif"], num["n_verif_true"]))
+               "<strong>%d</strong> filas -- desglosadas por tipo, no un total "
+               "unico, porque no todas prueban lo mismo (punto 2 de la revision "
+               "externa): <strong>%d</strong>/<strong>%d</strong> "
+               "<code>recalculo</code> (vuelven a calcular o contrastar un "
+               "resultado de forma independiente) en TRUE, <strong>%d</strong>/"
+               "<strong>%d</strong> <code>existencia</code> (confirman que un "
+               "archivo existe y no esta vacio) en TRUE, <strong>%d</strong>/"
+               "<strong>%d</strong> <code>declaracion</code> (registran una "
+               "decision de metodo o una constante; no verifican su aplicacion "
+               "caso por caso) en TRUE%s. Tablas completas en "
+               "<code>outputs/tables/</code>.</p>"
+               % (num["n_procedencia"], num["n_verif"],
+                  num["n_verif_recalculo_true"], num["n_verif_recalculo"],
+                  num["n_verif_existencia_true"], num["n_verif_existencia"],
+                  num["n_verif_declaracion_true"], num["n_verif_declaracion"],
+                  no_ejec_txt))
     aud.append("<h3>8.1 Procedencia</h3>")
     aud.append(_csv_a_tabla(cfg.RUTA_TABLAS / "procedencia.csv"))
     aud.append("<h3>8.2 Verificaciones</h3>")
-    aud.append('<p class="meta">Se omite la columna <code>valor_obtenido</code> '
-               "(numeros de diagnostico que pueden diferir en el ultimo digito "
-               "entre R y Python); la tabla completa esta en "
-               "<code>outputs/tables/verificaciones.csv</code>.</p>")
+    aud.append('<p class="meta">La columna <code>tipo</code> clasifica cada '
+               "fila: <code>recalculo</code> (recalcula o contrasta un "
+               "resultado de forma independiente), <code>existencia</code> "
+               "(confirma que un archivo existe y no esta vacio) o "
+               "<code>declaracion</code> (registra una decision de metodo o "
+               "una constante; no verifica su aplicacion). Se omite la columna "
+               "<code>valor_obtenido</code> (numeros de diagnostico que pueden "
+               "diferir en el ultimo digito entre R y Python); la tabla "
+               "completa esta en <code>outputs/tables/verificaciones.csv</code>.</p>")
     aud.append(_csv_a_tabla(cfg.RUTA_TABLAS / "verificaciones.csv",
                             omitir=("valor_obtenido",)))
     L.append(_seccion("auditoria", "10. Procedencia y verificaciones",
@@ -1377,46 +1406,48 @@ def main():
          "el pipeline no falla si no hay motor de PDF (estado: " + pdf_status + ")"],
     ])
     registrar_verificaciones([
-        ["informe_html_generado",
+        ["informe_html_generado", "recalculo",
          "docs/informe.html existe y no esta vacio",
          "%d secciones; %d figuras" % (html.count('<section id="'), n_fig),
          "10 secciones",
          "TRUE" if (ruta_html.is_file() and ruta_html.stat().st_size > 0
                     and html.count('<section id="') == 10) else "FALSE",
          ESTE_SCRIPT],
-        ["informe_figuras_incrustadas",
+        ["informe_figuras_incrustadas", "recalculo",
          "todas las figuras del Acto 1 y 2 estan incrustadas en el informe",
          "figuras=%d; faltan=%s" % (n_fig, faltan or "[]"),
          "faltan = []",
          "TRUE" if not faltan else "FALSE", ESTE_SCRIPT],
-        ["informe_reportes_incluidos",
+        ["informe_reportes_incluidos", "existencia",
          "todos los .md de seccion existen y se incluyeron",
          "secciones=%d; md_faltan=%s" % (len(SECCIONES), md_faltan or "[]"),
          "md_faltan = []",
          "TRUE" if not md_faltan else "FALSE", ESTE_SCRIPT],
-        ["informe_figuras_procedencia_embebidas",
+        ["informe_figuras_procedencia_embebidas", "recalculo",
          "toda figura con fila en procedencia.csv esta incrustada en el informe",
          "procedencia=%d; embebidas=%d; sin_embeber=%s" % (
              len(todas_en_procedencia), len(figs_todas), sin_embeber or "[]"),
          "sin_embeber = []",
          "TRUE" if not sin_embeber else "FALSE", ESTE_SCRIPT],
-        ["informe_pdf",
-         "docs/informe.pdf generado, o degradado limpio si no hay motor de PDF",
+        ["informe_pdf", "recalculo",
+         "docs/informe.pdf generado (TRUE), degradado limpio si no hay motor "
+         "de PDF (NO_EJECUTADA), o fallo real (FALSE)",
          "estado=%s; existe=%s" % (
              pdf_status,
              "TRUE" if ruta_pdf.is_file() and ruta_pdf.stat().st_size > 0
              else "FALSE"),
-         "ok | sin_motor | fallo (nunca frena el pipeline)",
-         "TRUE" if pdf_status in ("ok", "sin_motor") or pdf_status.startswith("fallo")
+         "ok -> TRUE | sin_motor -> NO_EJECUTADA | fallo:* -> FALSE",
+         "TRUE" if pdf_status == "ok"
+         else "NO_EJECUTADA" if pdf_status == "sin_motor"
          else "FALSE", ESTE_SCRIPT],
-        ["informe_snapshot_paridad",
+        ["informe_snapshot_paridad", "existencia",
          "snapshot por lenguaje para el byte-compare R/Python de 99_verificar",
          "render/<lang>/: informe.html + informe.textonly.html + tables/*.md + "
          "pdf_status.txt",
          "snapshot escrito",
          "TRUE" if (snap / "informe.textonly.html").is_file() else "FALSE",
          ESTE_SCRIPT],
-        ["informe_sintetico_sin_interpretacion",
+        ["informe_sintetico_sin_interpretacion", "recalculo",
          "con fuente sintetica, las secciones interpretativas (conclusion "
          "de seccion, sintesis, conclusion revisada) se reemplazan por el "
          "aviso de datos sinteticos -- nunca se arma la prosa biologica",

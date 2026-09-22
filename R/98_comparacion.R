@@ -205,7 +205,8 @@ auditar_descartados <- function() {
 
 auditar_verificaciones <- function() {
   vf <- leer_csv(file.path(RUTA_TABLAS, "verificaciones.csv"))
-  if (is.null(vf)) return(list(total = 0L, ok = 0L, no = character(0)))
+  if (is.null(vf))
+    return(list(total = 0L, ok = 0L, no = character(0), no_ejec = character(0)))
   idx_ok <- match("ok", vf$header); idx_id <- match("id", vf$header)
   idx_sc <- match("script", vf$header)
   # el conteo excluye las propias filas de 98_comparacion para que sea estable
@@ -213,10 +214,13 @@ auditar_verificaciones <- function() {
   filas <- Filter(function(f) !(length(f) >= idx_sc && f[[idx_sc]] == ESTE_SCRIPT),
                   vf$filas)
   total <- length(filas)
-  no <- vapply(filas, function(f)
-    if (length(f) >= idx_ok && f[[idx_ok]] == "TRUE") "" else f[[idx_id]], character(1))
-  no <- no[nzchar(no)]
-  list(total = total, ok = total - length(no), no = no)
+  ok_vals <- vapply(filas, function(f)
+    if (length(f) >= idx_ok) f[[idx_ok]] else "", character(1))
+  ids <- vapply(filas, function(f) f[[idx_id]], character(1))
+  # NO_EJECUTADA (ej. comparacion R<->Python en -Only R) no es un fallo: no
+  # cuenta en `no`, se reporta aparte en `no_ejec`.
+  list(total = total, ok = sum(ok_vals == "TRUE"),
+       no = ids[ok_vals == "FALSE"], no_ejec = ids[ok_vals == "NO_EJECUTADA"])
 }
 
 # ---------------------------------------------------------------------------
@@ -395,10 +399,10 @@ registrar_procedencia <- function(filas_nuevas) {
                      method = "radix"))
 }
 registrar_verificaciones <- function(filas_nuevas) {
-  header <- c("id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
+  header <- c("id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
   merge_por_script(file.path(RUTA_TABLAS, "verificaciones.csv"), header, filas_nuevas,
                    "script", function(fs) order(
-                     vapply(fs, `[[`, character(1), 6), vapply(fs, `[[`, character(1), 1),
+                     vapply(fs, `[[`, character(1), 7), vapply(fs, `[[`, character(1), 1),
                      method = "radix"))
 }
 
@@ -406,7 +410,7 @@ registrar_verificaciones <- function(filas_nuevas) {
 # Reporte legible.
 # ---------------------------------------------------------------------------
 construir_reporte <- function(fuente, comps, resumen, figs_sin, tabs_sin, desc_faltan,
-                              verif_total, verif_true, verif_no) {
+                              verif_total, verif_true, verif_no, verif_no_ejec = 0L) {
   L <- character(0); ap <- function(...) L[[length(L) + 1L]] <<- paste0(...)
   ap("# Comparacion R <-> Python y auditoria (T10)")
   ap("")
@@ -450,8 +454,9 @@ construir_reporte <- function(fuente, comps, resumen, figs_sin, tabs_sin, desc_f
   ap("")
   ap("## 4. Auditoria de verificaciones.csv")
   ap("")
-  ap(sprintf("- Filas: **%d**. En TRUE: **%d**. Distintas de TRUE: **%s**.",
-             verif_total, verif_true, if (nzchar(verif_no)) verif_no else "ninguna"))
+  ap(sprintf("- Filas: **%d**. En TRUE: **%d**. NO_EJECUTADA: **%d**. En FALSE: **%s**.",
+             verif_total, verif_true, verif_no_ejec,
+             if (nzchar(verif_no)) verif_no else "ninguna"))
   ap("")
   ap("## 5. Notas")
   ap("")
@@ -520,7 +525,7 @@ main <- function() {
     construir_reporte(fuente, comps, resumen, paste(ap$figs_sin, collapse = ", "),
                       paste(ap$tabs_sin, collapse = ", "),
                       paste(desc_faltan, collapse = ", "),
-                      vf$total, vf$ok, paste(vf$no, collapse = ", ")))
+                      vf$total, vf$ok, paste(vf$no, collapse = ", "), length(vf$no_ejec)))
   actualizar_descartados()
 
   # --- procedencia / verificaciones (filas de 98_comparacion) ---
@@ -545,49 +550,50 @@ main <- function() {
          "una seccion por script de analisis (02..11); cobertura verificada en T10")))
 
   registrar_verificaciones(list(
-    list("comp_cobertura_csv",
+    list("comp_cobertura_csv", "recalculo",
          "todo CSV de outputs/tables/R/ tiene gemelo en python/ y viceversa",
          sprintf("R=%d; python=%d; solo_R=%d; solo_python=%d",
                  length(arch_r), length(arch_py), length(solo_r), length(solo_py)),
          "sin huerfanos en ningun lado",
          if (!length(solo_r) && !length(solo_py)) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("comp_headers_iguales",
+    list("comp_headers_iguales", "recalculo",
          "el encabezado coincide en los pares comparados",
          sprintf("%d/%d con header igual",
                  sum(vapply(comps, function(d) d$header_igual, logical(1))), length(comps)),
          sprintf("%d/%d", length(comps), length(comps)),
          if (all(vapply(comps, function(d) d$header_igual, logical(1)))) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("comp_dentro_tolerancia",
+    list("comp_dentro_tolerancia", "recalculo",
          "concordancia numerica R<->python dentro de 1e-6 (fallback 1e-4)",
          sprintf(paste0("archivos=%d; byte_identicos=%d; fuera_tol=%d; dif_texto=%d; ",
                  "peor|dif|abs=%.2e"), length(comps), n_byte, total$n_fuera_tol,
                  total$n_dif_texto, peor_abs),
          "0 celdas fuera de tolerancia; 0 diferencias de texto",
          if (n_fuera == 0L) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("audit_procedencia_figuras",
+    list("audit_procedencia_figuras", "recalculo",
          "toda figura de outputs/figures/ tiene fila en procedencia.csv",
          sprintf("figuras=%d; sin_fila=%s", length(figuras),
                  if (length(ap$figs_sin)) paste(ap$figs_sin, collapse = ", ") else "[]"),
          "sin_fila = []",
          if (!length(ap$figs_sin)) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("audit_procedencia_tablas",
+    list("audit_procedencia_tablas", "recalculo",
          "toda tabla outputs/tables/{R,python}/*.csv tiene fila en procedencia.csv",
          sprintf("tablas=%d; sin_fila=%s", length(arch_r),
                  if (length(ap$tabs_sin)) paste(ap$tabs_sin, collapse = ", ") else "[]"),
          "sin_fila = []",
          if (!length(ap$tabs_sin)) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("audit_descartados_cobertura",
+    list("audit_descartados_cobertura", "recalculo",
          "analisis_descartados.md tiene una seccion por script de analisis (02..11)",
          sprintf("esperados=%d; faltan=%s", length(SCRIPTS_ANALISIS),
                  if (length(desc_faltan)) paste(desc_faltan, collapse = ", ") else "[]"),
          "faltan = []",
          if (!length(desc_faltan)) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("audit_verificaciones_ok",
-         "ninguna fila de verificaciones.csv queda distinta de TRUE",
-         sprintf("total=%d; TRUE=%d; no_TRUE=%s", vf$total, vf$ok,
+    list("audit_verificaciones_ok", "recalculo",
+         "ninguna fila de verificaciones.csv queda en FALSE (NO_EJECUTADA no es fallo)",
+         sprintf("total=%d; TRUE=%d; NO_EJECUTADA=%d; FALSE=%s", vf$total, vf$ok,
+                 length(vf$no_ejec),
                  if (length(vf$no)) paste(vf$no, collapse = ", ") else "[]"),
-         "no_TRUE = []",
+         "FALSE = []",
          if (!length(vf$no)) "TRUE" else "FALSE", ESTE_SCRIPT)))
 
   # --- salida legible ---
@@ -608,8 +614,9 @@ main <- function() {
               if (length(ap$tabs_sin)) paste(ap$tabs_sin, collapse = ", ") else "[]"))
   cat(sprintf("  descartados: sin seccion = %s\n",
               if (length(desc_faltan)) paste(desc_faltan, collapse = ", ") else "[]"))
-  cat(sprintf("  verificaciones: %d/%d en TRUE; distintas de TRUE = %s\n",
-              vf$ok, vf$total, if (length(vf$no)) paste(vf$no, collapse = ", ") else "[]"))
+  cat(sprintf("  verificaciones: %d/%d en TRUE; NO_EJECUTADA=%d; en FALSE = %s\n",
+              vf$ok, vf$total, length(vf$no_ejec),
+              if (length(vf$no)) paste(vf$no, collapse = ", ") else "[]"))
   todo_ok <- !length(malos) && !length(solo_r) && !length(solo_py) &&
     !length(ap$figs_sin) && !length(ap$tabs_sin) && !length(desc_faltan) && !length(vf$no)
   cat("  -> outputs/tables/comparacion_R_python.csv, comparacion_reporte.md\n")

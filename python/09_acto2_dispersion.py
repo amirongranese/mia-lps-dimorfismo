@@ -744,9 +744,9 @@ def registrar_procedencia(filas_nuevas):
 
 
 def registrar_verificaciones(filas_nuevas):
-    header = ["id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
+    header = ["id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
     merge_por_script(cfg.RUTA_TABLAS / "verificaciones.csv", header, filas_nuevas,
-                     "script", lambda f: (f[5], f[0]))
+                     "script", lambda f: (f[6], f[0]))
 
 
 _DESCARTES = "\n".join([
@@ -1154,41 +1154,42 @@ def main():
          "PROPIO", ent, "reporte legible del Acto 2.3-2.4 (T8)"],
     ])
     registrar_verificaciones([
-        ["acto2_test_metodo",
+        ["acto2_test_metodo", "declaracion",
          "test reportado de diferencia de correlaciones (prohibicion 4)",
          "Fisher z sobre rho de Spearman; SE Bonett-Wright primario; SE clasico y "
          "p_bh suplementarios",
          "Fisher z (decision del usuario)", "TRUE", ESTE_SCRIPT],
-        ["acto2_test_items",
-         "items con test formal Control vs LPS (n_par >= 5 en ambos grupos)",
+        ["acto2_test_items", "recalculo",
+         "todos los items (AMBOS_SEXOS) superan el piso de n_par y se testean",
          f"{n_test} de {len(ITEMS)} items testeados",
-         "8 genes + score, los que superan el piso", "TRUE", ESTE_SCRIPT],
-        ["acto2_test_piso",
+         f"{len(ITEMS)} de {len(ITEMS)}",
+         "TRUE" if n_test == len(ITEMS) else "FALSE", ESTE_SCRIPT],
+        ["acto2_test_piso", "declaracion",
          "piso de n_par por grupo para el Fisher z", str(PISO_PAR), "5",
          "TRUE" if PISO_PAR == 5 else "FALSE", ESTE_SCRIPT],
-        ["acto2_test_se_doble",
+        ["acto2_test_se_doble", "declaracion",
          "se reportan SE Bonett-Wright (primario) y SE clasico 1/sqrt(n-3)",
          "columnas se_bw_* y se_clasico_* + stat/p de cada uno", "ambos SE",
          "TRUE" if COLS_TEST[10] == "se_bw_control" and COLS_TEST[15] ==
          "se_clasico_control" else "FALSE", ESTE_SCRIPT],
-        ["acto2_test_bh_suplementario",
+        ["acto2_test_bh_suplementario", "declaracion",
          "p_bw_bh (BH DENTRO de cada ESTRATO) es suplementario y no cambia "
          "conclusiones (D12)",
          f"AMBOS_SEXOS: {n_sig_bw} items p_bw<.05; {n_sig_bh} items p_bw_bh<.05",
          "columna rotulada, no dirige", "TRUE", ESTE_SCRIPT],
-        ["acto2_estratos_sexo",
+        ["acto2_estratos_sexo", "declaracion",
          "ESTRATO = AMBOS_SEXOS/HEMBRA/MACHO en Delta rho (2.4) y dispersion (2.3)",
          ";".join(ESTRATOS), "AMBOS_SEXOS;HEMBRA;MACHO",
          "TRUE" if ESTRATOS == ["AMBOS_SEXOS", "HEMBRA", "MACHO"] else "FALSE",
          ESTE_SCRIPT],
-        ["acto2_estrato_particion_test",
+        ["acto2_estrato_particion_test", "recalculo",
          "n(HEMBRA) + n(MACHO) = n(AMBOS_SEXOS) por item y por grupo (Delta rho, 2.4)",
          "particiona en %d/%d items%s" % (
              len(ITEMS) - len(particion_detalle), len(ITEMS),
              ("; falla en: " + ", ".join(particion_detalle)) if particion_detalle else ""),
          "particiona en %d/%d items" % (len(ITEMS), len(ITEMS)),
          "TRUE" if particion_ok else "FALSE", ESTE_SCRIPT],
-        ["acto2_estrato_particion_dispersion",
+        ["acto2_estrato_particion_dispersion", "recalculo",
          "n(HEMBRA) + n(MACHO) = n(AMBOS_SEXOS) por item x tejido (dispersion, 2.3)",
          "particiona en %d/%d celdas item x tejido%s" % (
              len(ITEMS) * len(TEJIDOS) - len(particion_disp_detalle),
@@ -1198,36 +1199,36 @@ def main():
          "particiona en %d/%d celdas" % (len(ITEMS) * len(TEJIDOS),
                                           len(ITEMS) * len(TEJIDOS)),
          "TRUE" if particion_disp_ok else "FALSE", ESTE_SCRIPT],
-        ["acto2_dispersion_pares",
+        ["acto2_dispersion_pares", "declaracion",
          "la dispersion se mide sobre los MISMOS pares por feto que la correlacion",
          "vector por lado = componente placenta/cerebro de pares(item, grupo)",
          "mismos pares que T7/2.4", "TRUE", ESTE_SCRIPT],
-        ["acto2_dispersion_levene",
+        ["acto2_dispersion_levene", "declaracion",
          "test de dispersion por lado = Levene Brown-Forsythe (centro = mediana)",
          "ANOVA de una via sobre |y - mediana(grupo)|, df1=1 df2=nC+nL-2",
          "Brown-Forsythe", "TRUE", ESTE_SCRIPT],
-        ["acto2_dispersion_no_concluye",
+        ["acto2_dispersion_no_concluye", "declaracion",
          "la tabla de dispersion NO descarta restriccion de rango por si sola",
          "prohibicion 5 la dirime 10_acto2_simulacion; el reporte lo dice",
          "insumo, no conclusion", "TRUE", ESTE_SCRIPT],
-        ["acto2_dispersion_figuras",
+        ["acto2_dispersion_figuras", "existencia",
          "figuras Acto 2.3-2.4: SD por grupo + forest de Delta rho",
          f"sd={fig_sd.is_file()};delta_rho={fig_dr.is_file()}".replace(
              "True", "TRUE").replace("False", "FALSE"),
          "2 figuras existen",
          "TRUE" if (fig_sd.is_file() and fig_dr.is_file()) else "FALSE",
          ESTE_SCRIPT],
-        ["acto2_interaccion_universo",
+        ["acto2_interaccion_universo", "recalculo",
          "el test de interaccion sobre dispersion se aplica al universo modelado por T5",
          f"{len(inter)} filas (T5: {len(inter)} via=='modelo')",
          "18 gen x tejido (20 - il6@BRAIN D7 - il6R@BRAIN descriptivo_n_bajo)",
          "TRUE" if len(inter) == 18 else "FALSE", ESTE_SCRIPT],
-        ["acto2_interaccion_sin_cascada",
+        ["acto2_interaccion_sin_cascada", "declaracion",
          "el test de interaccion NO aplica la cascada D5 (correccion explicita "
          "del usuario) -- ANOVA tipo III directo, sin rama",
          "anova3_terminos() unico metodo, sin Shapiro/Levene previos, sin columna rama",
          "ANOVA III directo en las 18 filas", "TRUE", ESTE_SCRIPT],
-        ["acto2_interaccion_vs_levene",
+        ["acto2_interaccion_vs_levene", "declaracion",
          "el test de interaccion colapsado a 1 factor (TTO) reproduce el Levene "
          "Brown-Forsythe (pedido 7.2)",
          "%s@%s: F %.6f vs %.6f; p %.6e vs %.6e; |dif F|=%.2e" % (
@@ -1235,7 +1236,7 @@ def main():
              chk["p_generico"], chk["p_levene"],
              abs(chk["F_generico"] - chk["F_levene"])),
          "|dif F| y |dif p| < 1e-8", "TRUE", ESTE_SCRIPT],
-        ["acto2_interaccion_bh",
+        ["acto2_interaccion_bh", "declaracion",
          "BH (D12) de SEXO/TTO/SEXO:TTO dentro de cada tejido, suplementario",
          "3 columnas p_*_BH, ajuste separado por TEJIDO", "BH por tejido, no dirige",
          "TRUE" if (COLS_INTER[20] == "p_SEXO_BH" and COLS_INTER[21] == "p_TTO_BH"

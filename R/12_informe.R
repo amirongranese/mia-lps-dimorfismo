@@ -244,7 +244,7 @@ registrar_procedencia <- function(filas_nuevas) {
                                       method = "radix"))
 }
 registrar_verificaciones <- function(filas_nuevas) {
-  header <- c("id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
+  header <- c("id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
   merge_por_script(file.path(RUTA_TABLAS, "verificaciones.csv"), header, filas_nuevas,
                    function(fs) order(vapply(fs, `[[`, character(1), 6),
                                       vapply(fs, `[[`, character(1), 1),
@@ -454,8 +454,16 @@ resumen_numeros <- function() {
   t <- leer_csv_sin_este(file.path(RUTA_TABLAS, "procedencia.csv"))
   r$n_procedencia <- length(t$filas)
   t <- leer_csv_sin_este(file.path(RUTA_TABLAS, "verificaciones.csv"))
-  okc <- .col(t, "ok")
+  okc <- .col(t, "ok"); tipoc <- .col(t, "tipo")
   r$n_verif <- length(t$filas); r$n_verif_true <- sum(okc == "TRUE")
+  r$n_verif_no_ejec <- sum(okc == "NO_EJECUTADA")
+  # 2.2: desglose por tipo (recalculo/existencia/declaracion) -- "100/100
+  # verificaciones" sin desglose no dice cuanto de eso es evidencia real.
+  for (ti in c("recalculo", "existencia", "declaracion")) {
+    idx <- tipoc == ti
+    r[[paste0("n_verif_", ti)]] <- sum(idx)
+    r[[paste0("n_verif_", ti, "_true")]] <- sum(idx & okc == "TRUE")
+  }
   r
 }
 
@@ -1055,15 +1063,31 @@ construir_html <- function(fuente, num, nc) {
   aud <- c(
     sprintf(paste0("<p><code>procedencia.csv</code>: <strong>%d</strong> filas (una ",
       "por figura y por tabla). <code>verificaciones.csv</code>: <strong>%d</strong> ",
-      "filas, <strong>%d</strong> en TRUE. Tablas completas en ",
-      "<code>outputs/tables/</code>.</p>"),
-      num$n_procedencia, num$n_verif, num$n_verif_true),
+      "filas -- desglosadas por tipo, no un total unico, porque no todas prueban ",
+      "lo mismo (punto 2 de la revision externa): <strong>%d</strong>/",
+      "<strong>%d</strong> <code>recalculo</code> (vuelven a calcular o contrastar ",
+      "un resultado de forma independiente) en TRUE, <strong>%d</strong>/",
+      "<strong>%d</strong> <code>existencia</code> (confirman que un archivo ",
+      "existe y no esta vacio) en TRUE, <strong>%d</strong>/<strong>%d</strong> ",
+      "<code>declaracion</code> (registran una decision de metodo o una ",
+      "constante; no verifican su aplicacion caso por caso) en TRUE",
+      if (num$n_verif_no_ejec > 0)
+        sprintf(", <strong>%d</strong> NO_EJECUTADA", num$n_verif_no_ejec) else "",
+      ". Tablas completas en <code>outputs/tables/</code>.</p>"),
+      num$n_procedencia, num$n_verif,
+      num$n_verif_recalculo_true, num$n_verif_recalculo,
+      num$n_verif_existencia_true, num$n_verif_existencia,
+      num$n_verif_declaracion_true, num$n_verif_declaracion),
     "<h3>8.1 Procedencia</h3>",
     .csv_a_tabla(file.path(RUTA_TABLAS, "procedencia.csv")),
     "<h3>8.2 Verificaciones</h3>",
-    paste0('<p class="meta">Se omite la columna <code>valor_obtenido</code> ',
-      "(numeros de diagnostico que pueden diferir en el ultimo digito entre R y ",
-      "Python); la tabla completa esta en ",
+    paste0('<p class="meta">La columna <code>tipo</code> clasifica cada fila: ',
+      "<code>recalculo</code> (recalcula o contrasta un resultado de forma ",
+      "independiente), <code>existencia</code> (confirma que un archivo existe y ",
+      "no esta vacio) o <code>declaracion</code> (registra una decision de ",
+      "metodo o una constante; no verifica su aplicacion). Se omite la columna ",
+      "<code>valor_obtenido</code> (numeros de diagnostico que pueden diferir en ",
+      "el ultimo digito entre R y Python); la tabla completa esta en ",
       "<code>outputs/tables/verificaciones.csv</code>.</p>"),
     .csv_a_tabla(file.path(RUTA_TABLAS, "verificaciones.csv"),
                  omitir = "valor_obtenido")
@@ -1205,47 +1229,49 @@ main <- function() {
            "el pipeline no falla si no hay motor de PDF (estado: ", pdf_status, ")"))
   ))
   registrar_verificaciones(list(
-    list("informe_html_generado",
+    list("informe_html_generado", "recalculo",
          "docs/informe.html existe y no esta vacio",
          sprintf("%d secciones; %d figuras", n_sec, n_fig),
          "10 secciones",
          if (file.exists(ruta_html) && file.info(ruta_html)$size > 0 && n_sec == 10L)
            "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("informe_figuras_incrustadas",
+    list("informe_figuras_incrustadas", "recalculo",
          "todas las figuras del Acto 1 y 2 estan incrustadas en el informe",
          sprintf("figuras=%d; faltan=%s", n_fig,
                  if (length(faltan)) paste(faltan, collapse = ", ") else "[]"),
          "faltan = []",
          if (!length(faltan)) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("informe_reportes_incluidos",
+    list("informe_reportes_incluidos", "existencia",
          "todos los .md de seccion existen y se incluyeron",
          sprintf("secciones=%d; md_faltan=%s", length(SECCIONES),
                  if (length(md_faltan)) paste(md_faltan, collapse = ", ") else "[]"),
          "md_faltan = []",
          if (!length(md_faltan)) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("informe_figuras_procedencia_embebidas",
+    list("informe_figuras_procedencia_embebidas", "recalculo",
          "toda figura con fila en procedencia.csv esta incrustada en el informe",
          sprintf("procedencia=%d; embebidas=%d; sin_embeber=%s",
                  length(todas_en_procedencia), length(figs_todas),
                  if (length(sin_embeber)) paste(sin_embeber, collapse = ", ") else "[]"),
          "sin_embeber = []",
          if (!length(sin_embeber)) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("informe_pdf",
-         "docs/informe.pdf generado, o degradado limpio si no hay motor de PDF",
+    list("informe_pdf", "recalculo",
+         paste0("docs/informe.pdf generado (TRUE), degradado limpio si no hay ",
+                "motor de PDF (NO_EJECUTADA), o fallo real (FALSE)"),
          sprintf("estado=%s; existe=%s", pdf_status,
                  if (file.exists(ruta_pdf) && file.info(ruta_pdf)$size > 0)
                    "TRUE" else "FALSE"),
-         "ok | sin_motor | fallo (nunca frena el pipeline)",
-         if (pdf_status %in% c("ok", "sin_motor") ||
-             startsWith(pdf_status, "fallo")) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("informe_snapshot_paridad",
+         "ok -> TRUE | sin_motor -> NO_EJECUTADA | fallo:* -> FALSE",
+         if (pdf_status == "ok") "TRUE"
+         else if (pdf_status == "sin_motor") "NO_EJECUTADA"
+         else "FALSE", ESTE_SCRIPT),
+    list("informe_snapshot_paridad", "existencia",
          "snapshot por lenguaje para el byte-compare R/Python de 99_verificar",
          paste0("render/<lang>/: informe.html + informe.textonly.html + tables/*.md + ",
                 "pdf_status.txt"),
          "snapshot escrito",
          if (file.exists(file.path(snap, "informe.textonly.html"))) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("informe_sintetico_sin_interpretacion",
+    list("informe_sintetico_sin_interpretacion", "recalculo",
          paste0("con fuente sintetica, las secciones interpretativas (conclusion ",
                 "de seccion, sintesis, conclusion revisada) se reemplazan por el ",
                 "aviso de datos sinteticos -- nunca se arma la prosa biologica"),

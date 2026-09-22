@@ -295,14 +295,23 @@ def main():
         warn.append("paridad de render no evaluada: falta render/R o render/python "
                     "(corrida de un solo lenguaje)")
 
-    # --- 4. verificaciones.csv todas en TRUE ---------------------------
+    # --- 4. verificaciones.csv: ninguna en FALSE (NO_EJECUTADA no es fallo) ---
+    # NO_EJECUTADA marca una verificacion que no corrio en esta corrida (ej.
+    # comparacion R<->Python en -Only R, o PDF sin motor disponible) -- no es
+    # ni un pase ni un fallo, y no bloquea "TODAS LAS VERIFICACIONES PASARON".
     hv, fv = _leer_csv(cfg.RUTA_TABLAS / "verificaciones.csv")
     v_no_true = []
+    v_no_ejec = []
     if hv is not None and "ok" in hv:
         j = hv.index("ok")
         jd = hv.index("id") if "id" in hv else 0
-        v_no_true = [f[jd] for f in fv if not (j < len(f) and f[j] == "TRUE")]
-    chequear("verificaciones.csv: %d filas, todas TRUE" % (len(fv)),
+        v_no_true = [f[jd] for f in fv if j < len(f) and f[j] == "FALSE"]
+        v_no_ejec = [f[jd] for f in fv if j < len(f) and f[j] == "NO_EJECUTADA"]
+    if v_no_ejec:
+        warn.append("verificaciones.csv: %d fila(s) NO_EJECUTADA: %s" % (
+            len(v_no_ejec), ", ".join(v_no_ejec)))
+    chequear("verificaciones.csv: %d filas, ninguna en FALSE (%d NO_EJECUTADA)" % (
+             len(fv), len(v_no_ejec)),
              hv is not None and not v_no_true)
 
     # --- 5. log de corrida -------------------------------------------

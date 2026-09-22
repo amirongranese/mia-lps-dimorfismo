@@ -515,10 +515,10 @@ registrar_procedencia <- function(filas_nuevas) {
 }
 
 registrar_verificaciones <- function(filas_nuevas) {
-  header <- c("id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
+  header <- c("id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
   merge_por_script(file.path(RUTA_TABLAS, "verificaciones.csv"), header, filas_nuevas,
                    "script", function(fs) order(
-                     vapply(fs, `[[`, character(1), 6), vapply(fs, `[[`, character(1), 1),
+                     vapply(fs, `[[`, character(1), 7), vapply(fs, `[[`, character(1), 1),
                      method = "radix"))
 }
 
@@ -652,23 +652,23 @@ main <- function() {
   fig_ms <- file.exists(file.path(RUTA_FIGURAS, "acto1_elisa_ms.png"))
   fig_la <- file.exists(file.path(RUTA_FIGURAS, "acto1_elisa_la.png"))
   registrar_verificaciones(list(
-    list("elisa_ms_metodo", "MS: solo deteccion + Fisher exacto (D10, censura Control alta)",
+    list("elisa_ms_metodo", "declaracion", "MS: solo deteccion + Fisher exacto (D10, censura Control alta)",
          "fisher_deteccion", "fisher_deteccion", if (ms_ok) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("elisa_la_metodo", "LA: Peto-Peto G-rho=1 Control vs LPS, estratificado por sexo",
+    list("elisa_la_metodo", "declaracion", "LA: Peto-Peto G-rho=1 Control vs LPS, estratificado por sexo",
          "petopeto_por_sexo", "petopeto_por_sexo", "TRUE", ESTE_SCRIPT),
-    list("elisa_la_estratos", "estratos de LA", paste(SEXOS_LA, collapse = ";"),
+    list("elisa_la_estratos", "recalculo", "estratos de LA", paste(SEXOS_LA, collapse = ";"),
          "HEMBRA;MACHO", if (identical(SEXOS_LA, c("HEMBRA", "MACHO"))) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("elisa_descriptivo_grupos", "grupos en el descriptivo (MSx2 + LAx4)",
+    list("elisa_descriptivo_grupos", "recalculo", "grupos en el descriptivo (MSx2 + LAx4)",
          as.character(length(desc$filas)), "6",
          if (length(desc$filas) == 6L) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("elisa_lod", "LOD primario del ELISA (el blanco de la placa)",
+    list("elisa_lod", "declaracion", "LOD primario del ELISA (el blanco de la placa)",
          .fmt(LOD_ELISA), "0", if (LOD_ELISA == 0) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("elisa_reflexion_M", "constante de reflexion M = ceil(max Conc detectada)+1",
+    list("elisa_reflexion_M", "recalculo", "constante de reflexion M = ceil(max Conc detectada)+1",
          .fmt(M), ">0", if (M > 0) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("elisa_figura_ms", "figura Acto 1.1 suero materno existe",
+    list("elisa_figura_ms", "existencia", "figura Acto 1.1 suero materno existe",
          "acto1_elisa_ms.png", "existe", if (fig_ms) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("elisa_figura_la", "figura Acto 1.1 liquido amniotico existe",
+    list("elisa_figura_la", "existencia", "figura Acto 1.1 liquido amniotico existe",
          "acto1_elisa_la.png", "existe", if (fig_la) "TRUE" else "FALSE", ESTE_SCRIPT)
   ))
 

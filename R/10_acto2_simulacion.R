@@ -391,10 +391,10 @@ registrar_procedencia <- function(filas_nuevas) {
                      method = "radix"))
 }
 registrar_verificaciones <- function(filas_nuevas) {
-  header <- c("id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
+  header <- c("id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
   merge_por_script(file.path(RUTA_TABLAS, "verificaciones.csv"), header, filas_nuevas,
                    "script", function(fs) order(
-                     vapply(fs, `[[`, character(1), 6), vapply(fs, `[[`, character(1), 1),
+                     vapply(fs, `[[`, character(1), 7), vapply(fs, `[[`, character(1), 1),
                      method = "radix"))
 }
 
@@ -631,42 +631,42 @@ main <- function() {
          "PROPIO", ent, "reporte legible del Acto 2.5 (T8)")
   ))
   registrar_verificaciones(list(
-    list("acto2_sim_proposito",
+    list("acto2_sim_proposito", "declaracion",
          paste0("la simulacion descarta (o no) restriccion de rango antes de ",
                 "interpretar (prohibicion 5)"),
          paste0("normal bivariada en -ddCt con r verdadera comun y SD por grupo ",
                 "observadas; veredicto DENTRO/FUERA por escenario"),
          "prohibicion 5 atendida", "TRUE", ESTE_SCRIPT),
-    list("acto2_sim_escenarios",
+    list("acto2_sim_escenarios", "declaracion",
          "r verdadera comun probada como rango: GLOBAL (rho T7) y CONTROL (rho Control)",
          paste(ESCENARIOS, collapse = ";"), "GLOBAL;CONTROL",
          if (identical(ESCENARIOS, c("GLOBAL", "CONTROL"))) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("acto2_sim_inversion_rho_r",
+    list("acto2_sim_inversion_rho_r", "declaracion",
          "inversion rho_Spearman -> r_Pearson generativo para la normal bivariada",
          "r = 2*sin(pi*rho_S/6), recorte +/- 0.999999", "2*sin(pi*rho/6)",
          "TRUE", ESTE_SCRIPT),
-    list("acto2_sim_B_semilla",
+    list("acto2_sim_B_semilla", "declaracion",
          "repeticiones y semilla de la simulacion",
          sprintf("B=%d; semilla=%d; RNG PROPIO LCG+polar", B_SIM, SEMILLA),
          sprintf("B=%d, semilla 20260101", B_SIM),
          if (B_SIM == 2000L && SEMILLA == 20260101) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("acto2_sim_SD_por_grupo",
+    list("acto2_sim_SD_por_grupo", "declaracion",
          "las SD marginales simuladas por grupo son las SD observadas de ese grupo",
          paste0("sd_pla/sd_bra de pares(item, grupo); unica diferencia entre ",
                 "grupos en la simulacion"),
          "SD observadas", "TRUE", ESTE_SCRIPT),
-    list("acto2_sim_veredicto",
+    list("acto2_sim_veredicto", "declaracion",
          "veredicto por item x escenario (AMBOS_SEXOS): DENTRO (no se descarta rango) / FUERA",
          sprintf("%d celdas simuladas; DENTRO=%d; FUERA=%d", n_sim, n_dentro, n_fuera),
          "DENTRO/FUERA/sin_test", "TRUE", ESTE_SCRIPT),
-    list("acto2_sim_estratos_sexo",
+    list("acto2_sim_estratos_sexo", "declaracion",
          "ESTRATO = AMBOS_SEXOS/HEMBRA/MACHO, mismo diseno con SD observadas por sexo",
          paste(ESTRATOS, collapse = ";"), "AMBOS_SEXOS;HEMBRA;MACHO",
          if (identical(ESTRATOS, c("AMBOS_SEXOS", "HEMBRA", "MACHO"))) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("acto2_sim_estrato_particion",
+    list("acto2_sim_estrato_particion", "recalculo",
          "n(HEMBRA) + n(MACHO) = n(AMBOS_SEXOS) por item x escenario x grupo",
          sprintf("particiona en %d/%d celdas item x escenario%s",
                  length(ITEMS) * length(ESCENARIOS) - length(particion_sim_detalle),
@@ -675,12 +675,12 @@ main <- function() {
          sprintf("particiona en %d/%d celdas", length(ITEMS) * length(ESCENARIOS),
                  length(ITEMS) * length(ESCENARIOS)),
          if (particion_sim_ok) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("acto2_sim_tasa_fisher",
+    list("acto2_sim_tasa_fisher", "declaracion",
          paste0("se reporta la tasa de falsos positivos del Fisher z (09) bajo ",
                 "pura restriccion de rango"),
          "columna sim_tasa_fisher_sig por celda", "tasa reportada", "TRUE",
          ESTE_SCRIPT),
-    list("acto2_sim_figura",
+    list("acto2_sim_figura", "existencia",
          "figura Acto 2.5: Delta rho observado vs intervalo simulado",
          sprintf("sim=%s", file.exists(fig_sim)), "1 figura existe",
          if (file.exists(fig_sim)) "TRUE" else "FALSE", ESTE_SCRIPT)

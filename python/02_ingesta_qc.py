@@ -638,9 +638,9 @@ def registrar_procedencia(filas_nuevas):
 
 
 def registrar_verificaciones(filas_nuevas):
-    header = ["id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
+    header = ["id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
     merge_por_script(cfg.RUTA_TABLAS / "verificaciones.csv", header, filas_nuevas,
-                     "script", lambda f: (f[5], f[0]))
+                     "script", lambda f: (f[6], f[0]))
 
 
 BLOQUE_DESCARTES = """\
@@ -790,24 +790,24 @@ def main():
          ent_q + "; " + ent_e + "; " + ent_p, "reporte de QC legible"],
     ])
     registrar_verificaciones([
-        ["ingesta_qpcr_fetos_e15", "qPCR E15 tiene 36 fetos",
+        ["ingesta_qpcr_fetos_e15", "recalculo", "qPCR E15 tiene 36 fetos",
          _fmt(qd["n_fetos_e15"]), "36", "TRUE" if qd["n_fetos_e15"] == 36 else "FALSE",
          ESTE_SCRIPT],
-        ["ingesta_qpcr_filas_e15", "qPCR E15 tiene 36x2x10 = 720 filas",
+        ["ingesta_qpcr_filas_e15", "recalculo", "qPCR E15 tiene 36x2x10 = 720 filas",
          _fmt(qd["n_filas_e15"]), "720", "TRUE" if qd["n_filas_e15"] == 720 else "FALSE",
          ESTE_SCRIPT],
-        ["ingesta_qpcr_tejidos", "tejidos E15 = PLACENTA_E15;BRAIN_E15 (sin BRAIN_P1)",
+        ["ingesta_qpcr_tejidos", "recalculo", "tejidos E15 = PLACENTA_E15;BRAIN_E15 (sin BRAIN_P1)",
          ";".join(sorted({f["TEJIDO"] for f in qpcr_e15})),
          ";".join(sorted(cfg.TEJIDOS_E15)),
          "TRUE" if sorted({f["TEJIDO"] for f in qpcr_e15}) == sorted(cfg.TEJIDOS_E15)
          else "FALSE", ESTE_SCRIPT],
-        ["ingesta_ct_no_numerico", "no hay CT_CRUDO no numerico fuera de vacio",
+        ["ingesta_ct_no_numerico", "recalculo", "no hay CT_CRUDO no numerico fuera de vacio",
          _fmt(qd["n_ct_no_num"]), "0", "TRUE" if qd["n_ct_no_num"] == 0 else "FALSE",
          ESTE_SCRIPT],
-        ["ingesta_pstat3_balanceado", "pSTAT3: 3 membranas con igual n",
+        ["ingesta_pstat3_balanceado", "recalculo", "pSTAT3: 3 membranas con igual n",
          pd_["balinstr"], "1:12|2:12|3:12", "TRUE" if pd_["balanceado"] else "FALSE",
          ESTE_SCRIPT],
-        ["ingesta_elisa_bloques", "ELISA parte en MS y LA con n>0",
+        ["ingesta_elisa_bloques", "recalculo", "ELISA parte en MS y LA con n>0",
          f"MS={ed['MS']};LA={ed['LA']}", "MS>0;LA>0",
          "TRUE" if ed["MS"] > 0 and ed["LA"] > 0 else "FALSE", ESTE_SCRIPT],
     ])

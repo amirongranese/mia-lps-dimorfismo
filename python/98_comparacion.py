@@ -254,7 +254,7 @@ def auditar_descartados():
 def auditar_verificaciones():
     h, filas = _leer_csv(cfg.RUTA_TABLAS / "verificaciones.csv")
     if h is None:
-        return 0, 0, []
+        return 0, 0, [], []
     idx_ok = h.index("ok")
     idx_id = h.index("id")
     idx_sc = h.index("script")
@@ -262,8 +262,13 @@ def auditar_verificaciones():
     # sin importar el orden de ejecucion (R antes / despues de Python) ni re-corridas.
     filas = [f for f in filas if not (len(f) > idx_sc and f[idx_sc] == ESTE_SCRIPT)]
     total = len(filas)
-    no_true = [f[idx_id] for f in filas if not (len(f) > idx_ok and f[idx_ok] == "TRUE")]
-    return total, total - len(no_true), no_true
+    ok_vals = [f[idx_ok] if len(f) > idx_ok else "" for f in filas]
+    ids = [f[idx_id] for f in filas]
+    # NO_EJECUTADA (ej. comparacion R<->Python en -Only R) no es un fallo: no
+    # cuenta como "no", se reporta aparte en "no_ejec".
+    no = [i for i, v in zip(ids, ok_vals) if v == "FALSE"]
+    no_ejec = [i for i, v in zip(ids, ok_vals) if v == "NO_EJECUTADA"]
+    return total, sum(1 for v in ok_vals if v == "TRUE"), no, no_ejec
 
 
 # ---------------------------------------------------------------------------
@@ -437,16 +442,16 @@ def registrar_procedencia(filas_nuevas):
 
 
 def registrar_verificaciones(filas_nuevas):
-    header = ["id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
+    header = ["id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script"]
     merge_por_script(cfg.RUTA_TABLAS / "verificaciones.csv", header, filas_nuevas,
-                     "script", lambda f: (f[5], f[0]))
+                     "script", lambda f: (f[6], f[0]))
 
 
 # ---------------------------------------------------------------------------
 # Reporte legible.
 # ---------------------------------------------------------------------------
 def construir_reporte(fuente, comps, resumen, figs_sin, tabs_sin, desc_faltan,
-                      verif_total, verif_true, verif_no):
+                      verif_total, verif_true, verif_no, verif_no_ejec=0):
     L = []
     ap = L.append
     ap("# Comparacion R <-> Python y auditoria (T10)")
@@ -490,7 +495,7 @@ def construir_reporte(fuente, comps, resumen, figs_sin, tabs_sin, desc_faltan,
     ap("## 4. Auditoria de verificaciones.csv")
     ap("")
     ap(f"- Filas: **{verif_total}**. En TRUE: **{verif_true}**. "
-       f"Distintas de TRUE: **{verif_no or 'ninguna'}**.")
+       f"NO_EJECUTADA: **{verif_no_ejec}**. En FALSE: **{verif_no or 'ninguna'}**.")
     ap("")
     ap("## 5. Notas")
     ap("")
@@ -554,7 +559,7 @@ def main():
     figuras = sorted(cfg.RUTA_FIGURAS.glob("*.png"))
     figs_sin, tabs_sin = auditar_procedencia(figuras, csv_r)
     desc_faltan = auditar_descartados()
-    verif_total, verif_true, verif_no = auditar_verificaciones()
+    verif_total, verif_true, verif_no, verif_no_ejec = auditar_verificaciones()
 
     resumen = {"n": len(comps), "byte": n_byte, "fuera": total["n_fuera_tol"]
                + total["n_dif_texto"], "peor_abs": peor_abs, "peor_arch": peor_arch,
@@ -563,7 +568,8 @@ def main():
     escribir_texto(cfg.RUTA_TABLAS / "comparacion_reporte.md",
                    construir_reporte(fuente, comps, resumen, ", ".join(figs_sin),
                                      ", ".join(tabs_sin), ", ".join(desc_faltan),
-                                     verif_total, verif_true, ", ".join(verif_no)))
+                                     verif_total, verif_true, ", ".join(verif_no),
+                                     len(verif_no_ejec)))
     actualizar_descartados()
 
     # --- procedencia / verificaciones (filas de 98_comparacion) ---
@@ -588,43 +594,44 @@ def main():
          "una seccion por script de analisis (02..11); cobertura verificada en T10"],
     ])
     registrar_verificaciones([
-        ["comp_cobertura_csv",
+        ["comp_cobertura_csv", "recalculo",
          "todo CSV de outputs/tables/R/ tiene gemelo en python/ y viceversa",
          f"R={len(nombres_r)}; python={len(nombres_py)}; solo_R={len(solo_r)}; "
          f"solo_python={len(solo_py)}",
          "sin huerfanos en ningun lado",
          "TRUE" if (not solo_r and not solo_py) else "FALSE", ESTE_SCRIPT],
-        ["comp_headers_iguales",
+        ["comp_headers_iguales", "recalculo",
          "el encabezado coincide en los pares comparados",
          f"{sum(1 for d in comps if d['header_igual'])}/{len(comps)} con header igual",
          f"{len(comps)}/{len(comps)}",
          "TRUE" if all(d["header_igual"] for d in comps) else "FALSE", ESTE_SCRIPT],
-        ["comp_dentro_tolerancia",
+        ["comp_dentro_tolerancia", "recalculo",
          "concordancia numerica R<->python dentro de 1e-6 (fallback 1e-4)",
          f"archivos={len(comps)}; byte_identicos={n_byte}; fuera_tol="
          f"{total['n_fuera_tol']}; dif_texto={total['n_dif_texto']}; "
          f"peor|dif|abs={peor_abs:.2e}",
          "0 celdas fuera de tolerancia; 0 diferencias de texto",
          "TRUE" if n_fuera == 0 else "FALSE", ESTE_SCRIPT],
-        ["audit_procedencia_figuras",
+        ["audit_procedencia_figuras", "recalculo",
          "toda figura de outputs/figures/ tiene fila en procedencia.csv",
          f"figuras={len(figuras)}; sin_fila={figs_sin or '[]'}",
          "sin_fila = []",
          "TRUE" if not figs_sin else "FALSE", ESTE_SCRIPT],
-        ["audit_procedencia_tablas",
+        ["audit_procedencia_tablas", "recalculo",
          "toda tabla outputs/tables/{R,python}/*.csv tiene fila en procedencia.csv",
          f"tablas={len(nombres_r)}; sin_fila={tabs_sin or '[]'}",
          "sin_fila = []",
          "TRUE" if not tabs_sin else "FALSE", ESTE_SCRIPT],
-        ["audit_descartados_cobertura",
+        ["audit_descartados_cobertura", "recalculo",
          "analisis_descartados.md tiene una seccion por script de analisis (02..11)",
          f"esperados={len(SCRIPTS_ANALISIS)}; faltan={desc_faltan or '[]'}",
          "faltan = []",
          "TRUE" if not desc_faltan else "FALSE", ESTE_SCRIPT],
-        ["audit_verificaciones_ok",
-         "ninguna fila de verificaciones.csv queda distinta de TRUE",
-         f"total={verif_total}; TRUE={verif_true}; no_TRUE={verif_no or '[]'}",
-         "no_TRUE = []",
+        ["audit_verificaciones_ok", "recalculo",
+         "ninguna fila de verificaciones.csv queda en FALSE (NO_EJECUTADA no es fallo)",
+         f"total={verif_total}; TRUE={verif_true}; NO_EJECUTADA={verif_no_ejec}; "
+         f"FALSE={verif_no or '[]'}",
+         "FALSE = []",
          "TRUE" if not verif_no else "FALSE", ESTE_SCRIPT],
     ])
 
@@ -644,7 +651,7 @@ def main():
           f"tablas sin fila = {tabs_sin or '[]'}")
     print(f"  descartados: sin seccion = {desc_faltan or '[]'}")
     print(f"  verificaciones: {verif_true}/{verif_total} en TRUE; "
-          f"distintas de TRUE = {verif_no or '[]'}")
+          f"NO_EJECUTADA={verif_no_ejec}; en FALSE = {verif_no or '[]'}")
     todo_ok = (not malos and not solo_r and not solo_py and not figs_sin
                and not tabs_sin and not desc_faltan and not verif_no)
     print("  -> outputs/tables/comparacion_R_python.csv, comparacion_reporte.md")

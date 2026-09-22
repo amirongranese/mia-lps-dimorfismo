@@ -617,10 +617,10 @@ registrar_procedencia <- function(filas_nuevas) {
                      method = "radix"))
 }
 registrar_verificaciones <- function(filas_nuevas) {
-  header <- c("id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
+  header <- c("id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
   merge_por_script(file.path(RUTA_TABLAS, "verificaciones.csv"), header, filas_nuevas,
                    "script", function(fs) order(
-                     vapply(fs, `[[`, character(1), 6), vapply(fs, `[[`, character(1), 1),
+                     vapply(fs, `[[`, character(1), 7), vapply(fs, `[[`, character(1), 1),
                      method = "radix"))
 }
 
@@ -896,63 +896,63 @@ main <- function() {
          "PROPIO", ent, "reporte legible del Acto 2.6 (T9)")
   ))
   registrar_verificaciones(list(
-    list("sens_eigengene_pca_propio",
+    list("sens_eigengene_pca_propio", "recalculo",
          paste0("PC1 por eigendescomposicion PROPIA (Jacobi sin trigonometria), ",
                 "no prcomp/sklearn en el resultado"),
          sprintf("peor |dif| PC1 vs libreria de referencia = %.2e", peor_pca),
          "< 1e-6", if (peor_pca < 1e-6) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("sens_eigengene_pc1_signo",
+    list("sens_eigengene_pc1_signo", "recalculo",
          "signo de PC1 fijado a cargas mayoritariamente positivas (suma>0)",
          sprintf("cargas>0: placenta %d/7, cerebro %d/7",
                  cargas_pos[["PLACENTA_E15"]], cargas_pos[["BRAIN_E15"]]),
          "mayoria positiva por tejido",
          if (cargas_pos[["PLACENTA_E15"]] >= 4 && cargas_pos[["BRAIN_E15"]] >= 4)
            "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("sens_eigengene_var_pc1",
+    list("sens_eigengene_var_pc1", "recalculo",
          "proporcion de varianza de PC1 por tejido (contexto del eigengene)",
          sprintf("placenta %.3f; cerebro %.3f", pv_pla, pv_bra), "0 < prop <= 1",
          if (pv_pla > 0 && pv_pla <= 1 && pv_bra > 0 && pv_bra <= 1) "TRUE" else
            "FALSE", ESTE_SCRIPT),
-    list("sens_eigengene_matriz_psd",
+    list("sens_eigengene_matriz_psd", "recalculo",
          paste0("la matriz de correlacion pairwise-complete puede ser levemente ",
                 "indefinida; PC1 domina y no se afecta"),
          sprintf("min autovalor: placenta %.3f; cerebro %.3f; PC1 var %.2f/%.2f",
                  min_ev_pla, min_ev_bra, pv_pla, pv_bra),
          "PC1 >> resto (traza = 7)",
          if (pv_pla > 0.5 && pv_bra > 0.5) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("sens_eigengene_correlacion_global",
+    list("sens_eigengene_correlacion_global", "declaracion",
          "rho GLOBAL placenta<->cerebro: eigengene vs score compuesto",
          sprintf("eigengene rho=%s (n=%s); score rho=%s (n=%s)",
                  ei_glob[[4]], ei_glob[[3]], sc_glob[[4]], sc_glob[[3]]),
          "ambos descritos, misma direccion cualitativa", "TRUE", ESTE_SCRIPT),
-    list("sens_eigengene_fisher_z",
+    list("sens_eigengene_fisher_z", "recalculo",
          "Fisher z Control vs LPS: el eigengene no cambia el veredicto del score",
          sprintf("eigengene p_bw=%s; score p_bw=%s", ei_test[[12]], sc_test[[12]]),
          "ninguno alcanza p_bw<.05 (consistente con T8)",
          if (nzchar(ei_test[[12]]) && nzchar(sc_test[[12]]) &&
              as.numeric(ei_test[[12]]) >= 0.05 && as.numeric(sc_test[[12]]) >= 0.05)
            "TRUE" else "REVISAR", ESTE_SCRIPT),
-    list("sens_excl_extremo_criterio",
+    list("sens_excl_extremo_criterio", "declaracion",
          paste0("feto extremo = leave-one-out sobre rho GLOBAL (no Cook); blanco ",
                 "rho GLOBAL (decision del usuario)"),
          "argmax_i |rho_full - rho_sin_i| por item, sobre el estrato GLOBAL",
          "LOO sobre rho GLOBAL", "TRUE", ESTE_SCRIPT),
-    list("sens_excl_extremo_items",
+    list("sens_excl_extremo_items", "recalculo",
          "items del control (B): 8 genes de T7/T8 + score compuesto + eigengene",
          sprintf("%d items; %d con Fisher z (n>=5 por grupo)",
                  length(ITEMS_LOO), n_testados_b),
          "10 items", if (length(ITEMS_LOO) == 10L) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("sens_excl_extremo_veredicto",
+    list("sens_excl_extremo_veredicto", "declaracion",
          "cuantos items cambian el veredicto p_bw<.05 al excluir su feto extremo",
          sprintf("%d de %d items testeados cambian de veredicto", n_cambia,
                  n_testados_b),
          "reportado; el informe menciona el numero", "TRUE", ESTE_SCRIPT),
-    list("sens_excl_extremo_no_reestima_pc1",
+    list("sens_excl_extremo_no_reestima_pc1", "declaracion",
          "en el item eigengene NO se re-estima PC1 al quitar el feto extremo",
          "cargas de PC1 calculadas sobre los 36 fetos, fijas en el LOO",
          "PC1 fijo", "TRUE", ESTE_SCRIPT),
-    list("sens_figuras",
+    list("sens_figuras", "existencia",
          paste0("figuras Acto 2.6: eigengene (cargas + dispersion + rho) y ",
                 "exclusion del extremo"),
          sprintf("eigengene=%s;excl_extremo=%s", file.exists(fig_e),

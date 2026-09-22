@@ -706,10 +706,10 @@ registrar_procedencia <- function(filas_nuevas) {
                      method = "radix"))
 }
 registrar_verificaciones <- function(filas_nuevas) {
-  header <- c("id", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
+  header <- c("id", "tipo", "descripcion", "valor_obtenido", "valor_esperado", "ok", "script")
   merge_por_script(file.path(RUTA_TABLAS, "verificaciones.csv"), header, filas_nuevas,
                    "script", function(fs) order(
-                     vapply(fs, `[[`, character(1), 6), vapply(fs, `[[`, character(1), 1),
+                     vapply(fs, `[[`, character(1), 7), vapply(fs, `[[`, character(1), 1),
                      method = "radix"))
 }
 
@@ -936,34 +936,39 @@ main <- function() {
   ok_via <- via_cont[["modelo"]] == 18L && via_cont[["D7_deteccion"]] == 1L &&
             via_cont[["descriptivo_n_bajo"]] == 1L
   registrar_verificaciones(list(
-    list("modelos_via_conteo",
+    list("modelos_via_conteo", "recalculo",
          "20 gen x tejido repartidos en via modelo / D7 / descriptivo",
          sprintf("modelo=%d;D7_deteccion=%d;descriptivo_n_bajo=%d",
                  via_cont[["modelo"]], via_cont[["D7_deteccion"]],
                  via_cont[["descriptivo_n_bajo"]]),
          "modelo=18;D7_deteccion=1;descriptivo_n_bajo=1",
          if (ok_via) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("modelos_rama_conteo", "reparto de ramas de la cascada D5",
-         resumen_rama, "anova3+hc3+art = 18",
-         if (sum(rama_cont) == 18L) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("modelos_alfa", "alfa para gate D6 y pretests de supuestos",
+    list("modelos_rama_conteo", "recalculo",
+         "cada gen x tejido modelado usa la rama que corresponde a sus propios Shapiro/Levene",
+         resumen_rama,
+         "rama = art si Shapiro<alfa; hc3 si Shapiro>=alfa & Levene<alfa; anova3 si ambos >=alfa",
+         if (!length(Filter(function(r) r$via == "modelo" &&
+             r$rama != (if (r$shapiro_p < ALFA) "art"
+                        else if (r$levene_p < ALFA) "hc3" else "anova3"),
+             registros))) "TRUE" else "FALSE", ESTE_SCRIPT),
+    list("modelos_alfa", "declaracion", "alfa para gate D6 y pretests de supuestos",
          g10(ALFA), "0.05", if (ALFA == 0.05) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("modelos_piso_celda",
+    list("modelos_piso_celda", "declaracion",
          "minimo de detectados por celda SEXO x TTO para modelar",
          as.character(PISO_CELDA), "5", if (PISO_CELDA == 5L) "TRUE" else "FALSE",
          ESTE_SCRIPT),
-    list("modelos_posthoc_holm",
+    list("modelos_posthoc_holm", "declaracion",
          "post hoc D6: 4 comparaciones fijas con correccion Holm",
          sprintf("%d gen x tejido; 4 comparaciones c/u; Holm", n_posthoc),
          "solo si interaccion p < alfa", "TRUE", ESTE_SCRIPT),
-    list("modelos_art_core_vs_artool",
+    list("modelos_art_core_vs_artool", "declaracion",
          paste0("ART y ART-C PROPIOS; R cruza-verifica en corrida contra ARTool ",
                 "(stopifnot 1e-6)"),
          "nucleo PROPIO identico R/Python; Shapiro-Wilk por libreria",
          "verificado", "TRUE", ESTE_SCRIPT),
-    list("modelos_bh_d12", "columna suplementaria BH entre genes por tejido (D12)",
+    list("modelos_bh_d12", "declaracion", "columna suplementaria BH entre genes por tejido (D12)",
          resumen_bh, "no cambia conclusiones", "TRUE", ESTE_SCRIPT),
-    list("modelos_d7_il6_brain",
+    list("modelos_d7_il6_brain", "recalculo",
          "il6 @ BRAIN_E15 fuera del modelo (D7), solo deteccion",
          sprintf("%d gen x tejido via D7", via_cont[["D7_deteccion"]]),
          "il6@BRAIN_E15", if (via_cont[["D7_deteccion"]] == 1L) "TRUE" else "FALSE",
