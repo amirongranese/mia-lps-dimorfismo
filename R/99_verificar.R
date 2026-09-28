@@ -13,7 +13,18 @@
 #   4. ninguna fila de verificaciones.csv quedo distinta de TRUE.
 # Escribe logs/corrida_<fecha>.txt (fecha, entorno, versiones, semilla, fuente,
 # concordancia, cuantas verificaciones pasaron) e imprime
-# `TODAS LAS VERIFICACIONES PASARON` si y solo si todo lo duro pasa.
+# `TODAS LAS VERIFICACIONES PASARON` si y solo si todo lo duro pasa Y nada quedo
+# sin ejecutar.
+#
+# UNA SOLA IMPLEMENTACION (punto 4.3 de pedidos/cambios_revision_codex.md): quien
+# solo tenga R (o solo Python) tiene que poder verificar su mitad. Con
+# `run_all.ps1 -Only R|python` no corre 98_comparacion, asi que los chequeos 2 y 3
+# (cruce R<->Python) no se pueden ejecutar: quedan en un tercer estado,
+# NO_EJECUTADA -- ni pase ni fallo, visible en la salida y en el log. En ese caso
+# la salida final dice VERIFICACION PARCIAL, nunca "TODAS LAS VERIFICACIONES
+# PASARON". El modo lo informa la variable de entorno MIA_LPS_UNICA_IMPL, que
+# escribe run_all.ps1; corriendo 99 a mano, la ausencia de la contraparte en
+# outputs/tables/ tiene el mismo efecto.
 #
 # NO hace analisis. Solo lee salidas. `docs/informe.pdf` es blando: si 12_informe
 # no encontro motor de PDF, su ausencia no frena la verificacion (AGENTS 8).
@@ -32,6 +43,9 @@ source(file.path(.aqui, "00_config.R"), encoding = "UTF-8")
 LANG <- "R"
 TOL_EST <- TOL_ESTADISTICO
 TOL_P <- TOL_P_ITERATIVO
+
+# Corrida de una sola implementacion: "R", "python" o "" (corrida completa).
+UNICA_IMPL <- Sys.getenv("MIA_LPS_UNICA_IMPL", "")
 
 # --- Checklist de AGENTS.md 1 ------------------------------------------
 SCRIPTS_NUM <- c(
@@ -167,7 +181,7 @@ no_vacio <- function(ruta) file.exists(ruta) && file.info(ruta)$size > 0
 
 # =========================================================================
 main <- function() {
-  dur <- character(0); warn <- character(0)
+  dur <- character(0); warn <- character(0); sinej <- character(0)
   chk_ok <- 0L; chk_tot <- 0L
   chequear <- function(desc, cond, blando = FALSE) {
     chk_tot <<- chk_tot + 1L
@@ -176,9 +190,30 @@ main <- function() {
     else dur <<- c(dur, desc)
     isTRUE(cond)
   }
+  # Tercer estado: el chequeo no se pudo ejecutar en esta corrida. No cuenta
+  # como pase (no suma a chk_ok) ni como fallo (no suma a dur).
+  sin_ejecutar <- function(desc, motivo) {
+    chk_tot <<- chk_tot + 1L
+    sinej <<- c(sinej, sprintf("%s [%s]", desc, motivo))
+    FALSE
+  }
 
   raiz <- RAIZ_REPO
   fuente <- fuente_datos(ARCHIVO_QPCR)
+
+  # --- Se puede cruzar R contra Python en esta corrida? ------------------
+  csv_r <- sort(list.files(RUTA_TABLAS_R, pattern = "\\.csv$"), method = "radix")
+  csv_py <- sort(list.files(RUTA_TABLAS_PY, pattern = "\\.csv$"), method = "radix")
+  solo_una <- nzchar(UNICA_IMPL)
+  otro_lang <- if (LANG == "R") "python" else "R"
+  # Con -Only, lo que haya en disco de la contraparte es de OTRA corrida: no
+  # sirve de comparacion, aunque exista.
+  cruce_posible <- !solo_una && length(csv_r) > 0L && length(csv_py) > 0L
+  motivo_cruce <- if (solo_una)
+    sprintf("corrida de una sola implementacion (-Only %s): 98_comparacion no corrio",
+            UNICA_IMPL)
+  else
+    "no hay salidas de la contraparte en outputs/tables/ para comparar"
 
   # --- 1. Checklist de AGENTS 1 -------------------------------------
   for (f in c("AGENTS.md", "CLAUDE.md", "README.md", "ESTADO.md",
@@ -196,17 +231,27 @@ main <- function() {
              no_vacio(file.path(RUTA_DATOS_SINT, t)))
   for (fg in c(FIG_ACTO1, FIG_ACTO2))
     chequear(sprintf("figura: %s", fg), no_vacio(file.path(RUTA_FIGURAS, fg)))
-  for (m in REPORTES_MD)
-    chequear(sprintf("reporte: outputs/tables/%s", m),
-             no_vacio(file.path(RUTA_TABLAS, m)))
-  for (t in c("procedencia.csv", "verificaciones.csv", "comparacion_R_python.csv"))
-    chequear(sprintf("auditoria: outputs/tables/%s", t),
-             no_vacio(file.path(RUTA_TABLAS, t)))
+  # comparacion_reporte.md y comparacion_R_python.csv los escribe 98_comparacion:
+  # si no corrio, lo que haya en disco es de otra corrida -> NO_EJECUTADA.
+  for (m in REPORTES_MD) {
+    desc <- sprintf("reporte: outputs/tables/%s", m)
+    if (m == "comparacion_reporte.md" && solo_una) sin_ejecutar(desc, motivo_cruce)
+    else chequear(desc, no_vacio(file.path(RUTA_TABLAS, m)))
+  }
+  for (t in c("procedencia.csv", "verificaciones.csv", "comparacion_R_python.csv")) {
+    desc <- sprintf("auditoria: outputs/tables/%s", t)
+    if (t == "comparacion_R_python.csv" && solo_una) sin_ejecutar(desc, motivo_cruce)
+    else chequear(desc, no_vacio(file.path(RUTA_TABLAS, t)))
+  }
 
-  csv_r <- sort(list.files(RUTA_TABLAS_R, pattern = "\\.csv$"), method = "radix")
-  csv_py <- sort(list.files(RUTA_TABLAS_PY, pattern = "\\.csv$"), method = "radix")
-  chequear("outputs/tables/R/ tiene CSV", length(csv_r) > 0L)
-  chequear("outputs/tables/python/ tiene CSV", length(csv_py) > 0L)
+  if (solo_una) {
+    chequear(sprintf("outputs/tables/%s/ tiene CSV", LANG),
+             length(if (LANG == "R") csv_r else csv_py) > 0L)
+    sin_ejecutar(sprintf("outputs/tables/%s/ tiene CSV", otro_lang), motivo_cruce)
+  } else {
+    chequear("outputs/tables/R/ tiene CSV", length(csv_r) > 0L)
+    chequear("outputs/tables/python/ tiene CSV", length(csv_py) > 0L)
+  }
 
   chequear("informe: docs/informe.html", no_vacio(file.path(RUTA_DOCS, "informe.html")))
 
@@ -222,29 +267,35 @@ main <- function() {
            pdf_ok || pdf_status != "ok", blando = !pdf_ok)
 
   # --- 2. Concordancia numerica R <-> Python ---------------------
-  comunes <- sort(intersect(csv_r, csv_py), method = "radix")
-  solo_r <- sort(setdiff(csv_r, csv_py), method = "radix")
-  solo_py <- sort(setdiff(csv_py, csv_r), method = "radix")
-  chequear("sin CSV huerfanos entre R/ y python/",
-           !length(solo_r) && !length(solo_py))
-  comps <- lapply(comunes, function(n)
-    comparar_archivo(n, file.path(RUTA_TABLAS_R, n), file.path(RUTA_TABLAS_PY, n)))
-  n_byte <- sum(vapply(comps, function(d) d$byte_identico, logical(1)))
-  n_fuera <- sum(vapply(comps, function(d) d$n_fuera_tol, integer(1)))
-  n_dif_txt <- sum(vapply(comps, function(d) d$n_dif_texto, integer(1)))
-  peor_abs <- if (length(comps))
-    max(vapply(comps, function(d) d$max_dif_abs, numeric(1))) else 0
-  malos <- Filter(nzchar, vapply(comps, function(d)
-    if (d$ok) "" else d$archivo, character(1)))
-  chequear(sprintf("concordancia numerica R<->Python (%d CSV, tol 1e-6/1e-4)",
-                   length(comps)),
-           !length(malos) && n_fuera == 0L && n_dif_txt == 0L)
+  comps <- list(); n_byte <- 0L; n_fuera <- 0L; n_dif_txt <- 0L; peor_abs <- 0
+  if (cruce_posible) {
+    comunes <- sort(intersect(csv_r, csv_py), method = "radix")
+    solo_r <- sort(setdiff(csv_r, csv_py), method = "radix")
+    solo_py <- sort(setdiff(csv_py, csv_r), method = "radix")
+    chequear("sin CSV huerfanos entre R/ y python/",
+             !length(solo_r) && !length(solo_py))
+    comps <- lapply(comunes, function(n)
+      comparar_archivo(n, file.path(RUTA_TABLAS_R, n), file.path(RUTA_TABLAS_PY, n)))
+    n_byte <- sum(vapply(comps, function(d) d$byte_identico, logical(1)))
+    n_fuera <- sum(vapply(comps, function(d) d$n_fuera_tol, integer(1)))
+    n_dif_txt <- sum(vapply(comps, function(d) d$n_dif_texto, integer(1)))
+    peor_abs <- if (length(comps))
+      max(vapply(comps, function(d) d$max_dif_abs, numeric(1))) else 0
+    malos <- Filter(nzchar, vapply(comps, function(d)
+      if (d$ok) "" else d$archivo, character(1)))
+    chequear(sprintf("concordancia numerica R<->Python (%d CSV, tol 1e-6/1e-4)",
+                     length(comps)),
+             !length(malos) && n_fuera == 0L && n_dif_txt == 0L)
+  } else {
+    sin_ejecutar("sin CSV huerfanos entre R/ y python/", motivo_cruce)
+    sin_ejecutar("concordancia numerica R<->Python", motivo_cruce)
+  }
 
   # --- 3. Paridad de render R <-> Python -----------------------
   ren_r <- file.path(RUTA_INTERMEDIOS, "render", "R")
   ren_py <- file.path(RUTA_INTERMEDIOS, "render", "python")
   paridad_render <- "n/d"
-  if (dir.exists(ren_r) && dir.exists(ren_py)) {
+  if (cruce_posible && dir.exists(ren_r) && dir.exists(ren_py)) {
     difs <- character(0)
     a <- leer_bytes(file.path(ren_r, "informe.textonly.html"))
     b <- leer_bytes(file.path(ren_py, "informe.textonly.html"))
@@ -267,9 +318,8 @@ main <- function() {
       paste0("DIFIEREN: ", paste(difs, collapse = ", "))
     chequear("paridad R<->Python de .md e informe (sin figuras)", !length(difs))
   } else {
-    paridad_render <- "sin contraparte (corrida de un solo lenguaje)"
-    warn <- c(warn, paste0("paridad de render no evaluada: falta render/R o ",
-                           "render/python (corrida de un solo lenguaje)"))
+    paridad_render <- "NO_EJECUTADA"
+    sin_ejecutar("paridad R<->Python de .md e informe (sin figuras)", motivo_cruce)
   }
 
   # --- 4. verificaciones.csv: ninguna en FALSE (NO_EJECUTADA no es fallo) ----
@@ -286,9 +336,6 @@ main <- function() {
     v_no_true <- id_col[ok_col == "FALSE"]
     v_no_ejec <- id_col[ok_col == "NO_EJECUTADA"]
   }
-  if (length(v_no_ejec))
-    warn <- c(warn, sprintf("verificaciones.csv: %d fila(s) NO_EJECUTADA: %s",
-                            length(v_no_ejec), paste(v_no_ejec, collapse = ", ")))
   chequear(sprintf("verificaciones.csv: %d filas, ninguna en FALSE (%d NO_EJECUTADA)",
                    length(vf$filas), length(v_no_ejec)),
            !is.null(vf$header) && !length(v_no_true))
@@ -311,13 +358,20 @@ main <- function() {
     sprintf("- paridad render   : %s", paridad_render),
     sprintf("- informe.pdf      : %s (estado 12_informe: %s)",
             if (pdf_ok) "presente" else "ausente", pdf_status),
-    sprintf("- verificaciones   : %d/%d chequeos duros OK; avisos: %d",
-            chk_ok, chk_tot, length(warn)),
-    sprintf("- resultado        : %s",
-            if (!length(dur)) "TODAS LAS VERIFICACIONES PASARON"
-            else sprintf("VERIFICACION FALLIDA (%d)", length(dur)))
+    sprintf("- verificaciones   : %d/%d chequeos duros OK; %d NO_EJECUTADA; avisos: %d",
+            chk_ok, chk_tot, length(sinej), length(warn)),
+    sprintf("- modo             : %s",
+            if (solo_una) sprintf("una sola implementacion (%s)", UNICA_IMPL)
+            else "R + Python"),
+    sprintf("- filas NO_EJECUTADA de verificaciones.csv: %d%s",
+            length(v_no_ejec),
+            if (length(v_no_ejec)) paste0(" (", paste(v_no_ejec, collapse = ", "), ")")
+            else ""),
+    sprintf("- resultado        : %s", .resultado(dur, sinej, v_no_ejec))
   )
   if (length(dur)) seccion <- c(seccion, "", "### Fallos", paste0("  - ", dur))
+  if (length(sinej))
+    seccion <- c(seccion, "", "### No ejecutadas", paste0("  - ", sinej))
   if (length(warn)) seccion <- c(seccion, "", "### Avisos", paste0("  - ", warn))
   seccion <- c(seccion, "")
   .escribir_log(fecha, paste(seccion, collapse = "\n"))
@@ -325,13 +379,21 @@ main <- function() {
   # --- salida legible --------------------------------------
   cat("== 99_verificar.R ==\n")
   cat(sprintf("  fuente = %s\n", fuente))
-  cat(sprintf("  checklist: %d/%d chequeos duros OK\n", chk_ok, chk_tot))
+  cat(sprintf("  modo   = %s\n",
+              if (solo_una) sprintf("una sola implementacion (%s)", UNICA_IMPL)
+              else "R + Python"))
+  cat(sprintf("  checklist: %d/%d chequeos duros OK; %d NO_EJECUTADA\n",
+              chk_ok, chk_tot, length(sinej)))
   cat(sprintf(paste0("  CSV R<->Python: %d; byte-identicos %d; fuera de tol %d; ",
               "peor |dif| %.2e\n"), length(comps), n_byte, n_fuera, peor_abs))
   cat(sprintf("  paridad render: %s\n", paridad_render))
   cat(sprintf("  informe.pdf: %s (%s)\n", if (pdf_ok) "ok" else "ausente", pdf_status))
   cat(sprintf("  log -> logs/corrida_%s.txt\n", fecha))
   for (w in warn) cat(sprintf("  aviso: %s\n", w))
+  for (s in sinej) cat(sprintf("  NO_EJECUTADA: %s\n", s))
+  if (length(v_no_ejec))
+    cat(sprintf("  NO_EJECUTADA (filas de verificaciones.csv): %s\n",
+                paste(v_no_ejec, collapse = ", ")))
   if (length(dur)) {
     cat("\n")
     for (d in dur) cat(sprintf("  FALLA: %s\n", d))
@@ -339,7 +401,22 @@ main <- function() {
                 length(dur)))
     quit(status = 1L)
   }
-  cat("\n  TODAS LAS VERIFICACIONES PASARON\n")
+  cat(sprintf("\n  %s\n", .resultado(dur, sinej, v_no_ejec)))
+  if (length(sinej) || length(v_no_ejec))
+    cat(paste0("  (sin fallos, pero algo quedo sin ejecutar: para la validacion ",
+               "completa correr .\\run_all.ps1 sin -Only)\n"))
+}
+
+# Una sola implementacion o una verificacion sin ejecutar => VERIFICACION
+# PARCIAL. "TODAS LAS VERIFICACIONES PASARON" exige cero fallos y cero
+# NO_EJECUTADA, en los chequeos duros y en verificaciones.csv (punto 4.3).
+.resultado <- function(dur, sinej, v_no_ejec) {
+  if (length(dur)) return(sprintf("VERIFICACION FALLIDA (%d)", length(dur)))
+  if (length(sinej) || length(v_no_ejec))
+    return(sprintf(paste0("VERIFICACION PARCIAL: 0 fallos, %d chequeo(s) y %d ",
+                          "fila(s) NO_EJECUTADA"),
+                   length(sinej), length(v_no_ejec)))
+  "TODAS LAS VERIFICACIONES PASARON"
 }
 
 .escribir_log <- function(fecha, seccion_lang) {

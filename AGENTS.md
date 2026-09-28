@@ -259,7 +259,8 @@ acá" donde corresponde. **Al abrir sesión nueva:** leer `AGENTS.md` y `ESTADO.
 
 - **Python** 3.13 con numpy, pandas, scipy, statsmodels, matplotlib, seaborn, scikit-learn,
   pingouin, patsy, openpyxl. **A instalar:** `lifelines`, `nbconvert`, `nbformat`, `jinja2`.
-- **R** 4.6.1 (`C:\Program Files\R\R-4.6.1`) con car, ARTool, emmeans, survival, sandwich,
+- **R** 4.6.1 (`C:\Program Files\R\R-4.6.1` en esta maquina; `run_all.ps1` resuelve
+  `Rscript` solo, sin rutas fijas -- ver README 2.0) con car, ARTool, emmeans, survival, sandwich,
   lmtest, nlme, rmarkdown, ggplot2, readxl, writexl. **A instalar:** `NADA`, `GGally`,
   y **pandoc** (para render del informe).
 - Si no hubiera LaTeX: `docs/informe.pdf` vía impresión headless del HTML
