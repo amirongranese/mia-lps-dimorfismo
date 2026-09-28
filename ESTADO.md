@@ -2943,3 +2943,181 @@ contraste esperado sí se observó con claridad en los 4 genes elegidos).
   `analisis_descartados.md` (D13), decisión de publicación de
   `docs/`/`outputs/`, SPLOM de la sesión 19c, y los avisos de diseño de la
   sesión 23.
+
+---
+
+## Sesión 26 — 2026-09-28 — informe breve: pedido final (reemplaza a la sesión 25)
+
+> Pedido por archivo `pedidos/pedido_informe_breve_final.md`, que declara
+> explícitamente "reemplaza a cualquier versión anterior del informe breve"
+> (`pedidos/pedido_informe_breve.md`, sesión 25). Estructura de contenido
+> nueva página por página, con textos fijos citados para varias secciones,
+> lista de genes nueva para el boxplot de placenta (il6, fatp1, slc38a2,
+> glut1), una figura nueva de detección de il6 en cerebro, la figura de
+> densidades reducida a solo hembras y descripta como "recorte de la
+> diagonal del diagrama triangular", limitaciones en prosa corrida (no
+> lista), y sobre todo un cambio de mecanismo: "en la versión pública
+> ninguna sección queda vacía… solo se reemplaza por el aviso de datos
+> simulados aquello que afirme qué dio un análisis sobre los datos reales" —
+> a diferencia de la sesión 25, que reemplazaba la página 3/4/5 entera por
+> un aviso genérico.
+
+### Qué se completó
+
+- **Reescritura completa de las páginas 2 a 5** de `R/14_informe_breve.R`
+  (página 1 sin cambios de contenido, solo se le quitaron los `--`
+  literales). Página 2 (Métodos) usa el texto provisto por el pedido casi
+  verbatim, sin condicionar por fuente (describe método, no resultados).
+- **Mecanismo de aviso granular nuevo**: `sim_bloque(desc)` reemplaza a
+  `AVISO_SINTETICO` (constante de bloque, sesión 25). Cada página conserva
+  su narrativa fija (citada por el pedido) y una frase descriptiva de "qué
+  se evaluó"; solo la frase que afirmaría "qué dio" el análisis sobre datos
+  reales se reemplaza por un párrafo corto de clase `sim`, con una
+  descripción de qué se está ocultando (ej. *"El resultado del test de
+  correlaciones y de la simulación corresponde a la corrida con datos
+  sintéticos…"*). Total: 5 bloques `sim` en la versión pública (página 3:
+  1; página 4: 1; página 5: 3 — correlación, co-expresión/PC1, conclusión),
+  0 en la real. Verificación nueva `informe_breve_sin_interpretacion`
+  cuenta ocurrencias de `class="sim"` en vez de la constante de aviso
+  anterior.
+- **Verificación nueva `informe_breve_secciones_no_vacias`**: confirma
+  programáticamente lo que pide el pedido ("ninguna sección de la versión
+  pública quedó vacía") — extrae cada `<section class="pagina" id="pN">` y
+  exige ≥200 caracteres de texto visible (sin tags) por página, en ambas
+  fuentes.
+- **Tres figuras propias** (antes eran cuatro figuras reusadas/propias de
+  la sesión 25; esta versión quita la figura de pSTAT3 de la página 3 —
+  pedido explícito "sin figura de pSTAT3" — y agrega una nueva):
+  1. `acto1_expresion_PLACENTA_E15_breve4.png` — subconjunto de placenta
+     con lista de genes propia (il6, fatp1, slc38a2, glut1; antes era
+     il6/glut3/slc38a2, la de `13_presentacion.R`), reusando
+     `generar_panel_subset()` con una lista distinta.
+  2. `acto1_deteccion_il6_BRAIN_E15_breve.png` — **figura nueva**: panel
+     standalone de detección de il6 en cerebro, reusando `panel_deteccion()`
+     de `07_figuras_acto1.R` (antes solo se usaba dentro del panel completo
+     de `07`, nunca como PNG independiente). Colocada al costado ("más
+     chica al costado", pedido explícito) del subconjunto de cerebro
+     reusado de `13_presentacion.R` (glut1, slc38a2, fatp1, sin cambios).
+  3. `acto2_densidades_dispersion_BRAIN_E15_HEMBRA.png` — **figura
+     rediseñada**: antes 2 filas (Hembras/Machos) × 4 genes fijos
+     (`fatcd36, fatp4, gp130, slc38a2`, sesión 25); ahora 1 fila, SOLO
+     hembras, con los genes que de verdad tienen interacción
+     SEXO×TTO significativa sobre la dispersión leídos en vivo de
+     `acto2_dispersion_interaccion.csv` (`p_SEXOxTTO_BH < 0.05`) — con
+     datos reales da 5: fatcd36, fatp1, fatp4, gp130, slc38a2 (nótese que
+     esta vez SÍ incluye fatp1, a diferencia de la selección manual de la
+     sesión 25, porque ahora el criterio es automático, no una elección
+     visual). Nombre de archivo cambiado (agrega sufijo `_HEMBRA`) porque
+     ya no es la misma figura conceptualmente.
+  Las tres llevan `tipo = "figura_presentacion"` en `procedencia.csv`.
+
+### Bugs encontrados y corregidos en esta sesión
+
+1. **Regex sin flag `(?s)` en la verificación de secciones no vacías**: la
+   primera versión de `informe_breve_secciones_no_vacias` usaba
+   `.*?` para capturar el contenido de cada `<section>…</section>` sin el
+   modificador `(?s)` (dot-matches-newline) — como el HTML tiene saltos de
+   línea entre párrafos, el regex no cruzaba líneas y la extracción fallaba
+   silenciosamente (0/5 secciones detectadas aunque el HTML estaba
+   completo). **Fix**: `'(?s)<section ...>.*?</section>'`.
+2. **Desborde a una sexta página por el `<footer>`**: al mover el pie de
+   página fuera de la última sección (herencia del diseño de la sesión 25),
+   `section.pagina:last-of-type { break-after: auto }` evitaba el salto
+   forzado, pero el CONTENIDO de la página 5 (con la figura de densidades +
+   limitaciones + conclusión + pie) igual desbordaba una página A4 y el
+   navegador headless insertaba un salto natural, dejando una sexta página
+   casi vacía con solo el pie. **Fix real, en dos pasos**: (a) mover el
+   `<footer>` DENTRO de la sección de la página 5 (no alcanzó solo con
+   esto); (b) el problema de fondo era el diseño "una página física por
+   sección" (`break-after: page` en cada `section.pagina`), que dejaba las
+   páginas 1 y 2 con muchísimo espacio en blanco mientras la página 5 no
+   entraba. Se sacó el salto de página forzado por sección y se dejó fluir
+   el contenido naturalmente (protegiendo solo `figure`, `.sim` contra
+   cortes internos y los encabezados `h1/h2/h3` contra quedar huérfanos al
+   pie de página) — el documento real terminó en **4 páginas**, con buena
+   distribución visual y sin cortes feos, dentro del límite de 5 sin haber
+   tocado ni texto ni figuras (coherente con la instrucción explícita del
+   pedido "si se pasa, recortá texto, nunca figuras").
+3. **Crash con datos sintéticos por lista de genes vacía**: la primera
+   corrida de la versión pública falló (`ggplot2::fortify()` sobre un
+   objeto que no era data.frame) porque, con la corrida sintética de esa
+   sesión, NINGÚN gen de cerebro tenía `p_SEXOxTTO_BH < 0.05` sobre la
+   dispersión (los efectos simulados son arbitrarios, ver
+   `01_generar_sinteticos`) — `d$disp_bra_sig_genes` quedaba vacío y la
+   figura no tenía datos que graficar. **Fix**: resguardo explícito en
+   `recolectar_datos()` — si el criterio dinámico devuelve menos de 4
+   genes, usa como conjunto fijo los mismos 5 genes que da la corrida real
+   (`fatcd36, fatp1, fatp4, gp130, slc38a2`), documentado en un comentario
+   junto al código; en modo real este resguardo nunca se activa porque el
+   criterio dinámico ya devuelve esos 5.
+4. **Archivo huérfano tras el rename de la figura de densidades**: al
+   correr `run_all.ps1` completo (real) después de la corrida sintética,
+   `98_comparacion.R` marcó `FALSE` la verificación
+   `audit_procedencia_figuras` porque el archivo viejo
+   `outputs/figures/acto2_densidades_dispersion_BRAIN_E15.png` (sin el
+   sufijo `_HEMBRA`, de la sesión 25) seguía en disco sin fila en
+   `procedencia.csv` (la fila la reemplazó el nuevo nombre). **Fix**:
+   borrado el archivo huérfano (`outputs/figures/*` es contenido
+   regenerable e ignorado por git, confirmado con `git status --short`
+   antes de borrar) y vuelto a correr `run_all.ps1` completo, que ahora
+   pasa limpio.
+
+### Verificado
+
+- **Versión pública** (`docs/informe_breve.html`/`.pdf`, tras
+  `run_all.ps1 -Only R -FromSynthetic` tras el fix #3):
+  **4 páginas** (475 KB HTML / 514 KB PDF). `informe_breve_sin_interpretacion`:
+  sim=5/5. `informe_breve_secciones_no_vacias`: 5/5. 0 números reales tras
+  stripear los blobs base64 y grepear valores exclusivos de la corrida real
+  (`4.995005e-03`, `9 de 9`, `1.270587e-07`, `8.828713e-01`, `6.032341e-06`,
+  `76 %`, `82 %`, `7 de los 8`, `0 de 27`). 0 ocurrencias de `--` literal en
+  el texto visible (los únicos `--` del HTML son variables CSS,
+  `--bg`/`--ink`/etc., no texto del documento).
+- **Figuras de la versión pública confirmadas distintas de las reales**:
+  comparado el tamaño en bytes de cada blob base64 entre
+  `outputs/informe_breve_real/informe_breve.html` (previo) y
+  `docs/informe_breve.html` — el asset estático (modelo experimental)
+  coincide byte a byte, las 4 figuras derivadas de datos (placenta,
+  detección de il6, cerebro, densidades) difieren todas en tamaño.
+- **Dirección del cambio verificada antes de escribir la prosa** (pedido
+  explícito): los cinco genes de placenta con efecto de tratamiento
+  (il6, glut3, slc38a2, glut1, fatcd36) tienen mediana de -ΔΔCt mayor bajo
+  LPS que bajo Control, calculada directamente sobre
+  `data/processed/qpcr_cuantificacion_long.tsv` (mismo archivo que usan las
+  tablas, no un número tipeado a mano) — todos "aumentan", sin necesidad de
+  la fórmula de cobertura "modificando la expresión" que preveía el pedido
+  para el caso de direcciones mixtas.
+- **Estado real restaurado**: `run_all.ps1` completo (R+Python) →
+  `TODAS LAS VERIFICACIONES PASARON`, 77/77, 0 NO_EJECUTADA, 32/32 CSV
+  byte-idénticos, en ambos lenguajes (segunda corrida, tras el fix #4).
+  Luego `Rscript R/14_informe_breve.R` (real) → `outputs/informe_breve_real/`
+  regenerado, **4 páginas** (470 KB HTML / 489 KB PDF).
+- `git check-ignore` confirmado: `outputs/informe_breve_real/` ignorado;
+  `docs/informe_breve.html`/`.pdf` no ignorados.
+- `procedencia.csv`/`verificaciones.csv` finales revisados: sin filas
+  `FALSE` inesperadas.
+
+### Respuesta directa a lo pedido
+
+| Versión | Ruta | Tamaño | Páginas |
+|---|---|---|---|
+| Pública (sintética) | `docs/informe_breve.html` / `.pdf` | 475 KB / 514 KB | 4 |
+| Real (no versionada) | `outputs/informe_breve_real/informe_breve.html` / `.pdf` | 470 KB / 489 KB | 4 |
+
+Ambas versiones entran en 4 páginas (dentro del límite de 5) sin haber
+recortado texto ni figuras — el ajuste fue solo de layout (sin saltos de
+página forzados por sección, ver bug #2). Ninguna sección de la versión
+pública quedó vacía (verificado programáticamente, 5/5, además de revisión
+visual del PDF). `git check-ignore` confirma que
+`outputs/informe_breve_real/` sigue excluido.
+
+### Pendiente / siguiente paso concreto
+
+- Sin cambios respecto de la sesión 24: marcador de
+  `analisis_descartados.md` (D13), decisión de publicación de
+  `docs/`/`outputs/`, SPLOM de la sesión 19c, y los avisos de diseño de la
+  sesión 23.
+- `pedidos/pedido_informe_breve.md` queda como registro histórico de la
+  sesión 25, superado por `pedidos/pedido_informe_breve_final.md` (no se
+  borró: es el pedido tal como se pegó, mismo criterio que el resto de
+  `pedidos/`).
