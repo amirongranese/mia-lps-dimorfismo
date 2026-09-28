@@ -578,6 +578,43 @@ GENES_SUBSET_BRAIN    <- c("glut1", "slc38a2", "fatp1") # pedido 2, seccion 6
 NOMBRE_SUBSET_PLACENTA <- "acto1_expresion_PLACENTA_E15_subset3.png"
 NOMBRE_SUBSET_BRAIN    <- "acto1_expresion_BRAIN_E15_subset3.png"
 
+# Tercera figura reusada de 07: pSTAT3 (diapositiva 6). Se regenera con
+# nombre PROPIO (no "acto1_pstat3.png", el que usa la corrida principal) para
+# no pisar el archivo que lee 12_informe -- ver override de mas abajo, que
+# solo debe afectar a la presentacion, nunca al informe cientifico.
+NOMBRE_PSTAT3_PRESENTACION <- "acto1_pstat3_presentacion.png"
+generar_pstat3_presentacion <- function(ruta) {
+  e <- .ENV07()
+  D <- e$cargar()
+  set.seed(SEMILLA)   # jitter reproducible, igual que figura_pstat3() sola
+  e$figura_pstat3(D, ruta)
+}
+
+# =========================================================================
+# Pedido 3 (brackets con asteriscos + sin p de tendencia en la version
+# publica): las 3 figuras de arriba (2 subconjuntos + pSTAT3) deciden que
+# anotar via d11_texto() de 07_figuras_acto1.R -- la MISMA funcion para los
+# brackets solidos (*, **, ***, ninguna diferencia entre versiones: son
+# datos simulados en la publica, no exponen nada) y para los de TENDENCIA
+# (0.05<=p<0.1, estilo "punteada", con el numero de p impreso). Se pidio
+# explicitamente que la version PUBLICA no muestre ese numero -- se
+# sobreescribe `d11_texto` DENTRO de `.ENV07()` (no en 07_figuras_acto1.R:
+# el informe cientifico sigue mostrando el p completo, esto es solo para la
+# presentacion) para que, cuando el estilo sea "punteada", el texto quede
+# vacio: el bracket punteado se sigue dibujando (linea + guiones), pero sin
+# el "p = 0.NNN". Aplicar UNA sola vez, antes de generar cualquier figura.
+aplicar_override_tendencia <- function(sint) {
+  if (!sint) return(invisible(FALSE))
+  e <- .ENV07()
+  original <- e$d11_texto
+  assign("d11_texto", function(p) {
+    ann <- original(p)
+    if (!is.null(ann) && identical(ann$estilo, "punteada")) ann$texto <- ""
+    ann
+  }, envir = e)
+  invisible(TRUE)
+}
+
 # =========================================================================
 # Datos leidos del repo para las diapositivas 3, 4, 5, 6, 7, 9 -- nada de lo
 # que sigue se escribe a mano: se lee de AGENTS.md / outputs/tables/.
@@ -793,7 +830,7 @@ slide6 <- function(d, sint) {
     fig_outputs(NOMBRE_SUBSET_PLACENTA, "Boxplots de il6, glut3 y slc38a2 en placenta", "tall"),
     '</div>\n',
     '<div class="col narrow">',
-    fig_outputs("acto1_pstat3.png", "pSTAT3 en placenta", "small"),
+    fig_outputs(NOMBRE_PSTAT3_PRESENTACION, "pSTAT3 en placenta", "small"),
     texto, '</div>\n',
     '</div>')
   slide(6, "El analisis convencional", cuerpo)
@@ -963,14 +1000,22 @@ main <- function() {
   d <- recolectar_datos()
   sint <- d$fuente != "real"
 
-  # --- figuras de subconjunto (pedido 2, secciones 6-7): se regeneran SIEMPRE
-  # (idempotente), reflejando la fuente de datos vigente en outputs/tables/R y
+  # Pedido 3: en la version publica (sintetica), los brackets punteados de
+  # tendencia pierden el numero de p (los solidos *,**,*** quedan igual en
+  # las dos versiones). Aplicar ANTES de generar ninguna figura.
+  aplicar_override_tendencia(sint)
+
+  # --- figuras reusadas de 07_figuras_acto1 (pedido 2, secciones 6-7; pedido
+  # 3 para el override de arriba): se regeneran SIEMPRE (idempotente),
+  # reflejando la fuente de datos vigente en outputs/tables/R y
   # data/processed en el momento de esta corrida -- igual criterio que las
   # figuras completas de 07_figuras_acto1, que tambien "son lo que haya". ----
   ruta_subset_pla <- file.path(RUTA_FIGURAS, NOMBRE_SUBSET_PLACENTA)
   ruta_subset_bra <- file.path(RUTA_FIGURAS, NOMBRE_SUBSET_BRAIN)
+  ruta_pstat3_pres <- file.path(RUTA_FIGURAS, NOMBRE_PSTAT3_PRESENTACION)
   generar_panel_subset(GENES_SUBSET_PLACENTA, "PLACENTA_E15", ruta_subset_pla)
   generar_panel_subset(GENES_SUBSET_BRAIN, "BRAIN_E15", ruta_subset_bra)
+  generar_pstat3_presentacion(ruta_pstat3_pres)
 
   html <- construir_html(d)
 
@@ -1035,7 +1080,16 @@ main <- function() {
          "data/processed/qpcr_cuantificacion_long.tsv + outputs/tables/R/qpcr_modelos_{clasificacion,posthoc}.csv",
          paste0("subconjunto de 3 genes (", paste(GENES_SUBSET_BRAIN, collapse = ", "),
                 ") de cerebro para la diapositiva 7, sin recalcular nada; no forma parte ",
-                "de docs/informe.html"))
+                "de docs/informe.html")),
+    list(file.path("outputs/figures", NOMBRE_PSTAT3_PRESENTACION), "figura_presentacion",
+         ESTE_SCRIPT,
+         "PROPIO (figura_pstat3() de 07_figuras_acto1.R, reusada sin recalculo)",
+         "data/processed/pstat3_long.tsv + outputs/tables/R/pstat3_{modelo_clasificacion,posthoc}.csv",
+         paste0("copia propia de pSTAT3 para la diapositiva 6 (no ",
+                "outputs/figures/acto1_pstat3.png, el de la corrida principal): en la ",
+                "version publica, sus brackets de tendencia (0.05<=p<0.1) no imprimen el ",
+                "numero de p (pedido explicito del usuario); no forma parte de ",
+                "docs/informe.html"))
   ))
   registrar_verificaciones(list(
     list("presentacion_html_generado", "recalculo",
@@ -1048,8 +1102,21 @@ main <- function() {
          paste0("con fuente sintetica, las diapositivas 6-9 reemplazan la prosa ",
                 "interpretativa por el aviso de datos sinteticos"),
          sprintf("fuente=%s; aviso=%d/%d", d$fuente, n_aviso, n_aviso_esperado),
-         "aviso = 3 si fuente sintetica, 0 si fuente real",
+         "aviso = 4 si fuente sintetica, 0 si fuente real",
          if (n_aviso == n_aviso_esperado) "TRUE" else "FALSE", ESTE_SCRIPT),
+    list("presentacion_sin_p_tendencia", "recalculo",
+         paste0("con fuente sintetica, los brackets de tendencia (0.05<=p<0.1) de las ",
+                "figuras reusadas de 07_figuras_acto1.R no imprimen el numero de p; con ",
+                "fuente real lo imprimen igual que siempre"),
+         { p_prueba <- 0.07
+           ann <- .ENV07()$d11_texto(p_prueba)
+           sprintf("fuente=%s; d11_texto(0.07)$texto=\"%s\"", d$fuente, ann$texto) },
+         "con sintetico, texto=\"\" para p en tendencia; con real, texto=\"p = 0.070\"",
+         { p_prueba <- 0.07
+           ann <- .ENV07()$d11_texto(p_prueba)
+           ok <- if (sint) identical(ann$texto, "") else identical(ann$texto, "p = 0.070")
+           if (ok) "TRUE" else "FALSE" },
+         ESTE_SCRIPT),
     list("presentacion_figuras_existen", "recalculo",
          "toda figura de outputs/figures/ referenciada por la presentacion existe",
          sprintf("usadas=%d; faltan=%s", length(usadas),

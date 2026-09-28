@@ -144,6 +144,18 @@ BRAIN}_E15_subset3.png`) llevan `tipo = "figura_presentacion"` en `procedencia.c
 toda fila `tipo == "figura"` este embebida en `docs/informe.html` -- estas dos son solo
 para la presentacion, nunca para el informe.
 
+**Tercera figura reusada (pedido del usuario en chat, sin archivo de pedido):**
+`13_presentacion.R` tambien regenera pSTAT3 para la diapositiva 6, reusando
+`figura_pstat3()` del mismo `.ENV07()` -- guardada como
+`outputs/figures/acto1_pstat3_presentacion.png` (NO `acto1_pstat3.png`, el que usa la
+corrida principal), para no pisar el archivo que lee `12_informe`. Motivo: en la version
+PUBLICA (sintetica), los brackets de TENDENCIA (D11, 0.05<=p<0.1, estilo "punteada") no
+imprimen el numero de p -- se sobreescribe `d11_texto` dentro de `.ENV07()`
+(`aplicar_override_tendencia()`, nunca en `07_figuras_acto1.R` mismo) para que, cuando el
+estilo sea "punteada", el texto quede vacio; el bracket punteado se sigue dibujando. Los
+brackets SOLIDOS (`*`, `**`, `***`) se muestran igual en las dos versiones -- son datos
+simulados en la publica, no exponen nada. La version REAL nunca aplica el override.
+
 **Convención de nombres de salidas:**
 
 - Figuras: `outputs/figures/actoN_<tema>_<gen|tejido|detalle>.png`, 300 dpi, texto legible.
