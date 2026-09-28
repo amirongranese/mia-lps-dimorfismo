@@ -20,12 +20,24 @@ outputs/tables/python/*
 outputs/figures/*
 !outputs/figures/.gitkeep
 
+# --- Presentacion con datos reales (13_presentacion -- solo R) ---
+# Mismos datos ineditos que outputs/ arriba: la version "para exponer" de la
+# presentacion (pedidos/cambios_presentacion.md) nunca se versiona. La version
+# publica (sintetica) va aparte, a docs/ (ver mas abajo).
+outputs/presentacion_real/
+
 # --- Informe generado y log de corrida ---
 # Los regenera 12_informe / 99_verificar. Sobre datos reales dejarian numeros
 # ineditos en git (misma logica que outputs/). El formato de docs/informe.html
 # es "listo para GitHub Pages", pero el archivo en si no se versiona.
 docs/*
 !docs/.gitkeep
+# Excepcion: la presentacion PUBLICA (13_presentacion sobre datos sinteticos)
+# si se versiona -- es la que enlaza la pagina del curso (pedidos/
+# cambios_presentacion.md). docs/informe.{html,pdf} siguen sin versionarse.
+!docs/index.html
+!docs/presentacion.pdf
+!docs/referencias.md
 logs/*
 !logs/.gitkeep
 

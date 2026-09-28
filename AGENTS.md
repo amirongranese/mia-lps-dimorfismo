@@ -103,17 +103,34 @@ MIA_LPS_reanalisis/
 │        04_qpcr_cuantificacion.R 05_qpcr_modelos.R 06_pstat3.R 07_figuras_acto1.R
 │        08_acto2_correlaciones.R 09_acto2_dispersion.R 10_acto2_simulacion.R
 │        11_sensibilidad.R 98_comparacion.R 12_informe.R 99_verificar.R
-├─ python/  <- mismos números y nombres, extensión .py
+│        13_presentacion.R   <- SOLO R, ver excepcion mas abajo
+├─ python/  <- mismos números y nombres, extensión .py (SIN 13_presentacion.py)
+├─ assets/  <- ilustracion-mia.png, modelo-experimental.png, epidemiologia.png
+│             (autoria propia, VERSIONADO; epidemiologia.png no se usa, ver 13_presentacion)
 ├─ outputs/
 │  ├─ figures/       <- <fig>_<detalle>.png (300 dpi)
 │  ├─ tables/        <- procedencia.csv, verificaciones.csv, comparacion_R_python.csv,
 │  │                    comparacion_reporte.md, analisis_descartados.md, y CSV de resultados
 │  │  ├─ R/          <- salidas numéricas de la implementación R (nombres idénticos a python/)
 │  │  └─ python/     <- salidas numéricas de la implementación Python
-│  └─ intermediate/  <- CONTENIDO IGNORADO por git
-├─ docs/   informe.html  informe.pdf   (listo para GitHub Pages)
+│  ├─ intermediate/  <- CONTENIDO IGNORADO por git
+│  └─ presentacion_real/  <- 13_presentacion sobre datos reales. NUNCA se versiona
+├─ docs/   informe.html  informe.pdf   (listo para GitHub Pages, CONTENIDO IGNORADO)
+│          index.html  presentacion.pdf  referencias.md   <- 13_presentacion sobre datos
+│          sinteticos: presentacion PUBLICA, estos 3 SI se versionan (excepcion a docs/*)
 └─ logs/   corrida_<AAAA-MM-DD>.txt
 ```
+
+**Excepcion a "todo se implementa dos veces" -- `13_presentacion` (solo R):** es capa de
+presentacion (`pedidos/cambios_presentacion.md`), no analisis -- arma la pagina/PDF de
+exposicion a partir de lo que ya escribieron 02..12, sin calcular ningun resultado nuevo
+que comparar entre lenguajes. Por eso no tiene gemelo en `python/`. Genera DOS versiones
+con el mismo codigo, decidiendo el destino por `fuente_datos()` (igual mecanismo que el
+aviso sintetico de `12_informe`): sintetica -> `docs/index.html` (PUBLICA, se versiona);
+real -> `outputs/presentacion_real/` (NUNCA se versiona, cubierto por `.gitignore`). El
+grafico epidemiologico de contexto (diapositiva 2) es el unico grafico del repo que no
+sale de `outputs/figures/`: no es un resultado del proyecto, es contexto bibliografico
+(`pedidos/referencias_epidemiologia.md` -> `docs/referencias.md`, citas copiadas tal cual).
 
 **Convención de nombres de salidas:**
 

@@ -206,6 +206,30 @@ caso `99_verificar` trata la ausencia del PDF como aviso, no como falla.
 | `docs/informe.html`, `docs/informe.pdf` | Informe completo autocontenido (Acto 1 + Acto 2 + reproducibilidad + análisis descartados + limitaciones + procedencia/verificaciones); figuras en base64. No versionado (`.gitignore`), regenerable |
 | `logs/corrida_<fecha>.txt` | Fecha, SO, versiones de R/Python y paquetes, semilla, fuente, concordancia R↔Python, paridad de render, verificaciones pasadas/totales — una sección por lenguaje |
 
+### Presentación (`13_presentacion`, solo R)
+
+Página de 11 diapositivas para exponer el proyecto (`pedidos/cambios_presentacion.md`),
+no un resultado de análisis. El mismo script genera **dos versiones**, según qué datos
+haya en `data/raw/` (mismo mecanismo que el resto del pipeline):
+
+```powershell
+# Version PUBLICA (datos sinteticos) -> docs/index.html + docs/presentacion.pdf
+# Se versiona: es la que enlaza la pagina del curso.
+$env:MIA_LPS_FORZAR_SINTETICO = '1'
+& "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" R\13_presentacion.R
+Remove-Item Env:\MIA_LPS_FORZAR_SINTETICO
+
+# Version PARA EXPONER (datos reales) -> outputs/presentacion_real/
+# NUNCA se versiona (.gitignore): son resultados biologicos ineditos.
+& "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" R\13_presentacion.R
+```
+
+Con datos sintéticos, las diapositivas 6–8 (los resultados) se reemplazan por el mismo
+aviso que usa `12_informe`; las demás son iguales en las dos versiones porque describen
+el proceso, no los resultados. El gráfico de contexto epidemiológico (diapositiva 2) es
+el único gráfico del repo que no sale de `outputs/figures/`: se genera en HTML/CSS con
+las citas de `pedidos/referencias_epidemiologia.md`, copiadas a `docs/referencias.md`.
+
 ---
 
 ## 6. Decisiones metodológicas
