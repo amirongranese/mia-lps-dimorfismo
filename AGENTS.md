@@ -161,25 +161,32 @@ estilo sea "punteada", el texto quede vacio; el bracket punteado se sigue dibuja
 brackets SOLIDOS (`*`, `**`, `***`) se muestran igual en las dos versiones -- son datos
 simulados en la publica, no exponen nada. La version REAL nunca aplica el override.
 
-**Cuarta excepcion (`pedidos/pedido_informe_breve.md`):** `14_informe_breve.R` (SOLO R,
-mismo criterio que `13_presentacion.R`: capa de presentacion, no analisis, sin gemelo en
-`python/`) arma un informe breve de maximo 5 paginas para lectura rapida. Sourcea
-`13_presentacion.R` COMPLETO con `local = <environment nuevo>` (`.ENV13()`), que a su vez
-tiene su propio `.ENV07()` -- por eso este informe hereda, sin recalcular nada, las tres
-figuras ya reusadas por la segunda y tercera excepcion (subconjuntos de placenta y
-cerebro, pSTAT3) y el mecanismo `aplicar_override_tendencia()`. Agrega una figura propia
-nueva -- `outputs/figures/acto2_densidades_dispersion_BRAIN_E15.png` (densidades de
--ddCt por sexo x tratamiento en cuatro genes de cerebro con interaccion SEXOxTTO
-significativa sobre la dispersion: fatcd36, fatp4, gp130, slc38a2), en el mismo estilo
-que la diagonal del SPLOM de `08_acto2_correlaciones.R` -- que igual que las dos
-figuras de la segunda excepcion lleva `tipo = "figura_presentacion"` en
-`procedencia.csv` (no `"figura"`), para no disparar el chequeo de `12_informe` que exige
-que toda fila `tipo == "figura"` este embebida en `docs/informe.html`. Genera DOS
-versiones por el mismo mecanismo de `fuente_datos()`: sintetica -> `docs/informe_breve.
-{html,pdf}` (PUBLICA, se versiona); real -> `outputs/informe_breve_real/` (NUNCA se
-versiona, cubierto por `.gitignore`). Con fuente sintetica, la prosa interpretativa de
-las paginas 3-5 se reemplaza por el mismo aviso que usa `12_informe`; las cifras y
-figuras de las demas paginas siempre se leen en vivo de `outputs/tables/` y
+**Cuarta excepcion (`pedidos/pedido_informe_breve_final.md`, reemplaza a
+`pedidos/pedido_informe_breve.md`):** `14_informe_breve.R` (SOLO R, mismo criterio que
+`13_presentacion.R`: capa de presentacion, no analisis, sin gemelo en `python/`) arma un
+informe breve de maximo 5 paginas para lectura rapida. Sourcea `13_presentacion.R`
+COMPLETO con `local = <environment nuevo>` (`.ENV13()`), que a su vez tiene su propio
+`.ENV07()` -- por eso este informe hereda, sin recalcular nada, el subconjunto de
+boxplots de cerebro de la segunda excepcion y, a traves de el, `panel_deteccion()` de
+`07_figuras_acto1.R`. Agrega TRES figuras propias (todas con `tipo =
+"figura_presentacion"` en `procedencia.csv`, no `"figura"`, para no disparar el chequeo
+de `12_informe` que exige que toda fila `tipo == "figura"` este embebida en
+`docs/informe.html`): un subconjunto de boxplots de placenta con lista de genes propia
+(il6, fatp1, slc38a2, glut1 -- distinta de la de la segunda excepcion), un panel
+standalone de deteccion de il6 en cerebro (reusa `panel_deteccion()`, D7), y un recorte
+de la diagonal del SPLOM de co-expresion (densidades de -ddCt por tratamiento, SOLO
+hembras, cerebro, en los genes con interaccion SEXOxTTO significativa sobre la
+dispersion, BH<0.05, leidos de `acto2_dispersion_interaccion.csv` -- con resguardo a un
+conjunto fijo de 5 genes si esa corrida puntual no deja ninguno bajo el umbral, ya que
+los efectos sinteticos son arbitrarios). Genera DOS versiones por el mismo mecanismo de
+`fuente_datos()`: sintetica -> `docs/informe_breve.{html,pdf}` (PUBLICA, se versiona);
+real -> `outputs/informe_breve_real/` (NUNCA se versiona, cubierto por `.gitignore`).
+**Mecanismo de aviso mas granular que el de la version anterior de este pedido:** en vez
+de reemplazar la pagina 3/4/5 ENTERA por un aviso generico, se conservan siempre la
+narrativa fija de cada pagina, la descripcion de que analisis se hicieron, las figuras
+(siempre de la corrida vigente) y las limitaciones; solo la frase puntual que afirma que
+DIO un analisis sobre datos reales se reemplaza por un parrafo corto de clase `sim`
+(`sim_bloque()`). Las cifras y figuras siempre se leen en vivo de `outputs/tables/` y
 `outputs/figures/` tal como esten pobladas al momento de correr el script -- por eso,
 para armar la version PUBLICA correctamente, es obligatorio regenerar figuras/tablas
 desde datos sinteticos ANTES (`run_all.ps1 -Only R -FromSynthetic`) y restaurar el

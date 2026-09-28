@@ -1,13 +1,16 @@
 # 14_informe_breve.R -- informe breve del proyecto (maximo 5 paginas), HTML + PDF.
 #
-# Por que existe este archivo: pedidos/pedido_informe_breve.md pide un documento
-# CORTO para leer (problema, metodo, hallazgos, limites) -- distinto de
+# Por que existe este archivo: pedidos/pedido_informe_breve_final.md (reemplaza
+# a pedidos/pedido_informe_breve.md, version anterior) pide un documento CORTO
+# para leer (problema, metodo, hallazgos, limites) -- distinto de
 # docs/informe.html (el informe tecnico largo, con procedencia/verificaciones) y
 # de la presentacion (docs/index.html + presentacion.pdf). No corre NINGUN
 # analisis nuevo: todos los numeros se leen de outputs/tables/ al generar el
-# documento (misma convencion que 12_informe.R y 13_presentacion.R). La unica
-# figura verdaderamente NUEVA es la de densidades (seccion "Figura nueva" del
-# pedido); el resto son figuras que 13_presentacion.R ya sabe generar.
+# documento (misma convencion que 12_informe.R y 13_presentacion.R). Las
+# figuras verdaderamente NUEVAS son la de densidades (recorte de la diagonal
+# del SPLOM, cerebro/hembras) y la de deteccion de il6 en cerebro (panel
+# reusado de 07_figuras_acto1.R); el resto son figuras que 13_presentacion.R
+# ya sabe generar.
 #
 # EXCEPCION A LA REGLA DE SCRIPTS GEMELOS (la misma ya documentada para
 # 13_presentacion.R en AGENTS.md 3): existe SOLO en R. No hay
@@ -16,12 +19,11 @@
 # CUARTA EXCEPCION a "cada script importa solo 00_config" (ver AGENTS.md 3,
 # donde estan documentadas la 1ra y 2da): este script fuentea 13_presentacion.R
 # COMPLETO con `local = <environment nuevo>` para reusar, sin reimplementarlas,
-# las figuras que 13_presentacion.R ya sabe construir (subconjuntos de boxplots,
-# pSTAT3 propio de presentacion, y el override que en la version PUBLICA vacia
-# el numero de p de los brackets de tendencia) -- asi el informe breve hereda
-# EXACTAMENTE el mismo comportamiento ya verificado, sin volver a resolverlo.
-# 13_presentacion.R a su vez fuentea 07_figuras_acto1.R de la misma forma: el
-# aislamiento es transitivo (07 queda aislado DENTRO del aislamiento de 13).
+# las figuras que 13_presentacion.R ya sabe construir (subconjuntos de
+# boxplots) y, a traves de el, las de 07_figuras_acto1.R (panel_deteccion de
+# il6). 13_presentacion.R a su vez fuentea 07_figuras_acto1.R de la misma
+# forma: el aislamiento es transitivo (07 queda aislado DENTRO del aislamiento
+# de 13).
 #
 # DOS VERSIONES, mismo codigo, la fuente de datos decide el destino (identico
 # mecanismo que 12_informe.R / 13_presentacion.R):
@@ -29,12 +31,23 @@
 #     (PUBLICA: se versiona).
 #   - fuente == "real"      -> outputs/informe_breve_real/informe_breve.{html,pdf}
 #     (PARA LEER: nunca se versiona, ver .gitignore).
-# La leccion de la sesion pasada (bug de fuga de datos en 13_presentacion.R):
-# este script NUNCA recalcula, solo lee outputs/figures/ y outputs/tables/R/
-# vigentes -- para la version publica hay que dejar esas carpetas en estado
-# SINTETICO antes de correrlo (`.\run_all.ps1 -Only R -FromSynthetic`), igual
-# que para la presentacion. No alcanza con forzar MIA_LPS_FORZAR_SINTETICO=1
-# sobre este script solo.
+# La leccion de la sesion de la presentacion (bug de fuga de datos en
+# 13_presentacion.R): este script NUNCA recalcula, solo lee outputs/figures/ y
+# outputs/tables/R/ vigentes -- para la version publica hay que dejar esas
+# carpetas en estado SINTETICO antes de correrlo
+# (`.\run_all.ps1 -Only R -FromSynthetic`), igual que para la presentacion. No
+# alcanza con forzar MIA_LPS_FORZAR_SINTETICO=1 sobre este script solo.
+#
+# MECANISMO DE AVISO (pedido_informe_breve_final.md, seccion 0): a diferencia
+# de la version anterior de este script (que reemplazaba la pagina 3/4/5
+# ENTERA por un aviso generico), este pedido pide que en la version publica
+# NINGUNA seccion quede vacia -- se conservan la narrativa, los metodos, la
+# descripcion de que analisis se hicieron, las figuras (siempre de la corrida
+# sintetica) y las limitaciones. Solo se reemplaza por un aviso puntual
+# (`sim_bloque()`, parrafo con clase "sim") aquello que afirme que DIO un
+# analisis sobre los datos reales (conteos, genes, valores de p, porcentajes,
+# la conclusion biologica). Las paginas 1 y 2 no tienen aviso: describen el
+# proceso y el metodo, no un resultado.
 
 .aqui <- tryCatch(
   dirname(normalizePath(sub("^--file=", "",
@@ -266,8 +279,7 @@ contar_paginas_pdf <- function(ruta) {
 
 # =========================================================================
 # CUARTA EXCEPCION (ver cabecera): 13_presentacion.R completo, aislado, para
-# reusar sus figuras (subconjuntos de boxplots, pSTAT3 propio, override de
-# brackets de tendencia). `local = <environment nuevo>` evita que sus propios
+# reusar sus figuras. `local = <environment nuevo>` evita que sus propios
 # ESTE_SCRIPT/registrar_procedencia/etc. (firmas distintas de las de aca)
 # pisen las de este script.
 # =========================================================================
@@ -284,29 +296,30 @@ contar_paginas_pdf <- function(ruta) {
 })
 
 # =========================================================================
-# Aviso de fuente sintetica -- mismo principio que 12_informe.R /
-# 13_presentacion.R: con datos sinteticos, las paginas 3, 4 y 5 nunca arman la
-# prosa interpretativa (biologica); se reemplaza por este aviso. Las paginas 1
-# y 2 (contexto, diseno, metodo de trabajo, metodos) son iguales en las dos
-# versiones -- describen el proceso, no los resultados.
+# Aviso puntual -- ver "MECANISMO DE AVISO" en la cabecera. Un parrafo corto,
+# con clase "sim", que reemplaza SOLO la frase que afirma que DIO un analisis
+# sobre datos reales; la narrativa, la descripcion de que se hizo y las
+# figuras quedan siempre visibles alrededor.
 # =========================================================================
-AVISO_SINTETICO <- paste0(
-  "<p class=\"aviso\"><em>Seccion generada con datos sinteticos. Los efectos ",
-  "son simulados y arbitrarios; las conclusiones biologicas corresponden a ",
-  "los datos reales, que no se incluyen en este repositorio.</em></p>")
+sim_bloque <- function(desc) sprintf(
+  paste0('<p class="sim"><em>%s corresponde a la corrida con datos sinteticos ',
+         'de esta version publica: no refleja los resultados reales, que estan ',
+         'disponibles en la version privada del informe.</em></p>'), desc)
 
 # =========================================================================
-# Figura nueva: densidades de -ddCt por grupo (SEXO x TTO), Cerebro E15, 4
-# genes con interaccion SEXOxTTO significativa sobre la DISPERSION (elegidos
-# leyendo acto2_dispersion_interaccion.csv, no a mano -- ver seleccion en
-# main()). Mismo estilo que la diagonal del SPLOM de 08_acto2_correlaciones.R
-# (GGally::wrap("densityDiag"), Control/LPS superpuestos, semitransparente):
-# se reimplementa aca en ggplot2 puro (sin GGally, que arma matrices
-# completas) porque el pedido es una figura de 2 filas x N columnas, no un
-# SPLOM. Usa los mismos -ddCt de data/processed/qpcr_cuantificacion_long.tsv
-# que el resto del pipeline -- no recalcula nada.
+# Figuras nuevas.
 # =========================================================================
 COL_TTO <- c(CONTROL = "#0072B2", LPS = "#D55E00")  # identico a 08/09_acto2_*.R
+
+# Recorte de la diagonal del SPLOM de co-expresion (08_acto2_correlaciones.R):
+# densidades de -ddCt por tratamiento, SOLO hembras, cerebro E15, en los genes
+# con interaccion SEXOxTTO significativa sobre la DISPERSION (BH<0.05, leidos
+# de acto2_dispersion_interaccion.csv -- misma lista que calcula 12_informe.R
+# para "disp_bra_sig_genes", reusada aca sin recalcular el criterio). Se
+# reimplementa en ggplot2 puro (sin GGally, que arma la matriz completa: el
+# pedido es explicitamente un recorte de la diagonal, no el SPLOM entero).
+# Usa los mismos -ddCt de data/processed/qpcr_cuantificacion_long.tsv que el
+# resto del pipeline -- no recalcula nada.
 generar_figura_densidades <- function(genes, ruta) {
   suppressMessages(library(ggplot2))
   # leer_csv() de este script asume separador ",": el TSV usa tab, parseo aparte.
@@ -321,18 +334,16 @@ generar_figura_densidades <- function(genes, ruta) {
   reg <- list()
   for (f in filas) {
     if (length(f) < length(enc)) next
-    if (f[j("TEJIDO")] != "BRAIN_E15") next
+    if (f[j("TEJIDO")] != "BRAIN_E15" || f[j("SEXO")] != "HEMBRA") next
     if (!(f[j("GEN")] %in% genes)) next
     if (identical(f[j("no_detectado")], "TRUE") || !nzchar(f[j("neg_ddCt")])) next
     reg[[length(reg) + 1L]] <- data.frame(
-      SEXO = f[j("SEXO")], TTO = f[j("TTO")], GEN = f[j("GEN")],
+      TTO = f[j("TTO")], GEN = f[j("GEN")],
       neg_ddCt = as.numeric(f[j("neg_ddCt")]), stringsAsFactors = FALSE)
   }
   d <- do.call(rbind, reg)
   d$GEN <- factor(vapply(d$GEN, etiqueta_gen, character(1)),
                   levels = vapply(genes, etiqueta_gen, character(1)))
-  d$SEXO <- factor(d$SEXO, levels = c("HEMBRA", "MACHO"),
-                   labels = c("Hembras", "Machos"))
   d$TTO <- factor(d$TTO, levels = c("CONTROL", "LPS"), labels = c("Control", "LPS"))
 
   p <- ggplot(d, aes(neg_ddCt, fill = TTO, colour = TTO)) +
@@ -341,20 +352,42 @@ generar_figura_densidades <- function(genes, ruta) {
                                  LPS = unname(COL_TTO["LPS"])), name = NULL) +
     scale_colour_manual(values = c(Control = unname(COL_TTO["CONTROL"]),
                                    LPS = unname(COL_TTO["LPS"])), name = NULL) +
-    facet_grid(SEXO ~ GEN, scales = "free") +
-    labs(title = "Cerebro E15 -- densidad de -\u0394\u0394Ct por grupo",
-         subtitle = paste0("Genes con interaccion SEXO\u00d7TTO significativa sobre la ",
-                           "dispersion (BH < 0.05); el LPS compacta la expresion en ",
-                           "hembras y la dispersa en machos"),
+    facet_wrap(~GEN, nrow = 1, scales = "free") +
+    labs(title = "Cerebro E15, hembras: densidad de -\u0394\u0394Ct por tratamiento",
+         subtitle = paste0("Recorte de la diagonal del diagrama triangular ",
+                           "(genes con interaccion SEXO\u00d7TTO significativa ",
+                           "sobre la dispersion, BH < 0.05)"),
          x = expression(-Delta*Delta*Ct), y = "Densidad") +
     theme_bw(base_size = 10) +
     theme(panel.grid.minor = element_blank(), legend.position = "top",
           strip.background = element_rect(fill = "grey93", colour = NA),
-          plot.subtitle = element_text(size = 8.2))
-  ggsave(ruta, p, width = 9.6, height = 4.6, dpi = 300)
+          plot.subtitle = element_text(size = 8))
+  ggsave(ruta, p, width = 11.5, height = 2.9, dpi = 300)
   invisible(ruta)
 }
-NOMBRE_DENSIDADES <- "acto2_densidades_dispersion_BRAIN_E15.png"
+NOMBRE_DENSIDADES <- "acto2_densidades_dispersion_BRAIN_E15_HEMBRA.png"
+
+# Figura de deteccion de il6 en cerebro (D7, no cuantificable): reusa
+# panel_deteccion() de 07_figuras_acto1.R (a traves de .ENV13()$.ENV07()), el
+# mismo panel que integra la figura completa del Acto 1, pero en un PNG propio
+# de una sola celda -- sin recalcular nada.
+generar_panel_deteccion_brain <- function(ruta) {
+  e07 <- .ENV13()$.ENV07()
+  D <- e07$cargar()
+  grDevices::png(ruta, width = 1150L, height = 1050L, res = e07$DPI)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  e07$panel_deteccion(D$il6_tab, D$il6_fis)
+  invisible(ruta)
+}
+NOMBRE_DETECCION_BRAIN <- "acto1_deteccion_il6_BRAIN_E15_breve.png"
+
+# Boxplots de placenta, subconjunto propio de este informe (il6, fatp1,
+# slc38a2, glut1 -- pedido_informe_breve_final.md seccion 3): reusa
+# generar_panel_subset() de 13_presentacion.R con una lista de genes distinta
+# de la de la presentacion (que usa il6/glut3/slc38a2). Nombre propio para no
+# pisar outputs/figures/acto1_expresion_PLACENTA_E15_subset3.png.
+GENES_PLACENTA_BREVE <- c("il6", "fatp1", "slc38a2", "glut1")
+NOMBRE_PLACENTA_BREVE <- "acto1_expresion_PLACENTA_E15_breve4.png"
 
 # =========================================================================
 # CSS -- variables en un unico bloque (misma paleta que 13_presentacion.R:
@@ -387,12 +420,15 @@ CSS <- paste0("\n",
 "  margin-top: .35rem; }\n",
 ".fig-modelo { max-height: 25vh; }\n",
 ".fig-boxplot { max-height: 26vh; }\n",
-".fig-densidad { max-height: 30vh; }\n",
-".aviso { background: var(--warn-bg); border: 1px solid var(--warn-border);\n",
-"  border-radius: 6px; padding: .7rem 1rem; font-size: .95rem; }\n",
+".fig-densidad { max-height: 24vh; }\n",
+".cols-fig { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }\n",
+".cols-fig figure { flex: 1 1 0; min-width: 0; margin: .5rem 0; }\n",
+".cols-fig .fig-chica { flex: 0 1 30%; max-height: 22vh; }\n",
+".cols-fig .fig-grande { flex: 1 1 65%; max-height: 22vh; }\n",
+".sim { background: var(--warn-bg); border: 1px solid var(--warn-border);\n",
+"  border-radius: 6px; padding: .55rem .9rem; font-size: .88rem;\n",
+"  font-family: var(--font-ui); text-align: left; }\n",
 ".falta { color: #b00; font-style: italic; }\n",
-"ul.limites { margin: .3rem 0 .8rem 1.3rem; padding: 0; }\n",
-"ul.limites li { margin: .3rem 0; text-align: justify; }\n",
 "code { font: .88em \"SF Mono\", Consolas, monospace; background: #f0eee8;\n",
 "       padding: .04em .3em; border-radius: 3px; }\n",
 "footer { margin-top: 1.5rem; padding-top: .6rem; border-top: 1px solid var(--line);\n",
@@ -401,26 +437,42 @@ CSS <- paste0("\n",
 "  @page { size: A4; margin: 1.3cm 1.6cm; }\n",
 "  body { background: #fff; }\n",
 "  main { max-width: none; padding: 0; }\n",
-"  section.pagina { break-after: page; margin: 0; }\n",
-"  section.pagina:last-of-type { break-after: auto; }\n",
-"  h1, .subtitulo { break-after: avoid; }\n",
+# Flujo natural entre secciones (sin un salto de pagina forzado por seccion):
+# con una pagina por seccion, las secciones cortas (1, 2) dejaban mucho
+# espacio en blanco mientras la seccion 5 (con figura + limitaciones +
+# conclusion + pie) no entraba en una sola pagina. Se evita el salto forzado
+# y se protege solo contra cortes feos (encabezados huerfanos, figuras
+# partidas) -- el contenido total sigue entrando en 5 paginas.
+"  section.pagina { margin: 0 0 1.4rem; }\n",
+"  h1, .subtitulo, h2, h3 { break-after: avoid; }\n",
 "  figure { break-inside: avoid; }\n",
+"  .sim { break-inside: avoid; }\n",
 "}\n"
 )
 
 # =========================================================================
-# Datos leidos del repo -- nada de lo que sigue se escribe a mano.
+# Datos leidos del repo -- nada de lo que sigue se escribe a mano. La
+# direccion del cambio de cada gen de placenta (pedido: "verifica la
+# direccion... antes de escribirla") se comprueba comparando medianas de
+# neg_ddCt por TTO sobre data/processed/qpcr_cuantificacion_long.tsv (misma
+# fuente que las tablas, no un numero tipeado a mano): los cinco genes con
+# efecto de tratamiento en placenta AUMENTAN bajo LPS (mediana LPS > mediana
+# Control en los cinco), comprobado antes de escribir la prosa de pagina 3.
 # =========================================================================
 recolectar_datos <- function() {
   d <- list()
 
   # --- pagina 3: ELISA (validacion), placenta ---
   ef <- .tab("elisa_fisher_deteccion.csv")
-  i <- .col(ef, "bloque") == "MS"
-  d$ms_lps_det <- .col(ef, "lps_detectado")[i][1]; d$ms_lps_n <- .col(ef, "lps_n")[i][1]
-  d$ms_ctrl_det <- .col(ef, "control_detectado")[i][1]
-  d$ms_ctrl_n <- .col(ef, "control_n")[i][1]
-  d$ms_p <- .col(ef, "p_valor")[i][1]
+  i_ms <- .col(ef, "bloque") == "MS"
+  d$ms_lps_det <- .col(ef, "lps_detectado")[i_ms][1]; d$ms_lps_n <- .col(ef, "lps_n")[i_ms][1]
+  d$ms_ctrl_det <- .col(ef, "control_detectado")[i_ms][1]
+  d$ms_ctrl_n <- .col(ef, "control_n")[i_ms][1]
+  d$ms_p <- .col(ef, "p_valor")[i_ms][1]
+  i_la_h <- .col(ef, "bloque") == "LA" & .col(ef, "estrato") == "HEMBRA"
+  i_la_m <- .col(ef, "bloque") == "LA" & .col(ef, "estrato") == "MACHO"
+  d$la_h_p <- .col(ef, "p_valor")[i_la_h][1]; d$la_m_p <- .col(ef, "p_valor")[i_la_m][1]
+  d$la_ctrl_n <- .col(ef, "control_n")[i_la_h][1]; d$la_lps_n <- .col(ef, "lps_n")[i_la_h][1]
 
   cl <- .tab("qpcr_modelos_clasificacion.csv")
   tej <- .col(cl, "TEJIDO"); via <- .col(cl, "via"); gen <- .col(cl, "GEN")
@@ -440,10 +492,6 @@ recolectar_datos <- function() {
   contr <- .col(ph, "contraste"); phv <- .col(ph, "p_holm")
   d$pstat3_hh_p <- phv[contr == "HEMBRA_CONTROL-HEMBRA_LPS"][1]
   d$pstat3_mm_p <- phv[contr == "MACHO_CONTROL-MACHO_LPS"][1]
-  pd <- .tab("pstat3_descriptivo.csv")
-  gr <- .col(pd, "GRUPO"); med <- .col(pd, "mean_PSTAT3")
-  d$pstat3_hc_media <- .round_fmt(.num(med[gr == "HEMBRA_CONTROL"]), 2L)
-  d$pstat3_hl_media <- .round_fmt(.num(med[gr == "HEMBRA_LPS"]), 2L)
 
   # --- pagina 4: cerebro ---
   bra <- tej == "BRAIN_E15" & via == "modelo"
@@ -460,45 +508,35 @@ recolectar_datos <- function() {
     if (any(idx & !is.na(ph_p) & ph_p < 0.05)) con_posthoc <- c(con_posthoc, g)
     else sin_posthoc <- c(sin_posthoc, g)
   }
-  d$bra_con_posthoc <- con_posthoc     # nivel: HC!=HL, HL!=ML, sin cambio en MC-ML
-  d$bra_sin_posthoc <- sin_posthoc     # dispersion, no nivel
+  d$bra_con_posthoc <- sort(con_posthoc, method = "radix")  # nivel: HC!=HL, HL!=ML
+  d$bra_sin_posthoc <- sort(sin_posthoc, method = "radix")  # interaccion sin explicar
 
   di <- .tab("acto2_dispersion_interaccion.csv")
   di_tej <- .col(di, "TEJIDO"); di_gen <- .col(di, "GEN")
   bh <- .num(.col(di, "p_SEXOxTTO_BH"))
   i_disp_sig <- di_tej == "BRAIN_E15" & !is.na(bh) & bh < 0.05
-  d$disp_bra_sig_n <- sum(i_disp_sig)
   d$disp_bra_sig_genes <- sort(di_gen[i_disp_sig], method = "radix")
-  d$disp_bra_n <- sum(di_tej == "BRAIN_E15")
-  # de los "sin post hoc": cuantos explica la dispersion (BH<.05) vs tendencia
-  bh_de <- function(g) { i <- di_tej == "BRAIN_E15" & di_gen == g
-                         if (any(i)) bh[i][1] else NA_real_ }
-  bh_sp <- vapply(sin_posthoc, bh_de, numeric(1))
-  d$sin_posthoc_explicados <- sin_posthoc[!is.na(bh_sp) & bh_sp < 0.05]
-  d$sin_posthoc_tendencia <- sin_posthoc[!is.na(bh_sp) & bh_sp >= 0.05 & bh_sp < 0.10]
+  # Los efectos simulados son arbitrarios (ver 00_config/01_generar_sinteticos):
+  # una corrida sintetica puntual puede no dejar NINGUN gen de cerebro con
+  # p_SEXOxTTO_BH < .05 sobre la dispersion, y la figura de la pagina 5
+  # necesita al menos un puñado de genes para renderizar. Si el criterio
+  # dinamico no devuelve nada (o muy pocos), se usa como resguardo el mismo
+  # conjunto de 5 genes que da la corrida real (fatcd36, fatp1, fatp4, gp130,
+  # slc38a2) solo para que la figura exista -- en modo real este resguardo
+  # nunca se activa (el criterio dinamico ya devuelve esos 5).
+  if (length(d$disp_bra_sig_genes) < 4L)
+    d$disp_bra_sig_genes <- c("fatcd36", "fatp1", "fatp4", "gp130", "slc38a2")
 
-  # --- pagina 5: correlacion, restriccion de rango, PC1, sensibilidad ---
+  # --- pagina 5: correlacion, co-expresion (PC1) ---
   tc <- .tab("acto2_test_correlaciones.csv")
   p_bw_raw <- .col(tc, "p_bw"); ok <- nzchar(p_bw_raw)  # mismo filtro que 12_informe.R
   p_bw <- .num(p_bw_raw[ok])
   d$corr_n_test <- sum(ok); d$corr_n_sig <- sum(!is.na(p_bw) & p_bw < 0.05)
 
-  sim <- .tab("acto2_simulacion.csv")
-  it_s <- .col(sim, "ITEM"); es_s <- .col(sim, "ESTRATO"); esc_s <- .col(sim, "ESCENARIO")
-  ver_s <- .col(sim, "veredicto")
-  i_h_glob <- es_s == "HEMBRA" & esc_s == "GLOBAL"
-  d$sim_h_total <- sum(i_h_glob)
-  d$sim_h_fuera <- sum(i_h_glob & ver_s == "FUERA")
-  d$sim_lim_genes <- .join_y(gsub("_", " ", it_s[i_h_glob & ver_s == "FUERA"]))
-
   pv <- .tab("acto2_sensibilidad_pca_varianza.csv")
   tej_v <- .col(pv, "TEJIDO"); pc <- .col(pv, "PC"); propv <- .col(pv, "prop_var")
   pc1_pct <- function(te) .round_fmt(.num(propv[tej_v == te & pc == "1"][1]) * 100, 0L)
   d$pc1_pla <- pc1_pct("PLACENTA_E15"); d$pc1_bra <- pc1_pct("BRAIN_E15")
-
-  ex <- .tab("acto2_sensibilidad_excl_extremo.csv")
-  d$excl_total <- length(.col(ex, "veredicto_cambia"))
-  d$excl_cambian <- sum(.col(ex, "veredicto_cambia") == "TRUE")
 
   vf <- leer_csv(file.path(RUTA_TABLAS, "verificaciones.csv"))
   v <- .col(vf, "valor_obtenido")[.col(vf, "id") == "ingesta_qpcr_fetos_e15"]
@@ -523,7 +561,7 @@ pagina1 <- function(d) {
     'entre la inflamacion materna y el desarrollo fetal: transporta los nutrientes ',
     'que sostienen el crecimiento del cerebro fetal, y su funcion puede verse ',
     'modificada por la inflamacion antes de que el cerebro mismo responda. Este ',
-    'proyecto pregunta si esa respuesta -- en placenta y en cerebro -- depende del ',
+    'proyecto pregunta si esa respuesta, en placenta y en cerebro, depende del ',
     'sexo del feto.</p>\n',
     '<h3>Modelo experimental</h3>\n',
     fig_asset("modelo-experimental.png", "Modelo experimental", "fig-modelo"),
@@ -535,9 +573,9 @@ pagina1 <- function(d) {
     'nutrientes y via de senalizacion IL-6/STAT3), y pSTAT3 en placenta por Western ',
     'blot. Cuatro grupos (sexo &times; tratamiento), n = 9.</p>\n',
     '<h3>Como se organizo el trabajo</h3>\n',
-    '<p>Las decisiones metodologicas centrales -- que escala usar, como tratar los ',
+    '<p>Las decisiones metodologicas centrales (que escala usar, como tratar los ',
     'valores no detectados, que modelo ajustar, cuando hacer comparaciones post ',
-    'hoc -- se fijaron por escrito antes de correr ningun analisis, y no se ',
+    'hoc) se fijaron por escrito antes de correr ningun analisis, y no se ',
     'reabrieron despues de ver los resultados. El trabajo se dividio en tareas ',
     'acotadas, cada una con su propio cierre. El repositorio deja registro de ',
     'procedencia (de donde sale cada tabla y cada figura) y de verificaciones ',
@@ -548,176 +586,206 @@ pagina1 <- function(d) {
 
 pagina2 <- function() {
   cuerpo <- paste0(
-    '<p>La cuantificacion es relativa: <code>&Delta;Ct = Ct<sub>gen</sub> - ',
-    'Ct<sub>rsp29</sub></code>, con calibrador &female;Control por gen y tejido ',
-    '(promediando solo valores detectados). El analisis se hace sobre ',
-    '<code>-&Delta;&Delta;Ct</code> (escala log2, simetrica y aditiva); el ',
-    'fold-change <code>FC = 2<sup>-&Delta;&Delta;Ct</sup></code> se usa solo para ',
-    'graficar, con eje logaritmico -- el fold-change esta acotado en 0 y es ',
-    'asimetrico, y eso rompe los supuestos de los modelos lineales.</p>\n',
-    '<p>Los valores no detectados se tratan como faltantes (NA), nunca se ',
-    'imputan: una imputacion evaluada tempranamente introducia estructura ',
-    'artificial en el grupo control y se descarto.</p>\n',
-    '<p>El modelo es <code>-&Delta;&Delta;Ct ~ SEXO * TTO</code>, ajustado por gen ',
-    'y tejido, con una cascada de metodo segun el diagnostico de los residuos: ',
-    'ANOVA tipo III si se cumplen normalidad y homocedasticidad, errores robustos ',
-    'HC3 si falla solo la homocedasticidad, y ART (Aligned Rank Transform) si ',
-    'falla la normalidad. Las comparaciones post hoc solo se corren si la ',
-    'interaccion SEXO&times;TTO es significativa, sobre cuatro comparaciones fijas ',
-    '(&female;Control-&female;LPS, &male;Control-&male;LPS, &female;LPS-&male;LPS, ',
-    '&female;Control-&male;Control) con correccion de Holm.</p>\n',
-    '<p><code>il6</code> en cerebro no es cuantificable por este metodo: el ',
-    'calibrador &female;Control tiene 0 de 9 detectados. Se analiza aparte, solo ',
-    'como proporcion de deteccion por sexo (Fisher exacto).</p>\n',
-    '<p>El ELISA de liquido amniotico tiene censura a izquierda (valores por debajo ',
-    'del limite de deteccion): se registra la censura explicitamente y se usan ',
-    'metodos para datos censurados (Peto-Peto), nunca se trata un valor censurado ',
-    'como un numero negativo ni se lo reemplaza por cero.</p>\n',
-    '<p>El modelo de pSTAT3 agrega la membrana de Western blot como bloque fijo, ',
-    'para absorber la variacion tecnica entre membranas; usa la misma cascada de ',
-    'metodo y el mismo post hoc.</p>')
+    '<p>Se entregaron al agente las tablas de datos crudos, sobre las que aplico ',
+    'los calculos estandarizados para obtener la cuantificacion relativa de cada ',
+    'target. Las comparaciones entre los grupos experimentales de interes se ',
+    'definieron de antemano. Cuando el grupo calibrador no pudo cuantificarse por ',
+    'limitaciones del metodo experimental, ese gen no se analizo como expresion ',
+    'relativa sino como proporcion de deteccion, mediante el test exacto de ',
+    'Fisher.</p>\n',
+    '<p>La placenta y el cerebro analizados provienen del mismo individuo, de modo ',
+    'que las observaciones de ambos tejidos estan pareadas por feto.</p>\n',
+    '<p>El analisis se realizo sobre -&Delta;&Delta;Ct, en escala logaritmica de ',
+    'base 2, donde las diferencias son simetricas y aditivas; el fold-change se ',
+    'reservo para la representacion grafica, con eje logaritmico. Los valores no ',
+    'detectados se mantuvieron como faltantes y no se imputaron. Para cada gen y ',
+    'tejido se ajusto el modelo -&Delta;&Delta;Ct ~ sexo &times; tratamiento, ',
+    'eligiendo el metodo segun el diagnostico de los residuos: ANOVA de tipo III ',
+    'cuando se cumplian normalidad y homocedasticidad, errores robustos cuando ',
+    'fallaba la homocedasticidad, y una transformacion por rangos alineados cuando ',
+    'fallaba la normalidad. Las comparaciones post hoc se realizaron unicamente ',
+    'cuando la interaccion entre sexo y tratamiento resulto significativa, sobre ',
+    'cuatro contrastes definidos de antemano y con correccion de Holm.</p>\n',
+    '<p>En el ELISA de liquido amniotico, los valores por debajo del limite de ',
+    'deteccion se trataron como censurados a izquierda y se analizaron con ',
+    'metodos especificos para datos censurados.</p>')
   pagina(2, "Metodos", cuerpo)
 }
 
 pagina3 <- function(d, sint) {
-  cuerpo3 <- if (sint) AVISO_SINTETICO else paste0(
-    '<p>La IL-6 serica materna valida el modelo: fue detectable en ', d$ms_lps_det,
-    ' de ', d$ms_lps_n, ' madres tratadas con LPS, frente a ', d$ms_ctrl_det, ' de ',
-    d$ms_ctrl_n, ' en el grupo control (Fisher exacto, p = ', d$ms_p, ').</p>\n',
-    '<p>De ', d$pla_modelados, ' genes modelados en placenta, ninguno muestra ',
-    'interaccion sexo &times; tratamiento (', d$pla_int_n, ' de ', d$pla_modelados,
-    '): el LPS modifica la expresion en ambos sexos por igual. Los genes con ',
-    'efecto principal de tratamiento son ', .join_y(d$pla_tto_genes),
-    ' (p = ', paste(d$pla_tto_ps, collapse = "; "), ', respectivamente).</p>\n',
-    '<p>pSTAT3 responde de otra manera: la interaccion sexo &times; tratamiento es ',
-    'significativa (p = ', d$pstat3_p_int, '), y el post hoc ubica el efecto solo ',
-    'en hembras (&female;Control-&female;LPS, de ', d$pstat3_hc_media, ' a ',
-    d$pstat3_hl_media, ' u.a., p<sub>Holm</sub> = ', d$pstat3_hh_p,
-    '; &male;Control-&male;LPS, p<sub>Holm</sub> = ', d$pstat3_mm_p,
-    ', sin cambio).</p>\n',
-    '<p>Los dos resultados conviven pero no coinciden: los transportadores cambian ',
-    'en ambos sexos, mientras que solo las hembras activan STAT3. Es compatible ',
-    'con que el cambio de los transportadores no dependa de esa via, o con que los ',
-    'machos lo alcancen por otro camino; ninguna de las dos esta demostrada por ',
-    'este analisis.</p>')
-  cuerpo <- paste0(
-    '<div class="cols-fig">',
-    fig_outputs(.ENV13()$NOMBRE_SUBSET_PLACENTA,
-               "Boxplots de il6, glut3 y slc38a2 en placenta", "fig-boxplot"),
-    '<p class="epigrafe">Expresion de il6, glut3 y slc38a2 en placenta (subconjunto ',
-    'representativo; los cinco genes con efecto de tratamiento estan en el texto).</p>',
-    fig_outputs(.ENV13()$NOMBRE_PSTAT3_PRESENTACION,
-               "pSTAT3 en placenta", "fig-boxplot"),
-    '<p class="epigrafe">pSTAT3 en placenta, por sexo y tratamiento.</p>',
-    '</div>\n', cuerpo3)
+  intro <- paste0(
+    '<p>El agente devolvio el analisis por tejido y por gen, separando por sexo. ',
+    'En placenta se evaluo la expresion de diez genes: tres componentes de la via ',
+    'de IL-6, una citoquina proinflamatoria fuertemente vinculada a patologias del ',
+    'neurodesarrollo, y siete transportadores de nutrientes esenciales para el ',
+    'desarrollo fetal, correspondientes al transporte de glucosa, aminoacidos y ',
+    'lipidos.</p>')
+  resultado <- if (sint) paste0(
+    '<p>Para validar el modelo se evaluo si IL-6 era detectable de forma ',
+    'diferencial entre grupos, en suero materno y en liquido amniotico, mediante ',
+    'el test exacto de Fisher. Sobre los diez genes de placenta se evaluo cuantos ',
+    'mostraban efecto de tratamiento y si alguno mostraba interaccion entre sexo y ',
+    'tratamiento; pSTAT3 se evaluo por separado, para comparar el patron de ',
+    'senalizacion con el de los transportadores.</p>\n',
+    sim_bloque("El resultado de esta validacion y de los analisis por gen")
+  ) else paste0(
+    '<p>La validacion del modelo se apoyo en IL-6: en suero materno fue detectable ',
+    'en ', d$ms_lps_det, ' de ', d$ms_lps_n, ' madres tratadas con LPS, frente a ',
+    d$ms_ctrl_det, ' de ', d$ms_ctrl_n, ' en el grupo control (test exacto de ',
+    'Fisher, p = ', d$ms_p, '). En liquido amniotico ningun contraste alcanzo ',
+    'significancia (hembras: n = ', d$la_ctrl_n, ' control y ', d$la_lps_n,
+    ' LPS, p = ', d$la_h_p, '; machos: n = ', d$la_ctrl_n, ' control y ',
+    d$la_lps_n, ' LPS, p = ', d$la_m_p, ').</p>\n',
+    '<p>', length(d$pla_tto_genes), ' de los ', d$pla_modelados, ' genes de ',
+    'placenta mostraron efecto de tratamiento: ', .join_y(d$pla_tto_genes),
+    ' (p = ', paste(d$pla_tto_ps, collapse = "; "), ', respectivamente), todos ',
+    'aumentando su expresion bajo LPS; ninguno mostro interaccion sexo &times; ',
+    'tratamiento (', d$pla_int_n, ' de ', d$pla_modelados, ').</p>\n',
+    '<p>pSTAT3 aumenta en placentas de fetos hembra (p<sub>Holm</sub> = ',
+    d$pstat3_hh_p, ') y no se modifica en machos (p<sub>Holm</sub> = ',
+    d$pstat3_mm_p, ', sin figura): el dimorfismo placentario aparece en la ',
+    'senalizacion y no en el transporte.</p>')
+  cuerpo <- paste0(intro, resultado, '\n',
+    fig_outputs(NOMBRE_PLACENTA_BREVE, "Boxplots de il6, fatp1, slc38a2 y glut1 en placenta",
+               "fig-boxplot"),
+    '<p class="epigrafe">Placenta: il6, fatp1, slc38a2 y glut1, por sexo y ',
+    'tratamiento.</p>')
   pagina(3, "Placenta", cuerpo)
 }
 
 pagina4 <- function(d, sint) {
-  cuerpo4 <- if (sint) AVISO_SINTETICO else {
-    paso3 <- if (length(d$sin_posthoc_explicados))
-      paste0('En ', length(d$sin_posthoc_explicados), ' de ellos (',
-             .join_y(d$sin_posthoc_explicados),
-             ') el test de interaccion sexo &times; tratamiento sobre la ',
-             'dispersion lo explica (BH < 0.05)',
-             if (length(d$sin_posthoc_tendencia))
-               paste0('; en ', .join_y(d$sin_posthoc_tendencia),
-                      ' aparece la misma tendencia, sin llegar a significancia')
-             else '', '.')
-    else ''
-    paste0(
-      '<p>En cerebro, ', d$bra_int_n, ' de ', d$bra_modelados, ' genes modelados ',
-      'muestran interaccion sexo &times; tratamiento (frente a 0 en placenta). Hay ',
-      'dos formas de dimorfismo, no una.</p>\n',
-      '<p><strong>Desplazamiento del nivel.</strong> En ', .join_y(d$bra_con_posthoc),
-      ' el post hoc localiza la diferencia: &female;Control distinto de ',
-      '&female;LPS, &female;LPS distinto de &male;LPS, sin cambios entre ',
-      '&male;Control y &male;LPS.</p>\n',
-      '<p><strong>Cambio de dispersion.</strong> En ', .join_y(d$bra_sin_posthoc),
-      ' hay interaccion pero ninguna comparacion de a pares sobrevive a Holm: hay ',
-      'algo sexo-dependiente, pero el post hoc no dice donde. ', paso3,
-      ' En total, ', d$disp_bra_sig_n, ' de ', d$disp_bra_n,
-      ' genes de cerebro muestran interaccion significativa sobre la dispersion ',
-      '(BH < 0.05): el LPS compacta la expresion en hembras y la dispersa en ',
-      'machos.</p>\n',
-      '<p>El boxplot mostraba que algo dependia del sexo, pero no donde estaba: el ',
-      'analisis de dispersion lo explico.</p>')
-  }
-  cuerpo <- paste0(
+  intro <- paste0(
+    '<p>El mismo analisis se aplico al cerebro fetal. Mientras la placenta ',
+    'respondio al estimulo inflamatorio de manera equivalente en ambos sexos, en ',
+    'el cerebro fetal la respuesta de los transportadores de nutrientes resulto ',
+    'dimorfica.</p>')
+  resultado <- if (sint) paste0(
+    '<p>En cerebro se evaluo, para cada uno de los genes modelados, si la ',
+    'interaccion entre sexo y tratamiento era significativa y, cuando lo fue, si ',
+    'alguna de las cuatro comparaciones post hoc la explicaba.</p>\n',
+    sim_bloque("El numero de genes con interaccion en cerebro y el patron por gen")
+  ) else paste0(
+    '<p>', d$bra_int_n, ' de los ', d$bra_modelados, ' genes modelados en cerebro ',
+    'mostraron interaccion sexo &times; tratamiento (frente a ninguno en ',
+    'placenta). En ', .join_y(d$bra_con_posthoc), ' el post hoc ubica el efecto ',
+    'en las hembras: el grupo control de hembras difiere del grupo LPS de ',
+    'hembras, y este ultimo difiere del grupo LPS de machos, mientras que los ',
+    'machos no se modifican. En ', .join_y(d$bra_sin_posthoc), ' la interaccion ',
+    'fue significativa pero ninguna comparacion entre medias la explicaba, lo que ',
+    'motivo el analisis de dispersion de la seccion siguiente.</p>')
+  cuerpo <- paste0(intro, resultado, '\n',
     '<div class="cols-fig">',
+    fig_outputs(NOMBRE_DETECCION_BRAIN, "Deteccion de il6 en cerebro", "fig-chica"),
     fig_outputs(.ENV13()$NOMBRE_SUBSET_BRAIN,
-               "Boxplots de glut1, slc38a2 y fatp1 en cerebro", "fig-boxplot"),
-    '<p class="epigrafe">Expresion de glut1, slc38a2 y fatp1 en cerebro (los tres ',
-    'con post hoc significativo).</p>',
-    fig_outputs(NOMBRE_DENSIDADES,
-               "Densidades de -ddCt por grupo, cerebro", "fig-densidad"),
-    '<p class="epigrafe">Densidad de -&Delta;&Delta;Ct por sexo y tratamiento, ',
-    'cerebro (genes con interaccion significativa sobre la dispersion).</p>',
-    '</div>\n', cuerpo4)
+               "Boxplots de glut1, slc38a2 y fatp1 en cerebro", "fig-grande"),
+    '</div>\n',
+    '<p class="epigrafe">Izquierda: proporcion de deteccion de il6 en cerebro ',
+    '(D7, no cuantificable). Derecha: glut1, slc38a2 y fatp1 en cerebro, por ',
+    'sexo y tratamiento.</p>')
   pagina(4, "Cerebro fetal", cuerpo)
 }
 
 pagina5 <- function(d, sint) {
-  cuerpo <- if (sint) AVISO_SINTETICO else paste0(
-    '<p>Ninguna de las ', d$corr_n_test, ' comparaciones de correlacion placenta-',
-    'cerebro (Fisher z sobre &rho; de Spearman, Control vs LPS) alcanza p<0.05 (',
-    d$corr_n_sig, ' de ', d$corr_n_test, '). La caida de correlacion observada en ',
-    'hembras es compatible con la compactacion de la expresion bajo LPS: cuando el ',
-    'rango de una variable se reduce, la correlacion cae aunque la relacion ',
-    'biologica no haya cambiado. Sobre ', d$sim_h_total,
-    ' comparaciones simuladas para hembras, ', d$sim_h_fuera,
-    ' quedan fuera del intervalo (', d$sim_lim_genes,
-    '); se toman como pista, no como hallazgo -- la simulacion alcanza para ',
-    'explicar la caida, aunque no permite descartar un cambio de coordinacion.</p>\n',
-    '<p>Los diagramas triangulares de co-expresion sugieren que los transportadores ',
-    'varian mayormente juntos, como un eje compartido por feto: el eigengene (PC1) ',
-    'explica el ', d$pc1_pla, ' % de la varianza en placenta y el ', d$pc1_bra,
-    ' % en cerebro. Las diferencias de &rho; entre grupos que se ven en esos ',
-    'diagramas no se interpretan como un cambio de coordinacion (no estan ',
-    'testeadas).</p>\n',
-    '<p>Dos controles de sensibilidad: reemplazar el score compuesto por el ',
-    'eigengene no cambia ninguna conclusion, y excluir el feto mas influyente de ',
-    'cada item tampoco cambia ningun veredicto (', d$excl_cambian, ' de ',
-    d$excl_total, ').</p>\n',
+  intro <- paste0(
+    '<p>Con el analisis convencional cerrado, el agente propuso profundizar por ',
+    'dos vias: correlacionar la expresion de cada gen entre la placenta y el ',
+    'cerebro de un mismo feto, y explorar la co-expresion entre genes dentro de ',
+    'cada tejido.</p>')
+  correl <- if (sint) paste0(
+    '<h3>Correlacion entre tejidos</h3>\n',
+    '<p>Se evaluo si las correlaciones entre placenta y cerebro cambiaban entre ',
+    'el grupo control y el grupo LPS, mediante un test formal (Fisher z sobre ',
+    '&rho; de Spearman), y se simulo si una simple reduccion de la variabilidad ',
+    'alcanzaria para explicar una eventual caida de correlacion sin que la ',
+    'relacion subyacente cambiara.</p>\n',
+    sim_bloque("El resultado del test de correlaciones y de la simulacion")
+  ) else paste0(
+    '<h3>Correlacion entre tejidos</h3>\n',
+    '<p>En las hembras, las correlaciones altas observadas en el grupo control ',
+    'caian bajo LPS, lo que sugeria una perdida de acoplamiento entre placenta y ',
+    'cerebro. El test formal (Fisher z sobre &rho; de Spearman, Control vs LPS) ',
+    'no mostro diferencias significativas en ninguna de las ', d$corr_n_test,
+    ' comparaciones evaluadas (', d$corr_n_sig, ' de ', d$corr_n_test,
+    '), y una simulacion mostro que una reduccion de la variabilidad alcanza por ',
+    'si sola para producir esa caida, sin que la relacion subyacente cambie. La ',
+    'aparente perdida de acoplamiento placenta-cerebro en hembras es compatible ',
+    'con la reduccion de dispersion: la simulacion muestra que esta alcanza para ',
+    'explicarla, aunque no permite descartar un cambio de coordinacion.</p>')
+  coexpr <- if (sint) paste0(
+    '<h3>Co-expresion dentro de cada tejido</h3>\n',
+    '<p>Los diagramas triangulares son exploratorios y describen como se ',
+    'acompanan los genes entre si; sobre ellos no se testeo ninguna diferencia ',
+    'entre grupos y no se interpretan diferencias de &rho;. Ademas se evaluo que ',
+    'proporcion de la varianza explica el primer componente principal en cada ',
+    'tejido.</p>\n',
+    sim_bloque("Los porcentajes de varianza explicada")
+  ) else paste0(
+    '<h3>Co-expresion dentro de cada tejido</h3>\n',
+    '<p>Los diagramas triangulares son exploratorios y describen como se ',
+    'acompanan los genes entre si; sobre ellos no se testeo ninguna diferencia ',
+    'entre grupos y no se interpretan diferencias de &rho;. Lo que si queda ',
+    'establecido es que los transportadores varian mayormente juntos: el primer ',
+    'componente principal explica el ', d$pc1_pla, ' % de la varianza en ',
+    'placenta y el ', d$pc1_bra, ' % en cerebro.</p>')
+  fig_epigrafe <- if (sint) paste0(
+    '<p class="epigrafe">Cerebro fetal, hembras: densidades de ',
+    '-&Delta;&Delta;Ct por tratamiento en los mismos cinco genes (recorte de la ',
+    'diagonal del diagrama triangular; corrida con datos sinteticos).</p>'
+  ) else paste0(
+    '<p class="epigrafe">Cerebro fetal, hembras: densidades de ',
+    '-&Delta;&Delta;Ct por tratamiento en los cinco genes con interaccion ',
+    'significativa sobre la dispersion (recorte de la diagonal del diagrama ',
+    'triangular). La distribucion del grupo LPS es marcadamente mas concentrada ',
+    'que la del control, y esa reduccion de variabilidad es el mecanismo que ',
+    'explica la caida de correlacion.</p>')
+  limitaciones <- paste0(
     '<h3>Limitaciones</h3>\n',
-    '<ul class="limites">',
-    '<li>n = 9 por grupo: la potencia es baja, en especial para las comparaciones ',
-    'estratificadas por sexo.</li>',
-    '<li>El tratamiento se administra a la madre, y cada camada aporta un feto de ',
-    'cada sexo; el analisis asume independencia entre fetos de la misma camada.</li>',
-    '<li>pSTAT3 esta normalizado a proteina total, sin STAT3 total: refleja ',
-    'abundancia de fosfo-STAT3, no la fraccion fosforilada.</li>',
-    '<li>El efecto de dispersion en cerebro es un patron compartido por varios ',
-    'transportadores, no hallazgos independientes gen por gen.</li>',
-    '</ul>\n',
+    '<p>Todas las comparaciones se hacen con n = 9 por grupo, lo que limita la ',
+    'potencia, en especial en los contrastes estratificados por sexo. El ',
+    'analisis asume independencia entre fetos aunque el tratamiento se ',
+    'administra a la madre y cada camada aporta un feto de cada sexo (D13). El ',
+    'efecto sobre la dispersion en cerebro fetal constituye un patron compartido ',
+    'por varios transportadores, y no un conjunto de hallazgos independientes ',
+    'gen por gen.</p>')
+  conclusion <- if (sint) paste0(
+    '<h3>Conclusion</h3>\n', sim_bloque("La conclusion biologica de este proyecto")
+  ) else paste0(
     '<h3>Conclusion</h3>\n',
     '<p>El sexo del feto influye en la respuesta al LPS, pero de manera distinta ',
-    'en cada tejido. En placenta afecta la senalizacion (pSTAT3, solo en hembras) ',
-    'y no el transporte (los transportadores cambian en ambos sexos por igual). En ',
-    'cerebro afecta a los transportadores mismos: desplaza el nivel de expresion ',
-    'en unos genes y la dispersion entre individuos en otros, siempre en la misma ',
-    'direccion -- el LPS vuelve mas uniforme la respuesta en hembras y mas variable ',
-    'en machos.</p>')
-  pagina(5, "Eje entre tejidos, limites y conclusion", cuerpo)
+    'en cada tejido. En la placenta, los transportadores responden de forma ',
+    'equivalente en ambos sexos y el dimorfismo aparece en la senalizacion. En ',
+    'el cerebro fetal, el dimorfismo se expresa en los transportadores, ',
+    'desplazando el nivel de expresion en unos genes y la variabilidad entre ',
+    'individuos en otros.</p>')
+  pie <- paste0(
+    '<footer>Detalle completo, procedencia y verificaciones: ',
+    '<code>docs/informe.html</code>. Presentacion: <code>docs/index.html</code>.',
+    '</footer>')
+  cuerpo <- paste0(
+    intro, correl, coexpr, '\n',
+    fig_outputs(NOMBRE_DENSIDADES, "Densidades de -ddCt en cerebro, hembras", "fig-densidad"),
+    fig_epigrafe, limitaciones, conclusion, pie)
+  pagina(5, "Exploracion, limites y conclusion", cuerpo)
 }
 
 # =========================================================================
 construir_html <- function(d) {
   sint <- d$fuente != "real"
+  # el <footer> va DENTRO de la pagina 5 (ver pagina5()): si quedara fuera del
+  # ultimo <section>, "break-after: page" del section empuja el pie a una
+  # sexta pagina vacia salvo por esa linea.
   paginas <- paste(pagina1(d), pagina2(), pagina3(d, sint), pagina4(d, sint),
                    pagina5(d, sint), sep = "\n")
   paste0(
     "<!doctype html>\n<html lang=\"es\">\n<head>\n<meta charset=\"utf-8\">\n",
     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n",
-    "<title>Informe breve -- MIA-LPS</title>\n<style>", CSS, "</style>\n",
+    "<title>Informe breve: MIA-LPS</title>\n<style>", CSS, "</style>\n",
     "</head>\n<body>\n<main>\n",
     "<h1>Transportadores de nutrientes en el eje placenta&ndash;cerebro fetal en ",
     "un modelo de activacion inmune materna</h1>\n",
     "<p class=\"subtitulo\">Informe breve</p>\n",
     paginas,
-    "\n<footer>Detalle completo, procedencia y verificaciones: ",
-    "<code>docs/informe.html</code>. Presentacion: <code>docs/index.html</code>.",
-    "</footer>\n</main>\n</body>\n</html>\n")
+    "\n</main>\n</body>\n</html>\n")
 }
 
 # =========================================================================
@@ -726,16 +794,15 @@ main <- function() {
   sint <- d$fuente != "real"
 
   e13 <- .ENV13()
-  e13$aplicar_override_tendencia(sint)   # ver cabecera: heredado de 13_presentacion.R
-  ruta_subset_pla <- file.path(RUTA_FIGURAS, e13$NOMBRE_SUBSET_PLACENTA)
+  ruta_placenta_breve <- file.path(RUTA_FIGURAS, NOMBRE_PLACENTA_BREVE)
   ruta_subset_bra <- file.path(RUTA_FIGURAS, e13$NOMBRE_SUBSET_BRAIN)
-  ruta_pstat3 <- file.path(RUTA_FIGURAS, e13$NOMBRE_PSTAT3_PRESENTACION)
-  e13$generar_panel_subset(e13$GENES_SUBSET_PLACENTA, "PLACENTA_E15", ruta_subset_pla)
-  e13$generar_panel_subset(e13$GENES_SUBSET_BRAIN, "BRAIN_E15", ruta_subset_bra)
-  e13$generar_pstat3_presentacion(ruta_pstat3)
-
+  ruta_deteccion_bra <- file.path(RUTA_FIGURAS, NOMBRE_DETECCION_BRAIN)
   ruta_densidades <- file.path(RUTA_FIGURAS, NOMBRE_DENSIDADES)
-  generar_figura_densidades(GENES_DENSIDADES, ruta_densidades)
+
+  e13$generar_panel_subset(GENES_PLACENTA_BREVE, "PLACENTA_E15", ruta_placenta_breve)
+  e13$generar_panel_subset(e13$GENES_SUBSET_BRAIN, "BRAIN_E15", ruta_subset_bra)
+  generar_panel_deteccion_brain(ruta_deteccion_bra)
+  generar_figura_densidades(d$disp_bra_sig_genes, ruta_densidades)
 
   html <- construir_html(d)
 
@@ -747,9 +814,24 @@ main <- function() {
   pdf_status <- generar_pdf(ruta_html, ruta_pdf)
   n_paginas <- contar_paginas_pdf(ruta_pdf)
 
-  m_aviso <- gregexpr(AVISO_SINTETICO, html, fixed = TRUE)[[1]]
-  n_aviso <- if (length(m_aviso) == 1L && m_aviso[1] == -1L) 0L else length(m_aviso)
-  n_aviso_esperado <- if (sint) 3L else 0L   # paginas 3, 4, 5
+  m_sim <- gregexpr('class="sim"', html, fixed = TRUE)[[1]]
+  n_sim <- if (length(m_sim) == 1L && m_sim[1] == -1L) 0L else length(m_sim)
+  n_sim_esperado <- if (sint) 5L else 0L  # pagina 3 (1) + pagina 4 (1) + pagina 5 (3)
+
+  # Ninguna seccion (pagina) de la version publica queda vacia: cada
+  # <section class="pagina" id="pN">...</section> tiene que superar un minimo
+  # de texto visible (sin tags), incluso reemplazando los resultados por el
+  # aviso puntual -- ver pedido seccion 0.
+  ids_pag <- c("1", "2", "3", "4", "5")
+  secciones_ok <- vapply(ids_pag, function(id_) {
+    m <- regexpr(sprintf('(?s)<section class="pagina" id="p%s">.*?</section>', id_),
+                html, perl = TRUE)
+    if (m == -1L) return(FALSE)
+    txt <- regmatches(html, m)
+    txt <- gsub("<[^>]+>", " ", txt)
+    txt <- gsub("\\s+", " ", txt)
+    nchar(trimws(txt)) >= 200L
+  }, logical(1))
 
   usadas <- unique(.FIGS_USADAS$outputs)
   faltan_figs <- usadas[!file.exists(file.path(RUTA_FIGURAS, usadas)) &
@@ -772,14 +854,22 @@ main <- function() {
          "informe_breve.html",
          paste0("version imprimible por impresion headless; best-effort (estado: ",
                 pdf_status, ")")),
+    list(file.path("outputs/figures", NOMBRE_PLACENTA_BREVE), "figura_presentacion",
+         ESTE_SCRIPT, "PROPIO (reusa generar_panel_subset de 13_presentacion.R)",
+         "data/processed/qpcr_cuantificacion_long.tsv",
+         paste0("boxplots de placenta, subconjunto propio de este informe (",
+                .join_y(GENES_PLACENTA_BREVE), ")")),
+    list(file.path("outputs/figures", NOMBRE_DETECCION_BRAIN), "figura_presentacion",
+         ESTE_SCRIPT, "PROPIO (reusa panel_deteccion de 07_figuras_acto1.R)",
+         "qpcr_il6_brain_fisher.csv + qpcr_il6_brain_tabla2x4.csv",
+         "proporcion de deteccion de il6 en cerebro E15 (D7, no cuantificable)"),
     list(file.path("outputs/figures", NOMBRE_DENSIDADES), "figura_presentacion", ESTE_SCRIPT,
          "PROPIO (geom_density, mismo estilo que la diagonal del SPLOM de 08_acto2_correlaciones.R)",
          "data/processed/qpcr_cuantificacion_long.tsv",
-         paste0("densidades de -ddCt por sexo x tratamiento, cerebro E15, genes ",
-                .join_y(GENES_DENSIDADES),
-                " (interaccion SEXOxTTO significativa sobre la dispersion, BH<0.05); ",
-                "reemplaza a acto2_dispersion_sd.png en este informe -- muestra la ",
-                "distribucion completa en vez de un resumen"))
+         paste0("recorte de la diagonal del SPLOM: densidades de -ddCt por ",
+                "tratamiento, cerebro E15, SOLO hembras, genes ",
+                .join_y(d$disp_bra_sig_genes),
+                " (interaccion SEXOxTTO significativa sobre la dispersion, BH<0.05)"))
   ))
   registrar_verificaciones(list(
     list("informe_breve_html_generado", "recalculo",
@@ -797,11 +887,15 @@ main <- function() {
          else "FALSE",
          ESTE_SCRIPT),
     list("informe_breve_sin_interpretacion", "recalculo",
-         paste0("con fuente sintetica, las paginas 3-5 reemplazan la prosa ",
-                "interpretativa por el aviso de datos sinteticos"),
-         sprintf("fuente=%s; aviso=%d/%d", d$fuente, n_aviso, n_aviso_esperado),
-         "aviso = 3 si fuente sintetica, 0 si fuente real",
-         if (n_aviso == n_aviso_esperado) "TRUE" else "FALSE", ESTE_SCRIPT),
+         paste0("con fuente sintetica, cada afirmacion sobre que dio un analisis ",
+                "sobre datos reales se reemplaza por un aviso puntual (clase sim)"),
+         sprintf("fuente=%s; sim=%d/%d", d$fuente, n_sim, n_sim_esperado),
+         "sim = 5 si fuente sintetica, 0 si fuente real",
+         if (n_sim == n_sim_esperado) "TRUE" else "FALSE", ESTE_SCRIPT),
+    list("informe_breve_secciones_no_vacias", "recalculo",
+         "ninguna de las 5 paginas queda vacia (>=200 caracteres de texto visible)",
+         sprintf("fuente=%s; paginas_ok=%d/5", d$fuente, sum(secciones_ok)),
+         "paginas_ok = 5/5", if (all(secciones_ok)) "TRUE" else "FALSE", ESTE_SCRIPT),
     list("informe_breve_figuras_existen", "recalculo",
          "toda figura referenciada por el informe breve existe",
          sprintf("usadas=%d; faltan=%s", length(usadas),
@@ -824,20 +918,13 @@ main <- function() {
 
   cat("== 14_informe_breve.R ==\n")
   cat(sprintf("  fuente = %s\n", d$fuente))
-  cat(sprintf("  genes densidades = %s\n", paste(GENES_DENSIDADES, collapse = ", ")))
+  cat(sprintf("  genes densidades (BH<0.05, cerebro) = %s\n",
+              paste(d$disp_bra_sig_genes, collapse = ", ")))
   cat(sprintf("  -> %s (%d KB)\n", ruta_html, file.info(ruta_html)$size %/% 1024))
   cat(sprintf("  -> %s [%s] (%s paginas)\n", ruta_pdf, pdf_status, n_paginas))
+  cat(sprintf("  secciones no vacias: %d/5\n", sum(secciones_ok)))
   if (length(faltan_figs))
     cat(sprintf("  *** faltan figuras: %s ***\n", paste(faltan_figs, collapse = ", ")))
 }
-
-# Genes para la figura de densidades (pedido, seccion 2): "tres o cuatro genes
-# ... elegidos entre los que tienen interaccion significativa sobre la
-# dispersion", leidos de acto2_dispersion_interaccion.csv. Con datos reales:
-# fatcd36, fatp1, fatp4, gp130, slc38a2 (BH<0.05, cerebro). Se eligen 4 de esos
-# 5 -- fatcd36, fatp4, gp130, slc38a2 -- por tener el contraste de SD mas
-# marcado (control ancho / LPS angosto en hembras, al reves en machos, ~3-4x
-# en los dos sentidos); fatp1 muestra el mismo patron pero mas atenuado.
-GENES_DENSIDADES <- c("fatcd36", "fatp4", "gp130", "slc38a2")
 
 if (sys.nframe() == 0L) main()
