@@ -26,6 +26,11 @@ outputs/figures/*
 # publica (sintetica) va aparte, a docs/ (ver mas abajo).
 outputs/presentacion_real/
 
+# --- Informe breve con datos reales (14_informe_breve -- solo R) ---
+# Mismo criterio que outputs/presentacion_real/ arriba (pedidos/
+# pedido_informe_breve.md). La version publica (sintetica) va a docs/.
+outputs/informe_breve_real/
+
 # --- Informe generado y log de corrida ---
 # Los regenera 12_informe / 99_verificar. Sobre datos reales dejarian numeros
 # ineditos en git (misma logica que outputs/). El formato de docs/informe.html
@@ -38,6 +43,10 @@ docs/*
 !docs/index.html
 !docs/presentacion.pdf
 !docs/referencias.md
+# Excepcion: informe breve PUBLICO (14_informe_breve sobre datos sinteticos,
+# pedidos/pedido_informe_breve.md) -- mismo criterio que la presentacion.
+!docs/informe_breve.html
+!docs/informe_breve.pdf
 logs/*
 !logs/.gitkeep
 
