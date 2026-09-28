@@ -3269,3 +3269,143 @@ check-ignore` confirma que `outputs/informe_breve_real/` sigue excluido.
   `analisis_descartados.md` (D13), decisión de publicación de
   `docs/`/`outputs/`, SPLOM de la sesión 19c, y los avisos de diseño de la
   sesión 23.
+
+---
+
+## Sesión 28 — 2026-09-28 — informe breve: ajustes de figuras y bibliografía
+
+> Pedido por archivo `pedidos/pedido_informe_breve_figuras.md`, que
+> reemplaza al anterior en lo que difiere. Alcance acotado explícito: "solo
+> lo que está en este pedido" — no tocar texto, números ni estructura.
+> Cuatro cambios: (1) Figura 3 (cerebro) con los 4 paneles del mismo tamaño
+> que la Figura 2 (hoy la de detección quedaba mucho más alta que los
+> boxplots); (2) Figura 5 como recorte del diagrama triangular COMPLETO
+> (diagonal + dispersión + rho/n), no solo la diagonal; (3) Figura 4
+> (correlación de fatp4) más grande, con la leyenda de Spearman al costado
+> en vez de abajo, como variante propia del informe (sin tocar la figura
+> original); (4) bibliografía movida al final del documento, en tipografía
+> más chica. Con la advertencia explícita de que todas las figuras se
+> generan desde el código, nunca una imagen prearmada.
+
+### Qué se completó
+
+- **Figura 3 (cerebro, `acto1_cerebro_completo_BRAIN_E15_breve.png`)**:
+  antes eran DOS PNG (detección de il6 + boxplots de 3 genes) compuestos
+  por CSS flex con alturas ajustadas a mano según la relación de aspecto de
+  cada imagen (sesión 27) — con eso los boxplots quedaban legibles pero
+  nunca con el mismo tamaño exacto que la Figura 2. Ahora es UNA sola
+  imagen, con `layout(matrix(1:4, nrow=1))` — el mismo mecanismo exacto de
+  `generar_panel_subset()` (Figura 2) — que combina `panel_deteccion()` +
+  tres llamadas a `panel_gen()`, todas de `07_figuras_acto1.R` vía
+  `.ENV13()$.ENV07()`. Las Figuras 2 y 3 comparten la misma clase CSS
+  (`.fig-boxplot`) porque ahora son estructuralmente idénticas (n×1150 ×
+  1000 px). El CSS de la fila de alto fijo de la sesión anterior
+  (`.cols-fig`/`.fig-chica`/`.fig-grande`) quedó sin uso y se eliminó.
+- **Figura 5 (SPLOM completo,
+  `acto2_coexpresion_SPLOM_BRAIN_E15_HEMBRA_breve.png`)**: la versión
+  anterior (sesión 26) reimplementaba solo la diagonal en `ggplot2` puro
+  porque entonces solo hacía falta eso. Este pedido pide la estructura
+  completa (diagonal con densidades, triángulo inferior con dispersión de
+  puntos, triángulo superior con rho y n) — que es exactamente lo que ya
+  arma `figura_splom()` de `08_acto2_correlaciones.R` para el SPLOM del
+  informe técnico. **Decisión: reusar esa función directamente en vez de
+  reimplementarla**, pasándole el mismo subconjunto de 5 genes
+  (`d$disp_bra_sig_genes`, sin cambios) y `sexo_filtro = "HEMBRA"`. Esto
+  requirió una **QUINTA EXCEPCIÓN** a "cada script importa solo 00_config":
+  `.ENV08()`, que fuentea `08_acto2_correlaciones.R` completo y aislado,
+  mismo mecanismo que `.ENV13()` (mismo guardián
+  `if (sys.nframe()==0L) main()`, confirmado que sourcearlo no dispara su
+  `main()` antes de usarlo). La función vieja
+  (`generar_figura_densidades()`, ggplot2 puro) se eliminó del todo.
+- **Figura 4 (correlación de fatp4 con leyenda al costado,
+  `acto2_corr_placenta_cerebro_fatp4_breve.png`)**: pedido explícito "no
+  modifiques la figura original que usan el informe técnico y la
+  presentación" — se creó una función nueva, `generar_corr_fatp4_informe()`,
+  que reusa (sin recalcular) `pares()`, `spearman_rho()`, `spearman_p()`,
+  `.linea_leyenda()`, `PISO_PAR`, `PCH_TTO` y `NOTA_PIE` de
+  `08_acto2_correlaciones.R` (vía `.ENV08()`), pero en vez de poner la
+  leyenda como `caption` de `ggplot2` (que obliga a reservar espacio abajo
+  de TODO el ancho de la figura), la dibuja en una columna aparte con
+  `grid::viewport`/`grid::grid.layout` — deja mucho más área para los
+  paneles Females/Males. Filas propias en `procedencia.csv`
+  (`tipo = "figura_presentacion"`); la figura original
+  (`acto2_corr_placenta_cerebro_fatp4.png`) no se tocó.
+  **Bug encontrado y corregido en esta misma sesión**: la primera versión
+  de la leyenda lateral quedaba CORTADA en el borde derecho de la imagen
+  (el texto no envuelve automáticamente en `grid`, y la columna asignada
+  era angosta para el tamaño de fuente usado) — visible al inspeccionar la
+  figura generada, no solo el PDF. **Fix**: columna de leyenda más ancha
+  (relación 2.5:1 en vez de 3.2:1, canvas total más ancho), fuente más
+  chica (8.5pt en vez de 9.5pt), y la nota de ejes (`NOTA_PIE`, una sola
+  línea larga separada por "|") partida en una línea por cláusula. Verificado
+  después leyendo el PNG generado directamente: las cuatro líneas de
+  rho/p/n y las cuatro líneas de la nota de ejes se leen completas.
+- **Bibliografía al final**: `REFERENCIAS_EPIDEMIO` y el `<ol>` que las
+  arma se movieron de `pagina1()` a `pagina5()` (después de la conclusión,
+  antes del pie de página); las llamadas numeradas `<sup>1–10</sup>` en el
+  cuerpo de la página 1 no cambiaron. La clase CSS `.referencias` ya tenía
+  tipografía más chica que el cuerpo (0.78rem vs. el cuerpo en escala base)
+  desde la sesión 27; se mantuvo sin cambios porque ya cumplía el pedido.
+- **Limpieza de archivos huérfanos** (mismo patrón que sesiones 26/27):
+  tras el cambio de nombres de figuras, quedaron en disco
+  `acto1_deteccion_il6_BRAIN_E15_breve.png` y
+  `acto2_densidades_dispersion_BRAIN_E15_HEMBRA.png` (de la sesión 27) sin
+  fila en `procedencia.csv`. Confirmado con `git status --short` que no
+  estaban rastreados (contenido de `outputs/figures/` ignorado por git) y
+  borrados antes de correr `run_all.ps1` completo, para que
+  `audit_procedencia_figuras` (98_comparacion) no fallara.
+
+### Verificado
+
+- **Las tres figuras nuevas inspeccionadas directamente (no solo en el
+  PDF)**: Figura 3 muestra los 4 paneles (detección + 3 boxplots) con
+  ancho y alto idénticos entre sí y respecto de la Figura 2. Figura 5
+  muestra la matriz 5×5 completa: nombre de gen en la faja de cada columna,
+  diagonal con densidades Control/LPS superpuestas, triángulo inferior con
+  puntos individuales, triángulo superior con `rho` y `n` — igual que el
+  SPLOM completo del informe técnico, solo que con 5 genes en vez de 8 y
+  restringido a hembras. Figura 4 con el área de paneles notablemente más
+  grande que la versión anterior (leyenda ya no ocupa el ancho completo
+  abajo) y sin texto cortado tras el fix.
+- **Versión pública** (`docs/informe_breve.html`/`.pdf`, tras
+  `run_all.ps1 -Only R -FromSynthetic`): **5 páginas** (718 KB HTML / 895 KB
+  PDF). La figura de correlación de fatp4 entró sin pasar del límite (no
+  hizo falta avisar ni sacarla). `informe_breve_sin_interpretacion`: sim=5/5
+  (sin cambios). `informe_breve_secciones_no_vacias`: 5/5. 0 números reales
+  tras stripear blobs base64 y grepear valores exclusivos de la corrida
+  real.
+- **Figuras de la versión pública confirmadas distintas de las reales**
+  (ahora 4 figuras propias/variantes, ninguna reusada tal cual del
+  pipeline): comparado el tamaño en bytes de cada blob base64 — el asset
+  estático (modelo experimental) coincide byte a byte, las 4 figuras
+  derivadas de datos (placenta, cerebro completo, correlación de fatp4,
+  SPLOM) difieren todas en tamaño.
+- **Estado real restaurado**: `run_all.ps1` completo (R+Python) →
+  `TODAS LAS VERIFICACIONES PASARON`, 77/77, 0 NO_EJECUTADA, 32/32 CSV
+  byte-idénticos (dos veces: una antes de descubrir el bug de la leyenda
+  cortada, otra después de corregirlo). Luego
+  `Rscript R/14_informe_breve.R` (real) → `outputs/informe_breve_real/`
+  regenerado, **5 páginas** (698 KB HTML / 852 KB PDF).
+- `git check-ignore` confirmado: `outputs/informe_breve_real/` ignorado;
+  `docs/informe_breve.html`/`.pdf` no ignorados.
+- `procedencia.csv`/`verificaciones.csv` finales revisados: sin filas
+  `FALSE` inesperadas; `audit_procedencia_figuras` pasa limpio tras borrar
+  los dos archivos huérfanos.
+
+### Respuesta directa a lo pedido
+
+| Versión | Ruta | Tamaño | Páginas | Figura de fatp4 |
+|---|---|---|---|---|
+| Pública (sintética) | `docs/informe_breve.html` / `.pdf` | 718 KB / 895 KB | 5 | Sí, entró |
+| Real (no versionada) | `outputs/informe_breve_real/informe_breve.html` / `.pdf` | 698 KB / 852 KB | 5 | Sí, entró |
+
+Las figuras de la versión pública siguen saliendo de la corrida sintética
+(verificado por tamaño de blob, no solo por el texto). `git check-ignore`
+confirma que `outputs/informe_breve_real/` sigue excluido.
+
+### Pendiente / siguiente paso concreto
+
+- Sin cambios respecto de la sesión 24: marcador de
+  `analisis_descartados.md` (D13), decisión de publicación de
+  `docs/`/`outputs/`, SPLOM de la sesión 19c, y los avisos de diseño de la
+  sesión 23.
