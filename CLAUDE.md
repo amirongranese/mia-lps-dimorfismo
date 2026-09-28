@@ -104,7 +104,9 @@ MIA_LPS_reanalisis/
 │        08_acto2_correlaciones.R 09_acto2_dispersion.R 10_acto2_simulacion.R
 │        11_sensibilidad.R 98_comparacion.R 12_informe.R 99_verificar.R
 │        13_presentacion.R   <- SOLO R, ver excepcion mas abajo
-├─ python/  <- mismos números y nombres, extensión .py (SIN 13_presentacion.py)
+│        14_informe_breve.R  <- SOLO R, ver cuarta excepcion mas abajo
+├─ python/  <- mismos números y nombres, extensión .py (SIN 13_presentacion.py ni
+│             14_informe_breve.py)
 ├─ assets/  <- ilustracion-mia.png, modelo-experimental.png, epidemiologia.png
 │             (autoria propia, VERSIONADO; epidemiologia.png no se usa, ver 13_presentacion)
 ├─ outputs/
@@ -114,10 +116,13 @@ MIA_LPS_reanalisis/
 │  │  ├─ R/          <- salidas numéricas de la implementación R (nombres idénticos a python/)
 │  │  └─ python/     <- salidas numéricas de la implementación Python
 │  ├─ intermediate/  <- CONTENIDO IGNORADO por git
-│  └─ presentacion_real/  <- 13_presentacion sobre datos reales. NUNCA se versiona
+│  ├─ presentacion_real/  <- 13_presentacion sobre datos reales. NUNCA se versiona
+│  └─ informe_breve_real/ <- 14_informe_breve sobre datos reales. NUNCA se versiona
 ├─ docs/   informe.html  informe.pdf   (listo para GitHub Pages, CONTENIDO IGNORADO)
 │          index.html  presentacion.pdf  referencias.md   <- 13_presentacion sobre datos
 │          sinteticos: presentacion PUBLICA, estos 3 SI se versionan (excepcion a docs/*)
+│          informe_breve.html  informe_breve.pdf  <- 14_informe_breve sobre datos
+│          sinteticos: informe breve PUBLICO, estos 2 SI se versionan (misma excepcion)
 └─ logs/   corrida_<AAAA-MM-DD>.txt
 ```
 
@@ -155,6 +160,33 @@ imprimen el numero de p -- se sobreescribe `d11_texto` dentro de `.ENV07()`
 estilo sea "punteada", el texto quede vacio; el bracket punteado se sigue dibujando. Los
 brackets SOLIDOS (`*`, `**`, `***`) se muestran igual en las dos versiones -- son datos
 simulados en la publica, no exponen nada. La version REAL nunca aplica el override.
+
+**Cuarta excepcion (`pedidos/pedido_informe_breve.md`):** `14_informe_breve.R` (SOLO R,
+mismo criterio que `13_presentacion.R`: capa de presentacion, no analisis, sin gemelo en
+`python/`) arma un informe breve de maximo 5 paginas para lectura rapida. Sourcea
+`13_presentacion.R` COMPLETO con `local = <environment nuevo>` (`.ENV13()`), que a su vez
+tiene su propio `.ENV07()` -- por eso este informe hereda, sin recalcular nada, las tres
+figuras ya reusadas por la segunda y tercera excepcion (subconjuntos de placenta y
+cerebro, pSTAT3) y el mecanismo `aplicar_override_tendencia()`. Agrega una figura propia
+nueva -- `outputs/figures/acto2_densidades_dispersion_BRAIN_E15.png` (densidades de
+-ddCt por sexo x tratamiento en cuatro genes de cerebro con interaccion SEXOxTTO
+significativa sobre la dispersion: fatcd36, fatp4, gp130, slc38a2), en el mismo estilo
+que la diagonal del SPLOM de `08_acto2_correlaciones.R` -- que igual que las dos
+figuras de la segunda excepcion lleva `tipo = "figura_presentacion"` en
+`procedencia.csv` (no `"figura"`), para no disparar el chequeo de `12_informe` que exige
+que toda fila `tipo == "figura"` este embebida en `docs/informe.html`. Genera DOS
+versiones por el mismo mecanismo de `fuente_datos()`: sintetica -> `docs/informe_breve.
+{html,pdf}` (PUBLICA, se versiona); real -> `outputs/informe_breve_real/` (NUNCA se
+versiona, cubierto por `.gitignore`). Con fuente sintetica, la prosa interpretativa de
+las paginas 3-5 se reemplaza por el mismo aviso que usa `12_informe`; las cifras y
+figuras de las demas paginas siempre se leen en vivo de `outputs/tables/` y
+`outputs/figures/` tal como esten pobladas al momento de correr el script -- por eso,
+para armar la version PUBLICA correctamente, es obligatorio regenerar figuras/tablas
+desde datos sinteticos ANTES (`run_all.ps1 -Only R -FromSynthetic`) y restaurar el
+estado real DESPUES (`run_all.ps1` completo + `14_informe_breve.R` de nuevo), exactamente
+la misma secuencia que exige `13_presentacion.R` (ver leccion documentada en `ESTADO.md`,
+sesion de la presentacion: no alcanza con bloquear el texto, las figuras tambien tienen
+que venir de la corrida sintetica).
 
 **Convención de nombres de salidas:**
 

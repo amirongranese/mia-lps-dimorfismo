@@ -232,6 +232,32 @@ gráfico de contexto epidemiológico (diapositiva 2) es el único gráfico del r
 sale de `outputs/figures/`: se genera en HTML/CSS con
 las citas de `pedidos/referencias_epidemiologia.md`, copiadas a `docs/referencias.md`.
 
+### Informe breve (`14_informe_breve`, solo R)
+
+Informe de máximo 5 páginas para lectura rápida (`pedidos/pedido_informe_breve.md`),
+capa de presentación sobre lo que ya calcularon 02..12, sin recalcular nada. Reusa las
+tres figuras de `13_presentacion.R` (subconjuntos de placenta y cerebro, pSTAT3) y agrega
+una figura propia (densidades de dispersión en cuatro genes de cerebro fetal). Mismo
+mecanismo de dos versiones:
+
+```powershell
+# Version PUBLICA (datos sinteticos) -> docs/informe_breve.html + docs/informe_breve.pdf
+# Se versiona.
+$env:MIA_LPS_FORZAR_SINTETICO = '1'
+& "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" R\14_informe_breve.R
+Remove-Item Env:\MIA_LPS_FORZAR_SINTETICO
+
+# Version PARA LEER (datos reales) -> outputs/informe_breve_real/
+# NUNCA se versiona (.gitignore): son resultados biologicos ineditos.
+& "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" R\14_informe_breve.R
+```
+
+Con datos sintéticos, la prosa interpretativa de las páginas 3–5 se reemplaza por el
+mismo aviso que usa `12_informe`; las cifras y las figuras siempre se leen en vivo de
+`outputs/tables/` y `outputs/figures/`, así que la versión pública correcta requiere
+regenerar esas tablas/figuras desde datos sintéticos antes de correr el script (ver
+`AGENTS.md` §3, cuarta excepción).
+
 ---
 
 ## 6. Decisiones metodológicas
