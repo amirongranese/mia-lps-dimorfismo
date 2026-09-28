@@ -3121,3 +3121,151 @@ visual del PDF). `git check-ignore` confirma que
   sesión 25, superado por `pedidos/pedido_informe_breve_final.md` (no se
   borró: es el pedido tal como se pegó, mismo criterio que el resto de
   `pedidos/`).
+
+---
+
+## Sesión 27 — 2026-09-28 — informe breve: correcciones de redacción y una figura más
+
+> Pedido por archivo `pedidos/pedido_informe_breve_correcciones.md`, que
+> reemplaza al anterior en todo lo que difiere. Seis bloques de correcciones
+> sobre `R/14_informe_breve.R`: (1) acentuación faltante en todo el
+> documento; (2) p-valores en notación científica cruda en vez de formato de
+> texto científico; (3) códigos internos del repositorio (`D7`, `D13`,
+> `ver docs/referencias.md`) sin explicar para un lector externo; (4)
+> figuras sin numerar; (5) un párrafo de pSTAT3 y una frase final de cerebro
+> a reescribir con texto provisto; (6) las dos figuras de la página de
+> cerebro con alturas visualmente distintas (la de detección ocupaba mucho
+> más que los boxplots); y una figura nueva
+> (`acto2_corr_placenta_cerebro_fatp4.png`) para la página de exploración,
+> con un epígrafe que aclarara que el patrón visual (correlación aparente en
+> control, ninguna en LPS, en hembras) no es un hallazgo real: el test
+> formal no fue significativo.
+
+### Qué se completó
+
+- **Acentuación**: se confirmó primero que TODO el proyecto (no solo este
+  informe) evita tildes en el texto generado — incluido `docs/informe.html`,
+  el informe científico completo (0 caracteres acentuados, verificado con
+  grep). Esto es una convención previa del repositorio, no un bug de esta
+  sesión; el pedido pide corregirlo específicamente en
+  `14_informe_breve.R`, sin tocar el resto del pipeline. **Decisión de
+  implementación**: nunca se usan caracteres acentuados literales en el
+  código fuente de R. En el cuerpo de cada página (que no pasa por
+  `.esc()`) se usan entidades HTML (`&oacute;`, `&iacute;`, etc.); en los
+  títulos de página (que sí pasan por `.esc()`, y esa función escapa `&`,
+  así que una entidad ahí quedaría doblemente escapada:
+  `&amp;eacute;`) y en el texto que va DENTRO de una figura PNG (el
+  subtítulo de `generar_figura_densidades`, que no es HTML) se usan escapes
+  `\uXXXX`, interpretados por el parser de R en el momento de leer el
+  script, sin depender de qué codificación use Rscript para abrir el
+  archivo. Ninguno de los dos mecanismos puede perder un acento por un
+  problema de codificación del archivo — que era la preocupación explícita
+  del pedido ("revisá que la codificación del archivo no esté perdiendo los
+  caracteres acentuados").
+- **`.p_fmt()`**: función única de formato de p-valor (tres decimales, coma
+  decimal, `p < 0,001` por debajo del umbral, `p = 1,00` cuando redondea a
+  1), usada en los seis lugares donde el documento cita un p (Fisher de
+  ELISA MS y LA, los cinco p de tratamiento en placenta, los dos p del post
+  hoc de pSTAT3) — ninguno se formatea a mano en el texto.
+- **Códigos internos reemplazados por explicación en palabras**: `(D7, no
+  cuantificable)` en el epígrafe de cerebro pasó a "este gen no pudo
+  cuantificarse como expresión relativa por limitaciones del método
+  experimental (ver Métodos)" (reusa la frase ya establecida en la propia
+  página de Métodos); `(D13)` en limitaciones pasó a "el tratamiento se
+  administra a la madre y cada camada aporta un feto de cada sexo, por lo
+  que esa independencia no puede garantizarse por completo". `ver
+  docs/referencias.md` se reemplazó por citas numeradas normales: las 10
+  referencias de `docs/referencias.md` se copiaron tal cual (sin
+  reformular, mismo criterio que ese archivo declara para sí mismo) a una
+  lista numerada al pie de la página 1, citada en el texto como
+  `<sup>1–10</sup>`.
+- **Figuras numeradas** ("Figura N.", en negrita, al inicio de cada
+  epígrafe) y referenciadas por número en el texto donde correspondía:
+  Figura 1 (modelo experimental), Figura 2 (placenta), Figura 3 (detección
+  de il6 + cerebro, epígrafe combinado), Figura 4 (correlación fatp4,
+  nueva), Figura 5 (densidades de cerebro). **Bug encontrado y corregido en
+  esta misma sesión**: la primera versión numeró la figura de correlación
+  como "Figura 5" y la de densidades como "Figura 4", pero la de
+  correlación aparece PRIMERO en el documento — quedaba un lector viendo
+  "Figura 5" antes que "Figura 4". Corregido intercambiando los números
+  (verificado después con `grep -oE "Figura [0-9]\."` sobre el HTML final,
+  confirmando el orden 1-2-3-4-5).
+- **Texto de pSTAT3 (página de placenta) y frase final de cerebro**
+  reemplazados por el texto provisto en el pedido, con los p reformateados.
+- **Composición de las dos figuras de cerebro**: el problema no era el
+  `max-height` (ya era igual para las dos, 22vh) sino que la imagen de
+  detección es casi cuadrada y la de los boxplots es muy ancha (~3.45:1) —
+  con `max-height` igual pero ancho de columna fijo (30%/65%), la imagen
+  ancha topaba antes con `max-width:100%` de su columna y terminaba MÁS
+  BAJA que la angosta. **Fix**: fila de alto fijo (`height: 20vh` en el
+  contenedor), las imágenes se estiran a esa altura
+  (`.cols-fig img { height: 100% }`) y el ancho de cada columna se reparte
+  con `flex-grow` proporcional a la relación de aspecto real de cada imagen
+  (1.1 para la casi cuadrada, 3.45 para la ancha) en vez de un reparto
+  30/65 fijo — verificado visualmente en el PDF final, ambas figuras
+  quedan a la misma altura y son legibles.
+- **Figura nueva**: `acto2_corr_placenta_cerebro_fatp4.png` — **no es una
+  figura nueva ni propia de este script**: ya la genera
+  `08_acto2_correlaciones.R` para cada gen del Acto 2 y ya tiene su propia
+  fila en `procedencia.csv` con `tipo = "figura"`; este script solo la
+  embebe con `fig_outputs()`, igual que cualquier otra figura ya existente
+  del pipeline (no se registró una fila nueva de procedencia para ella).
+  Epígrafe crítico (pedido explícito) en modo real: "La diferencia entre
+  grupos se evaluó con un test formal y no resultó significativa; el
+  patrón es compatible con la reducción de variabilidad descripta en esta
+  sección, no con una pérdida de correlación." En modo sintético, el
+  epígrafe se acorta a una nota descriptiva sin la afirmación de
+  significancia (mismo criterio que el resto de las figuras de datos:
+  la afirmación de "qué dio" el test se trata como resultado real, no como
+  descripción metodológica).
+
+### Verificado
+
+- **Presupuesto de páginas**: la figura nueva SÍ entró sin pasar de 5
+  páginas — verificado empíricamente (no hay una rama de código que la
+  quite condicionalmente): real 5 páginas, pública 5 páginas. No hizo falta
+  avisar ni sacarla.
+- **Versión pública** (`docs/informe_breve.html`/`.pdf`, tras
+  `run_all.ps1 -Only R -FromSynthetic`): **5 páginas** (576 KB HTML / 636 KB
+  PDF). `informe_breve_sin_interpretacion`: sim=5/5 (sin cambios respecto
+  de la sesión 26: los mismos 5 bloques). `informe_breve_secciones_no_vacias`:
+  5/5. 0 números reales tras stripear blobs base64 y grepear valores
+  exclusivos de la corrida real (`9 de 9`, `1 de 5`, `p = 0,005`,
+  `p = 0,007`, `p < 0,001`, `0,258`, `76 %`, `82 %`, `7 de los 8`,
+  `0 de 27`). 0 códigos `(D7`/`(D13` y 0 menciones a `referencias.md` como
+  cita. 0 p en notación científica cruda (`grep -oE "p = [0-9.]+e[+-][0-9]+"`
+  sin resultados).
+- **Figuras de la versión pública confirmadas distintas de las reales**
+  (ahora 5, no 4): comparado el tamaño en bytes de cada blob base64 — el
+  asset estático (modelo experimental) coincide byte a byte, las 5 figuras
+  derivadas de datos (placenta, detección de il6, cerebro, correlación
+  fatp4, densidades) difieren todas en tamaño.
+- **Estado real restaurado**: `run_all.ps1` completo (R+Python) →
+  `TODAS LAS VERIFICACIONES PASARON`, 77/77, 0 NO_EJECUTADA, 32/32 CSV
+  byte-idénticos. Luego `Rscript R/14_informe_breve.R` (real) →
+  `outputs/informe_breve_real/` regenerado, **5 páginas** (754 KB HTML /
+  717 KB PDF).
+- `git check-ignore` confirmado: `outputs/informe_breve_real/` ignorado;
+  `docs/informe_breve.html`/`.pdf` no ignorados.
+- `procedencia.csv`/`verificaciones.csv` finales revisados: sin filas
+  `FALSE` inesperadas; la figura reusada de correlación tiene su fila
+  propia de `08_acto2_correlaciones.R` (`tipo = "figura"`), no una fila
+  nueva de `14_informe_breve`.
+
+### Respuesta directa a lo pedido
+
+| Versión | Ruta | Tamaño | Páginas | Figura nueva |
+|---|---|---|---|---|
+| Pública (sintética) | `docs/informe_breve.html` / `.pdf` | 576 KB / 636 KB | 5 | Sí, entró |
+| Real (no versionada) | `outputs/informe_breve_real/informe_breve.html` / `.pdf` | 754 KB / 717 KB | 5 | Sí, entró |
+
+Ninguna sección de la versión pública quedó vacía (verificado
+programáticamente, 5/5, sin cambios respecto de la sesión 26). `git
+check-ignore` confirma que `outputs/informe_breve_real/` sigue excluido.
+
+### Pendiente / siguiente paso concreto
+
+- Sin cambios respecto de la sesión 24: marcador de
+  `analisis_descartados.md` (D13), decisión de publicación de
+  `docs/`/`outputs/`, SPLOM de la sesión 19c, y los avisos de diseño de la
+  sesión 23.
