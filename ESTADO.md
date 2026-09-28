@@ -1919,8 +1919,9 @@ el piso para algunos items. Corregido completando los 20 campos de
 - R↔Python: mismos resultados exactos (`HEMBRA` 18 celdas/13 DENTRO/5 FUERA,
   `MACHO` 18/18/0, partición 20/20 OK).
 - **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
-  Python — 77/77 chequeos duros, 32/32 CSV byte-idénticos, **100/100**
-  verificaciones en TRUE (antes 98), paridad de render OK, ~4.6 min.**
+  Python — 77/77 chequeos duros, 32/32 CSV byte-idénticos, 100 filas de
+  `verificaciones.csv` en TRUE (antes 98; sin desglose por tipo — la columna
+  `tipo` se agregó en la sesión 20), paridad de render OK, ~4.6 min.**
 
 ### Pendiente / siguiente paso concreto
 
@@ -2004,9 +2005,10 @@ el piso para algunos items. Corregido completando los 20 campos de
 
 - **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
   Python — 77/77 chequeos duros, 32/32 CSV byte-idénticos, paridad de
-  render OK, 100/100 verificaciones en TRUE (mismo total que sesión 17: no
-  se agregó ninguna verificación nueva, solo se regeneró el informe), PDF
-  ok, ~5.5 min.**
+  render OK, 100 filas de `verificaciones.csv` en TRUE (mismo total que la
+  sesión 17: no se agregó ninguna verificación nueva, solo se regeneró el
+  informe; sin desglose por tipo — la columna `tipo` se agregó en la sesión
+  20), PDF ok, ~5.5 min.**
 - `docs/informe.html`: 10 secciones (antes 8), 26 figuras incrustadas (sin
   cambios), `informe.textonly.html` R↔Python byte-idéntico (`diff` manual
   sobre ambos snapshots, exit 0).
@@ -2090,7 +2092,8 @@ el piso para algunos items. Corregido completando los 20 campos de
 
 - **`.\run_all.ps1` completo: `TODAS LAS VERIFICACIONES PASARON` en R y
   Python — 77/77 chequeos duros, 32/32 CSV byte-idénticos, paridad de
-  render OK, 100/100 verificaciones en TRUE, ~4.9 min.**
+  render OK, 100 filas de `verificaciones.csv` en TRUE (sin desglose por
+  tipo — la columna `tipo` se agregó en la sesión 20), ~4.9 min.**
 - `il6R` ausente de `acto2_dispersion.csv`, `acto2_test_correlaciones.csv`,
   `acto2_simulacion.csv` y `acto2_sensibilidad_excl_extremo.csv` (grep, 0
   coincidencias en las 4 tablas).
