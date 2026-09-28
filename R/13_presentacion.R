@@ -1,10 +1,18 @@
-# 13_presentacion.R -- pagina de presentacion (HTML + PDF), 11 diapositivas.
+# 13_presentacion.R -- pagina de presentacion (HTML + PDF), 12 diapositivas.
 #
 # Por que existe este archivo: la consigna del curso pide, dentro del repo, una
-# pagina HTML y un PDF desde los cuales exponer (pedidos/cambios_presentacion.md).
-# Es CAPA DE PRESENTACION, no analisis: no calcula ningun resultado nuevo, solo
-# lee lo que ya escribieron 02..11/98/12 (tablas, figuras, texto de AGENTS.md) y
-# lo arma en 11 diapositivas para proyectar.
+# pagina HTML y un PDF desde los cuales exponer (pedidos/cambios_presentacion.md,
+# segunda tanda en pedidos/cambios_presentacion_2.md). Es CAPA DE PRESENTACION, no
+# analisis: no calcula ningun resultado nuevo (excepto dos figuras que RE-DIBUJAN,
+# sin recalcular, un subconjunto de genes ya modelados -- ver
+# "generar_panel_subset" mas abajo), solo lee lo que ya escribieron 02..11/98/12
+# (tablas, figuras, texto de AGENTS.md) y lo arma en 12 diapositivas para proyectar.
+#
+# EL HILO (pedido 2, punto 0): sola, la autora habria hecho boxplots; con el
+# agente pudo correr analisis que no habria hecho, y esos analisis explicaron lo
+# que el boxplot dejaba sin resolver. Por eso 6-7 son "el analisis convencional"
+# y 8-9 son "lo que agrego explorar con el agente" -- es el argumento central,
+# no un detalle de orden.
 #
 # EXCEPCION A LA REGLA DE SCRIPTS GEMELOS (documentada tambien en AGENTS.md 3 y
 # en procedencia.csv): existe SOLO en R. No hay python/13_presentacion.py: no hay
@@ -16,6 +24,16 @@
 # 98_comparacion.R): la regla del repo es que cada script importe solo
 # 00_config, nunca cross-importe un script numerado.
 #
+# SEGUNDA EXCEPCION (pedido 2, secciones 6-7): las diapositivas 6 y 7 necesitan
+# boxplots de un SUBCONJUNTO de 3 genes por tejido, no el panel completo. Se
+# reusan las funciones de dibujo de 07_figuras_acto1.R (panel_gen y sus
+# dependencias) en vez de reimplementarlas -- pedido explicito ("reusando las
+# funciones de 07_figuras_acto1.R, sin recalcular nada"). Para no chocar
+# nombres (07 redefine ESTE_SCRIPT, registrar_procedencia, etc. con firmas
+# propias) se fuente CON `local = <environment nuevo>`: todo el archivo 07 se
+# ejecuta aislado, sin tocar nada de lo definido aca. `if (sys.nframe() == 0L)
+# main()` (guardia ya existente en 07) evita que eso dispare su propio main().
+#
 # DOS VERSIONES, mismo codigo, la fuente de datos decide el destino (igual
 # mecanismo que fuente_datos()/12_informe usan para el aviso sintetico):
 #   - fuente == "sintetico" -> docs/index.html + docs/presentacion.pdf
@@ -26,7 +44,7 @@
 # tener ambas versiones de docs/informe.html): una vez normal (con
 # data/raw/ presente) y otra con MIA_LPS_FORZAR_SINTETICO=1.
 #
-# Ademas de las 11 diapositivas, genera docs/referencias.md (o su copia en
+# Ademas de las 12 diapositivas, genera docs/referencias.md (o su copia en
 # outputs/presentacion_real/) con las 10 citas de
 # pedidos/referencias_epidemiologia.md, copiadas tal cual -- ninguna inventada.
 
@@ -225,7 +243,8 @@ generar_pdf <- function(html_path, pdf_path) {
 
 # =========================================================================
 # Aviso de fuente sintetica -- mismo principio que AVISO_SINTETICO de
-# 12_informe.R: con datos sinteticos, las diapositivas 6-8 nunca arman la
+# 12_informe.R: con datos sinteticos, las diapositivas 6-9 (analisis
+# convencional + lo que agrego explorar con el agente) nunca arman la
 # prosa interpretativa (biologica); la reemplazan por este aviso. Es
 # estructuralmente imposible que una conclusion biologica aparezca sobre
 # datos sinteticos, porque el codigo que la construye no se llama.
@@ -318,7 +337,7 @@ CSS <- paste0("\n",
 "       margin: 0; }\n",
 "section.slide {\n",
 "  min-height: 100vh; width: 100%;\n",
-"  padding: var(--space-4) 4.5rem;\n",
+"  padding: 2.1rem 4.5rem;\n",
 "  display: flex; flex-direction: column; justify-content: flex-start;\n",
 "  scroll-snap-align: start; position: relative;\n",
 "  border-bottom: 1px solid var(--line);\n",
@@ -333,13 +352,14 @@ CSS <- paste0("\n",
 "section.slide p.lead { font-size: 1.25rem; color: var(--ink); }\n",
 ".slide-num { position: absolute; bottom: 1.2rem; right: 1.6rem;\n",
 "  font-size: .85rem; color: var(--ink-soft); opacity: .6; }\n",
-".cols { display: flex; gap: var(--space-4); align-items: center; margin-top: 1.2rem; }\n",
+".cols { display: flex; gap: var(--space-4); align-items: flex-start; margin-top: 1.2rem; }\n",
 ".col  { flex: 1; min-width: 0; }\n",
 ".col.narrow { flex: 0 0 34%; }\n",
 ".col.wide   { flex: 1 1 66%; }\n",
 ".fig { max-width: 100%; max-height: 62vh; display: block; margin: 0 auto; }\n",
 ".fig.tall  { max-height: 70vh; }\n",
 ".fig.wide  { max-height: 42vh; width: 100%; object-fit: contain; }\n",
+".fig.small { max-height: 22vh; margin-bottom: .8rem; }\n",
 "figure.pres { margin: 0; text-align: center; }\n",
 "figure.pres figcaption { font-size: .82rem; color: var(--ink-soft); margin-top: .5rem; }\n",
 ".card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;\n",
@@ -354,8 +374,8 @@ CSS <- paste0("\n",
 "table.stats td.n { font-size: 1.9rem; font-weight: 700; color: var(--accent); }\n",
 "ul.plain { list-style: none; margin: .4rem 0; padding: 0; }\n",
 "ul.plain li { margin: .3rem 0; }\n",
-"ul.bullets { margin: .5rem 0; padding-left: 1.3rem; }\n",
-"ul.bullets li { margin: .35rem 0; }\n",
+"ul.bullets, ol.bullets { margin: .5rem 0; padding-left: 1.3rem; }\n",
+"ul.bullets li, ol.bullets li { margin: .5rem 0; }\n",
 ".gene-tag { display: inline-block; background: var(--accent-soft); color: #3a1d52;\n",
 "  border-radius: 999px; padding: .1rem .7rem; font: .88rem var(--font-mono);\n",
 "  margin: .12rem .2rem .12rem 0; }\n",
@@ -371,6 +391,8 @@ CSS <- paste0("\n",
 ".problem-row .epi { flex: 1 1 54%; }\n",
 ".rayo { stroke: var(--accent); stroke-width: 5; fill: none; stroke-linecap: round;\n",
 "  stroke-linejoin: round; }\n",
+".rayo-punta { fill: var(--accent); }\n",
+".closing-card { margin-top: 1.3rem; }\n",
 "/* --- diapositiva 2bis: grafico epidemiologico (HTML/CSS, no PNG) --- */\n",
 ".epi-axis { display: flex; justify-content: space-between; font-size: .82rem;\n",
 "  color: var(--ink-soft); margin: .2rem 0 .3rem; padding-left: 1px; }\n",
@@ -397,8 +419,7 @@ CSS <- paste0("\n",
 "/* --- impresion: una diapositiva por pagina --- */\n",
 "@media print {\n",
 "  html { scroll-snap-type: none; }\n",
-"  section.slide { min-height: 100vh; height: 100vh; break-after: page;\n",
-"    break-inside: avoid; border-bottom: none; }\n",
+"  section.slide { min-height: 100vh; break-after: page; border-bottom: none; }\n",
 "  section.slide:last-child { break-after: auto; }\n",
 "}\n",
 ".flecha-linea { stroke: var(--accent); stroke-width: 4; }\n",
@@ -407,20 +428,19 @@ CSS <- paste0("\n",
 
 # =========================================================================
 # Diapositiva 1: metadatos de portada. AUTORA y CURSO no se pueden leer de
-# ninguna tabla -- son datos de la persona que expone, no del analisis. Se
-# dejan marcados <<< COMPLETAR >>> a proposito (misma convencion que el
-# marcador de analisis_descartados.md, D13): completar antes de proyectar.
-# TITULO sale del propio h1 de README.md (no se reinventa); FECHA es la fecha
-# de la corrida (Sys.Date()), no una fecha fija a mano.
+# ninguna tabla -- son datos de la persona que expone, no del analisis (se
+# completaron a mano por el usuario). TITULO es el titulo real del trabajo,
+# dado explicitamente en pedidos/cambios_presentacion_2.md 1 (ya no el h1 de
+# README.md: ese titulo de repo es mas largo/tecnico que el de una charla).
+# SUBTITULO queda igual que en la primera tanda (pedido explicito: "como
+# esta"). FECHA es la fecha de la corrida (Sys.Date()), no una fecha fija.
 # =========================================================================
-PRESENTACION_AUTORA <- "<<< COMPLETAR: nombre de la autora >>>"
-PRESENTACION_CURSO  <- "<<< COMPLETAR: nombre del curso >>>"
-.titulo_readme <- function() {
-  l <- strsplit(leer_texto(file.path(RAIZ_REPO, "README.md")), "\n", fixed = TRUE)[[1]]
-  h1 <- grep("^# ", l, value = TRUE)
-  if (!length(h1)) return("Reanalisis MIA-LPS")
-  sub("^# ", "", h1[1])
-}
+PRESENTACION_AUTORA <- "Ayelen Mirón Granese"
+PRESENTACION_CURSO  <- "Ondas Gravitacionales e Investigación Asistida por IA"
+PRESENTACION_TITULO <- paste0(
+  "Transportadores de nutrientes en el eje placenta–cerebro fetal en un ",
+  "modelo de activación inmune materna")
+PRESENTACION_SUBTITULO <- "Reanalisis bioestadistico dirigido por un agente de IA (Claude Code)"
 
 # =========================================================================
 # Diapositiva 2bis: grafico de razones de prevalencia por sexo -- el UNICO
@@ -493,12 +513,20 @@ escribir_referencias <- function(destino) {
 # =========================================================================
 # Ilustraciones SVG propias (no estan en los PNG de assets/).
 # =========================================================================
+# Rayos apuntando AL vientre (pedido 2, seccion 2: "hoy se leen como algo que
+# emana de la figura; tienen que leerse como algo que incide sobre la
+# gestacion"). El grupo se ubica a la IZQUIERDA de la ilustracion (`left`, no
+# `right`) y cada zigzag empieza lejos (x chico) y termina cerca del borde
+# derecho del propio SVG -- que es el borde que toca la ilustracion -- con una
+# punta de flecha (`marker-end`, orientacion automatica a lo largo del trazo).
 svg_rayos <- function() paste0(
   '<svg class="rayos" viewBox="0 0 120 200" xmlns="http://www.w3.org/2000/svg" ',
-  'style="position:absolute; right:-34px; top:12%; width:64px; height:72%;">',
-  '<polyline class="rayo" points="20,8 4,68 28,74 8,142"/>',
-  '<polyline class="rayo" points="58,0 42,58 66,64 46,128"/>',
-  '<polyline class="rayo" points="94,22 78,82 100,88 76,150"/>',
+  'style="position:absolute; left:-38px; top:10%; width:60px; height:76%;">',
+  '<defs><marker id="rayoPunta" markerWidth="7" markerHeight="7" refX="5" refY="3.5" ',
+  'orient="auto"><path class="rayo-punta" d="M0,0 L7,3.5 L0,7 Z"/></marker></defs>',
+  '<polyline class="rayo" marker-end="url(#rayoPunta)" points="8,15 42,52 12,78 100,118"/>',
+  '<polyline class="rayo" marker-end="url(#rayoPunta)" points="8,58 42,95 12,118 100,155"/>',
+  '<polyline class="rayo" marker-end="url(#rayoPunta)" points="8,98 42,132 12,152 100,185"/>',
   '</svg>')
 svg_flecha <- function() paste0(
   '<svg viewBox="0 0 100 30" width="88" height="26" xmlns="http://www.w3.org/2000/svg">',
@@ -507,7 +535,51 @@ svg_flecha <- function() paste0(
   '</svg>')
 
 # =========================================================================
-# Datos leidos del repo para las diapositivas 3, 4, 5, 6, 7, 8 -- nada de lo
+# Figuras de SUBCONJUNTO de genes (pedido 2, secciones 6-7): diapositivas 6 y
+# 7 necesitan boxplots de 3 genes por tejido, no el panel completo. Se
+# reusan panel_gen() y sus dependencias de 07_figuras_acto1.R -- pedido
+# explicito ("sin recalcular nada"). SEGUNDA EXCEPCION a "cada script importa
+# solo 00_config" (ver cabecera del archivo): se fuente 07 completo, pero
+# `local = <environment nuevo>` lo aisla por completo de este script (07
+# redefine ESTE_SCRIPT, registrar_procedencia, merge_por_script, etc. con
+# firmas propias -- si se sourceara al entorno global romperia las de aca).
+# `cargar()` de 07 solo LEE tablas ya escritas por 04/05 (04_qpcr_
+# cuantificacion, 05_qpcr_modelos): no dispara ningun calculo nuevo.
+# =========================================================================
+.ENV07 <- local({
+  e <- NULL
+  function() {
+    if (is.null(e))
+      e <<- { env <- new.env()
+              source(file.path(RAIZ_REPO, "R", "07_figuras_acto1.R"),
+                     local = env, encoding = "UTF-8")
+              env }
+    e
+  }
+})
+generar_panel_subset <- function(genes, tejido, ruta) {
+  e <- .ENV07()
+  D <- e$cargar()
+  n <- length(genes)
+  grDevices::png(ruta, width = n * 1150L, height = 1000L, res = e$DPI)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  set.seed(SEMILLA)   # jitter reproducible, igual que figura_tejido()
+  graphics::layout(matrix(seq_len(n), nrow = 1L))
+  for (gen in genes) {
+    fc <- e$fc_por_grupo(D$cuant, tejido, gen)
+    fila_clasif <- e$fila_de(D$clasif, tejido, gen)
+    ph <- e$pholm_lista(D$posthoc, tejido, gen)
+    e$panel_gen(fc, gen, tejido, fila_clasif, ph)
+  }
+  invisible(ruta)
+}
+GENES_SUBSET_PLACENTA <- c("il6", "glut3", "slc38a2")   # pedido 2, seccion 6
+GENES_SUBSET_BRAIN    <- c("glut1", "slc38a2", "fatp1") # pedido 2, seccion 6
+NOMBRE_SUBSET_PLACENTA <- "acto1_expresion_PLACENTA_E15_subset3.png"
+NOMBRE_SUBSET_BRAIN    <- "acto1_expresion_BRAIN_E15_subset3.png"
+
+# =========================================================================
+# Datos leidos del repo para las diapositivas 3, 4, 5, 6, 7, 9 -- nada de lo
 # que sigue se escribe a mano: se lee de AGENTS.md / outputs/tables/.
 # =========================================================================
 recolectar_datos <- function() {
@@ -567,13 +639,34 @@ recolectar_datos <- function() {
   d$qpcr_int_pla <- sum(tej == "PLACENTA_E15" & isig == "TRUE")
   d$genes_int_bra <- .col(qm, "GEN")[tej == "BRAIN_E15" & isig == "TRUE"]
 
-  # --- diapositiva 8: interaccion SEXOxTTO sobre la DISPERSION ---
+  # --- diapositiva 9: razonamiento de 3 pasos (interaccion en el boxplot ->
+  # cuantos NO se explican por ninguna comparacion de a pares -> cuantos de
+  # esos si se explican por dispersion). Todo derivado de las tablas, gen por
+  # gen, no una lista escrita a mano. ---------------------------------------
+  poh <- .tab("qpcr_modelos_posthoc.csv")
+  ph_tej <- .col(poh, "TEJIDO"); ph_gen <- .col(poh, "GEN")
+  ph_p <- suppressWarnings(as.numeric(.col(poh, "p_holm")))
+  sin_posthoc <- character(0)
+  for (g in d$genes_int_bra) {
+    idx <- ph_tej == "BRAIN_E15" & ph_gen == g
+    if (!any(idx & !is.na(ph_p) & ph_p < 0.05)) sin_posthoc <- c(sin_posthoc, g)
+  }
+  d$genes_sin_posthoc <- sin_posthoc
+
   di <- .tab("acto2_dispersion_interaccion.csv")
-  tejd <- .col(di, "TEJIDO"); bh <- suppressWarnings(as.numeric(.col(di, "p_SEXOxTTO_BH")))
+  tejd <- .col(di, "TEJIDO"); geng <- .col(di, "GEN")
+  bh <- suppressWarnings(as.numeric(.col(di, "p_SEXOxTTO_BH")))
   d$disp_bra_sig <- sum(tejd == "BRAIN_E15" & bh < 0.05, na.rm = TRUE)
   d$disp_bra_n   <- sum(tejd == "BRAIN_E15")
   d$disp_pla_sig <- sum(tejd == "PLACENTA_E15" & bh < 0.05, na.rm = TRUE)
   d$genes_disp_bra <- .col(di, "GEN")[tejd == "BRAIN_E15" & !is.na(bh) & bh < 0.05]
+  # de los "sin posthoc": cuales explica la dispersion (BH<.05) y cuales
+  # quedan solo en tendencia (BH<.10, sin llegar a .05).
+  bh_de <- function(g) { i <- tejd == "BRAIN_E15" & geng == g; if (any(i)) bh[i][1] else NA_real_ }
+  bh_sin_posthoc <- vapply(sin_posthoc, bh_de, numeric(1))
+  d$genes_sin_posthoc_explicados <- sin_posthoc[!is.na(bh_sin_posthoc) & bh_sin_posthoc < 0.05]
+  d$genes_sin_posthoc_tendencia <- sin_posthoc[!is.na(bh_sin_posthoc) &
+                                               bh_sin_posthoc >= 0.05 & bh_sin_posthoc < 0.10]
 
   d$fuente <- fuente_datos(ARCHIVO_QPCR)
   d
@@ -585,33 +678,32 @@ recolectar_datos <- function() {
 }
 
 # =========================================================================
-# Armado de cada diapositiva -- 11 secciones, 1 funcion por diapositiva
-# (numeracion y contenido siguen pedidos/cambios_presentacion.md 2).
+# Armado de cada diapositiva -- 12 secciones, 1 funcion por diapositiva
+# (numeracion y contenido siguen pedidos/cambios_presentacion_2.md).
 # =========================================================================
 slide <- function(n, kicker, cuerpo, clase = "") {
   kick <- if (nzchar(kicker)) sprintf('<div class="kicker">%s</div>', .esc(kicker)) else ""
-  sprintf('<section class="slide %s" id="s%d">\n%s\n%s\n<div class="slide-num">%d / 11</div>\n</section>',
+  sprintf('<section class="slide %s" id="s%d">\n%s\n%s\n<div class="slide-num">%d / 12</div>\n</section>',
           clase, n, kick, cuerpo, n)
 }
 
-# --- 1. Titulo. AUTORA/CURSO quedan <<< COMPLETAR >>> a proposito: no son
-#     datos que se puedan leer de ninguna tabla del repo (ver comentario en
-#     PRESENTACION_AUTORA mas arriba). -----------------------------------
+# --- 1. Titulo (pedido 2, seccion 1): titulo del trabajo, no el h1 del repo. --
 slide1 <- function() {
   cuerpo <- paste0(
-    '<h1>', .esc(.titulo_readme()), '</h1>\n',
-    '<p class="lead">Reanalisis bioestadistico dirigido por un agente de IA (Claude Code)</p>\n',
+    '<h1>', .esc(PRESENTACION_TITULO), '</h1>\n',
+    '<p class="lead">', .esc(PRESENTACION_SUBTITULO), '</p>\n',
     '<p style="margin-top:3rem; font-size:1.2rem; color:var(--ink-soft);">',
     .esc(PRESENTACION_AUTORA), '<br>', .esc(PRESENTACION_CURSO), '<br>',
     format(Sys.Date(), "%d/%m/%Y"), '</p>')
   slide(1, "", cuerpo, "title")
 }
 
-# --- 2. El problema: ilustracion + rayos SVG, flecha + recuadro SVG/HTML,
-#     grafico de razones de prevalencia (2bis, construir_epi_chart()). ----
+# --- 2. Antecedentes (pedido 2, seccion 2): ilustracion + rayos SVG apuntando
+#     al vientre, flecha + recuadro SVG/HTML, grafico de razones de
+#     prevalencia (2bis, construir_epi_chart()); frase de cierre en tarjeta. --
 slide2 <- function() {
   cuerpo <- paste0(
-    '<h2>El problema</h2>\n',
+    '<h2>Antecedentes</h2>\n',
     '<div class="problem-row">\n',
     '<div class="illus">', fig_asset("ilustracion-mia.png", "Ilustracion: embarazada"),
     svg_rayos(), '</div>\n',
@@ -619,22 +711,24 @@ slide2 <- function() {
     '<div class="box">Trastornos del<br>neurodesarrollo</div></div>\n',
     '<div class="epi">', construir_epi_chart(), '</div>\n',
     '</div>\n',
-    '<p class="lead" style="margin-top:1.3rem;">La inflamacion materna durante la gestacion es ',
-    'un factor de riesgo para trastornos del neurodesarrollo -- y esas patologias afectan de ',
-    'forma distinta a varones y mujeres.</p>')
+    '<div class="card closing-card"><p class="lead" style="margin:0;">La inflamacion materna ',
+    'durante la gestacion es un factor de riesgo para trastornos del neurodesarrollo, y esas ',
+    'patologias afectan de forma distinta a varones y mujeres.</p></div>')
   slide(2, "Contexto", cuerpo)
 }
 
-# --- 3. El experimento: modelo-experimental.png sin modificar + texto minimo. ---
+# --- 3. Modelo experimental (pedido 2, seccion 3): imagen sin modificar
+#     (assets/modelo-experimental.png -- misma ruta; el archivo se reemplaza
+#     aparte, sin tocar codigo) + texto minimo. ----------------------------
 slide3 <- function(d) {
   cuerpo <- paste0(
-    '<h2>El experimento</h2>\n',
+    '<h2>Modelo experimental</h2>\n',
     '<div style="text-align:center;">',
     fig_asset("modelo-experimental.png", "Modelo experimental", "wide"), '</div>\n',
     '<div class="cols" style="margin-top:.6rem; align-items:flex-start; flex:0;">\n',
     '<div class="col"><p class="lead">LPS 100 &mu;g/kg i.p. en el dia 15 de gestacion (E15), ',
     'coleccion a las 6 horas.</p>',
-    '<p>', d$n_fetos, ' fetos: 18 camadas, un feto de cada sexo por camada -- placenta y ',
+    '<p>', d$n_fetos, ' fetos: 18 camadas, un feto de cada sexo por camada; placenta y ',
     'cerebro del mismo individuo.</p></div>\n',
     '<div class="col"><p class="lead">Tres mediciones:</p>',
     '<ul class="bullets"><li>IL-6 en suero materno y liquido amniotico, por ELISA</li>',
@@ -645,16 +739,23 @@ slide3 <- function(d) {
   slide(3, "Contexto", cuerpo)
 }
 
-# --- 4. El punto de partida fue un prompt: fragmento REAL de AGENTS.md. ----
+# --- 4. El punto de partida fue un prompt: fragmento REAL de AGENTS.md, mas
+#     el cierre del arco (pedido 2, seccion 4) que conecta con la diapositiva
+#     5: de esas decisiones salio primero el analisis convencional, y despues
+#     una exploracion adicional que el analisis convencional no incluia. ----
 slide4 <- function(d) {
   cuerpo <- paste0(
     '<h2>El punto de partida fue un prompt</h2>\n',
     '<p class="lead">Fragmentos reales de las decisiones fijas del repositorio ',
     '(<code>AGENTS.md</code>), escritas antes de correr ningun analisis:</p>\n',
-    '<pre class="quote"><strong>D1</strong> -- ', .inline_md(d$d1), '</pre>\n',
-    '<pre class="quote"><strong>D2</strong> -- ', .inline_md(d$d2), '</pre>\n',
-    '<pre class="quote"><strong>D5</strong> -- ', .inline_md(d$d5), '</pre>\n',
-    '<p>No fue &laquo;analiza mis datos&raquo;.</p>')
+    '<pre class="quote"><strong>D1</strong>: ', .inline_md(d$d1), '</pre>\n',
+    '<pre class="quote"><strong>D2</strong>: ', .inline_md(d$d2), '</pre>\n',
+    '<pre class="quote"><strong>D5</strong>: ', .inline_md(d$d5), '</pre>\n',
+    '<p>No fue &laquo;analiza mis datos&raquo;.</p>\n',
+    '<p>Sobre esas decisiones se pidio despues <strong>el analisis convencional</strong> ',
+    '(modelos por gen y tejido, con sus boxplots) y, encima, <strong>una exploracion de los ',
+    'datos</strong> que el analisis convencional no incluia: correlaciones entre tejidos, ',
+    'co-expresion entre genes, dispersion.</p>')
   slide(4, "Lo que produjo el agente", cuerpo)
 }
 
@@ -676,86 +777,136 @@ slide5 <- function(d) {
   slide(5, "Lo que produjo el agente", cuerpo)
 }
 
-# --- 6. Placenta: pSTAT3, activacion restringida a hembras. ----------------
+# --- 6. Placenta -- el analisis convencional (pedido 2, seccion 6): boxplots
+#     de 3 genes de placenta con efecto de tratamiento (subconjunto, no el
+#     panel completo) + pSTAT3 mas chico al costado. -----------------------
 slide6 <- function(d, sint) {
   texto <- if (sint) AVISO_SINTETICO else paste0(
-    '<p class="lead">La via IL-6/STAT3 se activa solo en placentas de fetos hembra ',
-    '(interaccion SEXO&times;TTO, p = ', d$pstat3_pint, ').</p>\n',
-    '<p>Post hoc (Holm): &female;Control vs &female;LPS p = ', d$pstat3_hh,
-    ' &nbsp;&mdash;&nbsp; &male;Control vs &male;LPS p = ', d$pstat3_mm,
-    ' (sin cambio en machos).</p>')
+    '<p class="lead">El LPS modifica la expresion en placenta y activa la via IL-6/STAT3, ',
+    'pero el boxplot no muestra interaccion sexo &times; tratamiento en ningun gen ',
+    '(interaccion SEXO&times;TTO de pSTAT3, p = ', d$pstat3_pint, '; post hoc &female;Control ',
+    'vs &female;LPS p = ', d$pstat3_hh, ', &male;Control vs &male;LPS p = ', d$pstat3_mm, ').</p>')
   cuerpo <- paste0(
     '<h2>Placenta</h2>\n',
     '<div class="cols">\n',
-    '<div class="col wide">', fig_outputs("acto1_pstat3.png", "pSTAT3 en placenta", "tall"), '</div>\n',
-    '<div class="col narrow">', texto, '</div>\n',
+    '<div class="col wide">',
+    fig_outputs(NOMBRE_SUBSET_PLACENTA, "Boxplots de il6, glut3 y slc38a2 en placenta", "tall"),
+    '</div>\n',
+    '<div class="col narrow">',
+    fig_outputs("acto1_pstat3.png", "pSTAT3 en placenta", "small"),
+    texto, '</div>\n',
     '</div>')
-  slide(6, "Lo que produjo el agente", cuerpo)
+  slide(6, "El analisis convencional", cuerpo)
 }
 
-# --- 7. Cerebro fetal: interaccion SEXOxTTO especifica de cerebro. ---------
+# --- 7. Cerebro fetal -- el analisis convencional (pedido 2, seccion 6):
+#     3 genes elegidos (los que tienen post hoc significativo), no el panel
+#     completo (con el panel completo "no se lee nada"). --------------------
 slide7 <- function(d, sint) {
-  genes_html <- paste(sprintf('<span class="gene-tag">%s</span>', .esc(d$genes_int_bra)),
+  genes_html <- paste(sprintf('<span class="gene-tag">%s</span>', .esc(GENES_SUBSET_BRAIN)),
                        collapse = "")
   texto <- if (sint) AVISO_SINTETICO else paste0(
     '<p class="lead">', d$qpcr_int_bra, ' de ', d$qpcr_mod_bra, ' genes modelados en cerebro ',
-    'muestran interaccion SEXO&times;TTO (vs. ', d$qpcr_int_pla, ' en placenta): la respuesta ',
-    'depende del sexo del feto.</p>\n', genes_html)
+    'muestran interaccion SEXO&times;TTO (vs. ', d$qpcr_int_pla, ' en placenta). En estos tres, ',
+    'el post hoc ubica el efecto en las hembras.</p>\n', genes_html)
   cuerpo <- paste0(
     '<h2>Cerebro fetal</h2>\n',
     '<div class="cols">\n',
-    '<div class="col wide">', fig_outputs("acto1_expresion_BRAIN_E15.png", "Expresion en cerebro E15", "tall"), '</div>\n',
+    '<div class="col wide">',
+    fig_outputs(NOMBRE_SUBSET_BRAIN, "Boxplots de glut1, slc38a2 y fatp1 en cerebro", "tall"),
+    '</div>\n',
     '<div class="col narrow">', texto, '</div>\n',
     '</div>')
-  slide(7, "Lo que produjo el agente", cuerpo)
+  slide(7, "El analisis convencional", cuerpo)
 }
 
-# --- 8. Lo que agrego explorar con el agente: interaccion sobre la
-#     DISPERSION -- diapositiva mas importante de la presentacion. ---------
-slide8 <- function(d, sint) {
-  genes_html <- paste(sprintf('<span class="gene-tag">%s</span>', .esc(d$genes_disp_bra)),
-                       collapse = "")
+# --- 8. Co-expresion entre genes (NUEVA, pedido 2 seccion 7): con el boxplot
+#     cada gen se mira por separado; el diagrama triangular (SPLOM) muestra
+#     como se mueven los genes entre si. Nivel de tejido (no por sexo): con
+#     el nivel de sexo el panel se duplica sin ganar legibilidad proyectado;
+#     avisado al usuario en el cierre de esta tanda. -----------------------
+slide8 <- function(sint) {
   texto <- if (sint) AVISO_SINTETICO else paste0(
-    '<p class="lead">Agrupando los sexos no se ve nada -- los efectos opuestos se cancelan. ',
-    'Separando por sexo aparece el cruce.</p>\n',
-    '<p>', d$disp_bra_sig, ' de ', d$disp_bra_n, ' genes de cerebro muestran interaccion ',
-    'SEXO&times;TTO sobre la DISPERSION (BH &lt; 0.05): el LPS reduce la variabilidad en ',
-    'hembras y la aumenta en machos (en placenta, ', d$disp_pla_sig, ').</p>\n', genes_html)
+    '<p class="lead">Con el boxplot, cada gen se mira por separado. El diagrama triangular ',
+    'muestra como se mueven los genes entre si: un analisis que no estaba en el plan original.</p>')
   cuerpo <- paste0(
-    '<h2>Lo que agrego explorar con el agente</h2>\n',
+    '<h2>Co-expresion entre genes</h2>\n',
+    '<div class="cols">\n',
+    '<div class="col wide">',
+    fig_outputs("acto2_coexpresion_SPLOM_BRAIN_E15.png", "Co-expresion de genes en cerebro E15", "tall"),
+    '</div>\n',
+    '<div class="col narrow">', texto, '</div>\n',
+    '</div>')
+  slide(8, "Lo que agrego explorar con el agente", cuerpo)
+}
+
+# --- 9. La dispersion (pedido 2, seccion 7): razonamiento completo de 3
+#     pasos, no solo la figura. Genes y conteos derivados de las tablas gen
+#     por gen (recolectar_datos()), no una lista escrita a mano. -----------
+slide9 <- function(d, sint) {
+  texto <- if (sint) AVISO_SINTETICO else {
+    explicados <- d$genes_sin_posthoc_explicados
+    tendencia <- d$genes_sin_posthoc_tendencia
+    paso3 <- if (length(explicados))
+      paste0('En ', length(explicados), ' (', paste(explicados, collapse = ", "),
+             ') el analisis de dispersion lo explica (BH &lt; 0.05)',
+             if (length(tendencia))
+               paste0('; ', paste(tendencia, collapse = ", "), ' queda en tendencia')
+             else '', '.')
+    else 'El analisis de dispersion no alcanza a explicar ninguno con este criterio.'
+    paste0(
+      '<ol class="bullets" style="font-size:.92rem;">',
+      '<li>En cerebro, ', length(d$genes_int_bra), ' genes mostraron interaccion sexo &times; ',
+      'tratamiento en el boxplot.</li>',
+      '<li>En ', length(d$genes_sin_posthoc), ' (', paste(d$genes_sin_posthoc, collapse = ", "),
+      '), ningun par de grupos explicaba la diferencia: habia algo sexo-dependiente, pero no ',
+      'se veia donde.</li>',
+      '<li>No es donde se ubican los datos sino cuanto se dispersan: el LPS compacta la ',
+      'expresion en hembras y la dispersa en machos. ', paso3, '</li>',
+      '</ol>')
+  }
+  cuerpo <- paste0(
+    '<h2>La dispersion</h2>\n',
     '<div class="cols">\n',
     '<div class="col wide">', fig_outputs("acto2_dispersion_sd.png", "Dispersion, agrupada y por sexo", "tall"), '</div>\n',
     '<div class="col narrow">', texto, '</div>\n',
     '</div>')
-  slide(8, "Lo que produjo el agente -- la diapositiva clave", cuerpo, "keyslide")
+  slide(9, "Lo que agrego explorar con el agente", cuerpo)
 }
 
-# --- 9. Decisiones que el agente documenta como propias. Fuente exacta:
-#     outputs/tables/analisis_descartados.md, "el informe mostraba una cosa
-#     ... y testeaba otra" (seccion 09_acto2_dispersion), con el ejemplo
-#     concreto de fatcd36. -------------------------------------------------
-slide9 <- function() {
+# --- 10. Decisiones que el agente documenta como propias (sin cambios de
+#     contenido, pedido 2 seccion 8): texto movido a columna lateral. No se
+#     encontro una figura que muestre el desacople sin exponer un resultado
+#     inedito (toda figura de correlacion por sexo trae rho/p impresos) --
+#     se avisa, como autoriza el pedido, y la diapositiva queda sin figura.
+#     Fuente exacta: outputs/tables/analisis_descartados.md, "el informe
+#     mostraba una cosa ... y testeaba otra" (seccion 09_acto2_dispersion),
+#     con el ejemplo concreto de fatcd36. ------------------------------------
+slide10 <- function() {
   cuerpo <- paste0(
     '<h2>El agente toma decisiones y las documenta como propias</h2>\n',
+    '<div class="cols">\n<div class="col narrow">\n',
     '<p class="lead">En el Acto 2, el agente agrupo los sexos en el test formal de correlacion ',
-    'placenta&ndash;cerebro y lo justifico en su propio archivo de descartes -- mientras las ',
+    'placenta&ndash;cerebro y lo justifico en su propio archivo de descartes, mientras las ',
     'figuras ya mostraban los datos separados por sexo. El informe mostraba una cosa y testeaba ',
     'otra.</p>\n',
-    '<p><strong>El caso que lo deja claro</strong> (sin exponer el numero real -- es un ',
+    '<p><strong>El caso que lo deja claro</strong> (sin exponer el numero real: es un ',
     'resultado inedito): en <code>fatcd36</code>, un sexo mostraba una correlacion positiva ',
     'fuerte y el otro una correlacion negativa; agrupados, ambas se promedian en un valor ',
     'intermedio que no describe a ninguno de los dos sexos.</p>\n',
-    '<p style="margin-top:1.4rem;"><strong>Como se detecto:</strong> leyendo el informe y ',
+    '<p style="margin-top:1.2rem;"><strong>Como se detecto:</strong> leyendo el informe y ',
     'notando el desacople entre la figura (separada por sexo) y el test (agrupado).</p>\n',
     '<p class="meta" style="font-size:.85rem;">Detalle completo: ',
     '<code>outputs/tables/analisis_descartados.md</code>, secciones ',
-    '<code>08_acto2_correlaciones</code> y <code>09_acto2_dispersion</code>.</p>')
-  slide(9, "Errores y como se detectaron", cuerpo)
+    '<code>08_acto2_correlaciones</code> y <code>09_acto2_dispersion</code>.</p>',
+    '\n</div>\n</div>')
+  slide(10, "Errores y como se detectaron", cuerpo)
 }
 
-# --- 10. Las verificaciones no verificaban. Fuente exacta: revisiones/
-#     AUDITORIA.md (hallazgos A4-A9) y revisiones/RESPUESTA.md. ------------
-slide10 <- function() {
+# --- 11. Las verificaciones no verificaban (sin cambios de contenido).
+#     Fuente exacta: revisiones/AUDITORIA.md (hallazgos A4-A9) y
+#     revisiones/RESPUESTA.md. -----------------------------------------------
+slide11 <- function() {
   cuerpo <- paste0(
     '<h2>Las verificaciones no verificaban</h2>\n',
     '<p class="lead">Un agente externo, de otra empresa, audito un clon limpio del repositorio ',
@@ -774,19 +925,20 @@ slide10 <- function() {
     '<code>NO_EJECUTADA</code> para lo que no llego a correr.</p>\n',
     '<p class="meta" style="font-size:.85rem;">Detalle completo: ',
     '<code>revisiones/AUDITORIA.md</code> y <code>revisiones/RESPUESTA.md</code>.</p>')
-  slide(10, "Errores y como se detectaron", cuerpo)
+  slide(11, "Errores y como se detectaron", cuerpo)
 }
 
-# --- 11. Cierre. ------------------------------------------------------------
-slide11 <- function() {
+# --- 12. Cierre (sin cambios: se reescribe cuando termine la segunda prueba
+#     de reproduccion con el agente externo, pedido 2 seccion 9). ----------
+slide12 <- function() {
   cuerpo <- paste0(
     '<h2>Cierre</h2>\n',
-    '<p class="lead">El agente hizo en dias lo que llevaria semanas -- y ninguna de sus propias ',
+    '<p class="lead">El agente hizo en dias lo que llevaria semanas, y ninguna de sus propias ',
     'verificaciones detecto sus propios errores: aparecieron al leer el informe y al auditarlo ',
     'con otro agente.</p>\n',
     '<p style="margin-top:2.2rem; font-size:1.4rem;"><strong>&iquest;Que haria falta para ',
     'confiar en un analisis hecho asi?</strong></p>')
-  slide(11, "Cierre", cuerpo)
+  slide(12, "Cierre", cuerpo)
 }
 
 # =========================================================================
@@ -796,13 +948,13 @@ construir_html <- function(d) {
   sint <- d$fuente != "real"
   slides <- paste(
     slide1(), slide2(), slide3(d), slide4(d), slide5(d),
-    slide6(d, sint), slide7(d, sint), slide8(d, sint),
-    slide9(), slide10(), slide11(),
+    slide6(d, sint), slide7(d, sint), slide8(sint), slide9(d, sint),
+    slide10(), slide11(), slide12(),
     sep = "\n")
   paste0(
     "<!doctype html>\n<html lang=\"es\">\n<head>\n<meta charset=\"utf-8\">\n",
     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n",
-    "<title>", .esc(.titulo_readme()), "</title>\n<style>", CSS, "</style>\n</head>\n<body>\n",
+    "<title>", .esc(PRESENTACION_TITULO), "</title>\n<style>", CSS, "</style>\n</head>\n<body>\n",
     slides, "\n</body>\n</html>\n")
 }
 
@@ -810,6 +962,16 @@ construir_html <- function(d) {
 main <- function() {
   d <- recolectar_datos()
   sint <- d$fuente != "real"
+
+  # --- figuras de subconjunto (pedido 2, secciones 6-7): se regeneran SIEMPRE
+  # (idempotente), reflejando la fuente de datos vigente en outputs/tables/R y
+  # data/processed en el momento de esta corrida -- igual criterio que las
+  # figuras completas de 07_figuras_acto1, que tambien "son lo que haya". ----
+  ruta_subset_pla <- file.path(RUTA_FIGURAS, NOMBRE_SUBSET_PLACENTA)
+  ruta_subset_bra <- file.path(RUTA_FIGURAS, NOMBRE_SUBSET_BRAIN)
+  generar_panel_subset(GENES_SUBSET_PLACENTA, "PLACENTA_E15", ruta_subset_pla)
+  generar_panel_subset(GENES_SUBSET_BRAIN, "BRAIN_E15", ruta_subset_bra)
+
   html <- construir_html(d)
 
   destino <- if (sint) RUTA_DOCS else RUTA_PRES_REAL
@@ -825,7 +987,7 @@ main <- function() {
   # --- verificaciones (punto 4 del pedido) --------------------------------
   m_aviso <- gregexpr(AVISO_SINTETICO, html, fixed = TRUE)[[1]]
   n_aviso <- if (length(m_aviso) == 1L && m_aviso[1] == -1L) 0L else length(m_aviso)
-  n_aviso_esperado <- if (sint) 3L else 0L
+  n_aviso_esperado <- if (sint) 4L else 0L   # diapositivas 6,7,8,9 (pedido 2)
 
   usadas <- unique(.FIGS_USADAS$outputs)
   faltan_figs <- usadas[!file.exists(file.path(RUTA_FIGURAS, usadas))]
@@ -854,7 +1016,26 @@ main <- function() {
          ESTE_SCRIPT, "PROPIO", "pedidos/referencias_epidemiologia.md",
          paste0("grafico de razones de prevalencia por sexo: el UNICO grafico de la ",
                 "presentacion que no sale de outputs/figures/ -- es contexto ",
-                "bibliografico, no un resultado del proyecto"))
+                "bibliografico, no un resultado del proyecto")),
+    # tipo = "figura_presentacion", NO "figura": 12_informe.R clasifica como
+    # "figura" (a secas) + ruta en outputs/figures/ = debe estar embebida en
+    # docs/informe.html (informe_figuras_procedencia_embebidas). Estos 2 PNG
+    # son solo para la presentacion, nunca para el informe -- un tipo
+    # distinto los deja fuera de ese chequeo sin tocar 12_informe.R.
+    list(file.path("outputs/figures", NOMBRE_SUBSET_PLACENTA), "figura_presentacion",
+         ESTE_SCRIPT,
+         "PROPIO (panel_gen() de 07_figuras_acto1.R, reusada sin recalculo)",
+         "data/processed/qpcr_cuantificacion_long.tsv + outputs/tables/R/qpcr_modelos_{clasificacion,posthoc}.csv",
+         paste0("subconjunto de 3 genes (", paste(GENES_SUBSET_PLACENTA, collapse = ", "),
+                ") de placenta para la diapositiva 6, sin recalcular nada; no forma parte ",
+                "de docs/informe.html")),
+    list(file.path("outputs/figures", NOMBRE_SUBSET_BRAIN), "figura_presentacion",
+         ESTE_SCRIPT,
+         "PROPIO (panel_gen() de 07_figuras_acto1.R, reusada sin recalculo)",
+         "data/processed/qpcr_cuantificacion_long.tsv + outputs/tables/R/qpcr_modelos_{clasificacion,posthoc}.csv",
+         paste0("subconjunto de 3 genes (", paste(GENES_SUBSET_BRAIN, collapse = ", "),
+                ") de cerebro para la diapositiva 7, sin recalcular nada; no forma parte ",
+                "de docs/informe.html"))
   ))
   registrar_verificaciones(list(
     list("presentacion_html_generado", "recalculo",
@@ -864,7 +1045,7 @@ main <- function() {
          if (file.exists(ruta_html) && file.info(ruta_html)$size > 0) "TRUE" else "FALSE",
          ESTE_SCRIPT),
     list("presentacion_sin_interpretacion", "recalculo",
-         paste0("con fuente sintetica, las diapositivas 6-8 reemplazan la prosa ",
+         paste0("con fuente sintetica, las diapositivas 6-9 reemplazan la prosa ",
                 "interpretativa por el aviso de datos sinteticos"),
          sprintf("fuente=%s; aviso=%d/%d", d$fuente, n_aviso, n_aviso_esperado),
          "aviso = 3 si fuente sintetica, 0 si fuente real",

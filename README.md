@@ -208,9 +208,10 @@ caso `99_verificar` trata la ausencia del PDF como aviso, no como falla.
 
 ### Presentación (`13_presentacion`, solo R)
 
-Página de 11 diapositivas para exponer el proyecto (`pedidos/cambios_presentacion.md`),
-no un resultado de análisis. El mismo script genera **dos versiones**, según qué datos
-haya en `data/raw/` (mismo mecanismo que el resto del pipeline):
+Página de 12 diapositivas para exponer el proyecto (`pedidos/cambios_presentacion.md`,
+segunda tanda en `pedidos/cambios_presentacion_2.md`), no un resultado de análisis. El
+mismo script genera **dos versiones**, según qué datos haya en `data/raw/` (mismo
+mecanismo que el resto del pipeline):
 
 ```powershell
 # Version PUBLICA (datos sinteticos) -> docs/index.html + docs/presentacion.pdf
@@ -224,10 +225,11 @@ Remove-Item Env:\MIA_LPS_FORZAR_SINTETICO
 & "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" R\13_presentacion.R
 ```
 
-Con datos sintéticos, las diapositivas 6–8 (los resultados) se reemplazan por el mismo
-aviso que usa `12_informe`; las demás son iguales en las dos versiones porque describen
-el proceso, no los resultados. El gráfico de contexto epidemiológico (diapositiva 2) es
-el único gráfico del repo que no sale de `outputs/figures/`: se genera en HTML/CSS con
+Con datos sintéticos, las diapositivas 6–9 (el análisis convencional + lo que agregó
+explorar con el agente) se reemplazan por el mismo aviso que usa `12_informe`; las demás
+son iguales en las dos versiones porque describen el proceso, no los resultados. El
+gráfico de contexto epidemiológico (diapositiva 2) es el único gráfico del repo que no
+sale de `outputs/figures/`: se genera en HTML/CSS con
 las citas de `pedidos/referencias_epidemiologia.md`, copiadas a `docs/referencias.md`.
 
 ---

@@ -132,6 +132,18 @@ grafico epidemiologico de contexto (diapositiva 2) es el unico grafico del repo 
 sale de `outputs/figures/`: no es un resultado del proyecto, es contexto bibliografico
 (`pedidos/referencias_epidemiologia.md` -> `docs/referencias.md`, citas copiadas tal cual).
 
+**Segunda excepcion (pedido 2, `pedidos/cambios_presentacion_2.md`):** dos diapositivas
+(placenta y cerebro fetal) necesitan boxplots de un SUBCONJUNTO de 3 genes por tejido, no
+el panel completo. `13_presentacion.R` reusa `panel_gen()` y sus dependencias de
+`07_figuras_acto1.R` (pedido explicito: "sin recalcular nada") sourceando ese archivo
+COMPLETO pero con `local = <environment nuevo>`, para no chocar con los nombres propios de
+`13_presentacion` (07 redefine `ESTE_SCRIPT`, `registrar_procedencia`, etc. con firmas
+distintas). Las dos figuras resultantes (`outputs/figures/acto1_expresion_{PLACENTA,
+BRAIN}_E15_subset3.png`) llevan `tipo = "figura_presentacion"` en `procedencia.csv`, no
+`"figura"`: ese segundo valor las deja fuera del chequeo de `12_informe` que exige que
+toda fila `tipo == "figura"` este embebida en `docs/informe.html` -- estas dos son solo
+para la presentacion, nunca para el informe.
+
 **Convención de nombres de salidas:**
 
 - Figuras: `outputs/figures/actoN_<tema>_<gen|tejido|detalle>.png`, 300 dpi, texto legible.
