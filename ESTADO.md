@@ -2811,3 +2811,135 @@ verificado directamente, a la espera de que algún dato futuro lo dispare.
   19c, y los tres avisos de diseño de la sesión 23 (SPLOM diapositiva 8 a
   nivel de tejido, figura de dispersión elegida para la diapositiva 9,
   diapositiva 10 sin figura).
+
+---
+
+## Sesión 25 — 2026-09-28 — informe breve de 5 páginas (`14_informe_breve.R`)
+
+> Pedido por archivo `pedidos/pedido_informe_breve.md`: un informe nuevo de
+> máximo 5 páginas, reusando la maquinaria de render existente, con
+> estructura de contenido fijada página por página (problema/diseño/método,
+> métodos, placenta, cerebro fetal, eje placenta-cerebro/límites/
+> conclusión), todos los números leídos en vivo de `outputs/tables/`,
+> lenguaje no causal, y una figura nueva de densidades (2 filas Hembras/
+> Machos × columnas de gen) que reemplaza el gráfico de barras de SD en este
+> informe. Dos versiones (pública sintética a `docs/`, real a
+> `outputs/informe_breve_real/`, ignorada). Advertencia explícita del pedido
+> sobre la falla de la sesión de la presentación: las figuras también tienen
+> que salir de la corrida sintética, no solo el texto.
+
+### Qué se completó
+
+- **`R/14_informe_breve.R`** (nuevo, ~500 líneas, SOLO R — cuarta excepción a
+  "todo se implementa dos veces", documentada en `AGENTS.md`/`CLAUDE.md` §3
+  junto a las tres anteriores). Sourcea `13_presentacion.R` completo con
+  `local = <environment nuevo>` (`.ENV13()`), que a su vez tiene su propio
+  `.ENV07()` — hereda así, sin recalcular nada, las tres figuras ya reusadas
+  por la presentación (subconjuntos de placenta/cerebro, pSTAT3) y
+  `aplicar_override_tendencia()`.
+- **Figura nueva**: `acto2_densidades_dispersion_BRAIN_E15.png` — densidades
+  de -ddCt por sexo × tratamiento, mismo estilo (`geom_density`, mismos
+  colores `COL_TTO`) que la diagonal del SPLOM de `08_acto2_correlaciones.R`.
+  **Genes elegidos: `fatcd36`, `fatp4`, `gp130`, `slc38a2`** — de los 5 genes
+  de cerebro con interacción SEXO×TTO significativa sobre la dispersión
+  (BH<0.05: fatcd36, fatp1, fatp4, gp130, slc38a2), se excluyó `fatp1` por
+  mostrar el contraste (angostamiento en hembras LPS / ensanchamiento en
+  machos LPS) comparativamente más atenuado al inspeccionar la figura
+  renderizada; los otros 4 lo muestran con claridad. Registrada en
+  `procedencia.csv` con `tipo = "figura_presentacion"` (no `"figura"`) —
+  mismo criterio que las figuras de subconjunto de la presentación, para no
+  disparar el chequeo de `12_informe` que exige que toda fila
+  `tipo == "figura"` esté embebida en `docs/informe.html`.
+- **Todos los números de las 5 páginas se recalculan en vivo** desde
+  `outputs/tables/{R}/*.csv` (Fisher ELISA, genes TTO-significativos de
+  placenta, pSTAT3, genes de interacción/dispersión de cerebro, tests de
+  correlación, simulación, PC1, sensibilidad) — ninguno hardcodeado.
+  Reutilizado explícitamente de `12_informe.R` (sin re-derivar): la fórmula
+  de `sim_lim_genes` (`HEMBRA & GLOBAL & veredicto=="FUERA"`) y la frase ya
+  auditada "la aparente pérdida de acoplamiento placenta-cerebro en hembras
+  es compatible con la reducción de dispersión; la simulación muestra que
+  esta alcanza para explicarla, aunque no permite descartar un cambio de
+  coordinación" — evita reintroducir un overclaim ya corregido en una
+  sesión anterior.
+- **Lenguaje no causal** en toda la prosa interpretativa ("compatible con",
+  "sugiere", "no se puede descartar"); con fuente sintética, las páginas 3–5
+  reemplazan esa prosa por el mismo aviso de datos sintéticos que usa
+  `12_informe` (3 avisos: página 3, 4, 5).
+- **`contar_paginas_pdf()`**: cuenta páginas leyendo el PDF como bytes crudos
+  y contando `/Type /Page` (no `/Pages`) con regex sobre bytes
+  (`Encoding(txt) <- "bytes"` + `useBytes = TRUE`, necesario porque el PDF
+  trae binario no-UTF8 y `gregexpr(perl=TRUE)` sin eso tira "invalid UTF-8").
+- **Ajuste de layout, no de contenido, para entrar en 5 páginas**: la
+  primera corrida (datos reales) dio 6 páginas por un desborde de ~2 líneas
+  en la página de Placenta. Petición explícita del pedido: "si se pasa,
+  recortá texto, no figuras". Se resolvió sin tocar ni texto ni figuras,
+  ajustando la hoja de estilos (menos margen de página, menor alto máximo de
+  figuras, menor margen entre figuras) — 5 páginas exactas en ambas
+  versiones tras el ajuste.
+
+### Error encontrado y corregido en esta sesión
+
+- **Bug de `tipo` en la figura nueva**: la primera versión de
+  `registrar_procedencia()` para `acto2_densidades_dispersion_BRAIN_E15.png`
+  usó `tipo = "figura"` en vez de `"figura_presentacion"`. Esto quedó
+  invisible mientras solo se probó `14_informe_breve.R` en modo real de
+  forma aislada, pero **rompió `run_all.ps1 -Only R -FromSynthetic`**: al
+  correr `12_informe.R` dentro de ese pipeline, su chequeo
+  `informe_figuras_procedencia_embebidas` encontró esta fila de
+  `procedencia.csv` (dejada por una corrida manual anterior de
+  `14_informe_breve.R`, ya que ese script no es parte de `run_all.ps1` y sus
+  filas persisten entre corridas vía `merge_por_script`) y falló porque la
+  figura no está embebida en `docs/informe.html` — correctamente, porque no
+  tiene por qué estarlo. **Fix**: cambiado a `tipo = "figura_presentacion"`
+  (igual que las dos figuras de subconjunto de la presentación). Lección:
+  cualquier figura nueva que registre un script de capa de presentación
+  (13 o 14) tiene que usar `"figura_presentacion"`, nunca `"figura"` —
+  quedó explícito en el comentario del código y en `AGENTS.md`/`CLAUDE.md`.
+
+### Verificado
+
+- **Versión pública** (`docs/informe_breve.html`/`.pdf`): generada tras
+  `run_all.ps1 -Only R -FromSynthetic` (regenera figuras/tablas sintéticas)
+  + `Rscript R/14_informe_breve.R` con `MIA_LPS_FORZAR_SINTETICO=1`. **5
+  páginas** (524 KB HTML / 552 KB PDF). `informe_breve_sin_interpretacion`:
+  aviso 3/3. `informe_breve_max_5_paginas`: TRUE (páginas=5). 0 números
+  reales tras stripear los blobs base64 y grepear los valores exclusivos de
+  la corrida real (p. ej. `4.995005e-03`, `76 %`, `82 %`).
+  `run_all.ps1 -Only R -FromSynthetic` completo: `VERIFICACION PARCIAL: 0
+  fallos` (comparación R↔Python NO_EJECUTADA, esperado en `-Only R`).
+- **Figuras de la versión pública confirmadas distintas de las reales** (no
+  solo texto bloqueado): comparado el tamaño en bytes de cada blob base64
+  incrustado entre `outputs/informe_breve_real/informe_breve.html` (previo)
+  y `docs/informe_breve.html` — el asset estático (modelo experimental)
+  coincide byte a byte como se espera, pero las 4 figuras derivadas de datos
+  (pSTAT3, subconjunto placenta, subconjunto cerebro, densidades) difieren
+  todas en tamaño entre las dos versiones.
+- **Estado real restaurado**: `run_all.ps1` completo (R+Python, sin
+  `-FromSynthetic`) → `TODAS LAS VERIFICACIONES PASARON`, 77/77, 0
+  NO_EJECUTADA, 32/32 CSV byte-idénticos, en ambos lenguajes. Luego
+  `Rscript R/14_informe_breve.R` (real) → `outputs/informe_breve_real/`
+  regenerado, **5 páginas** (516 KB HTML / 547 KB PDF).
+- `git check-ignore` confirmado: `outputs/informe_breve_real/` ignorado;
+  `docs/informe_breve.html`/`.pdf` no ignorados.
+- `procedencia.csv`/`verificaciones.csv` finales revisados: sin filas
+  `FALSE` inesperadas, `informe_figuras_procedencia_embebidas` = TRUE
+  (26/26 embebidas).
+
+### Respuesta directa a lo pedido
+
+| Versión | Ruta | Tamaño | Páginas |
+|---|---|---|---|
+| Pública (sintética) | `docs/informe_breve.html` / `.pdf` | 524 KB / 552 KB | 5 |
+| Real (no versionada) | `outputs/informe_breve_real/informe_breve.html` / `.pdf` | 516 KB / 547 KB | 5 |
+
+**Genes de la figura de densidades**: `fatcd36`, `fatp4`, `gp130`, `slc38a2`
+(se descartó `fatp1` del conjunto de 5 candidatos por mostrar el contraste
+descrito más atenuado; no fue necesario avisar y revisar el diseño porque el
+contraste esperado sí se observó con claridad en los 4 genes elegidos).
+
+### Pendiente / siguiente paso concreto
+
+- Sin cambios respecto de la sesión 24 (ver arriba): marcador de
+  `analisis_descartados.md` (D13), decisión de publicación de
+  `docs/`/`outputs/`, SPLOM de la sesión 19c, y los avisos de diseño de la
+  sesión 23.
