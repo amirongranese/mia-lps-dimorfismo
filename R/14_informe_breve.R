@@ -48,6 +48,25 @@
 # analisis sobre los datos reales (conteos, genes, valores de p, porcentajes,
 # la conclusion biologica). Las paginas 1 y 2 no tienen aviso: describen el
 # proceso y el metodo, no un resultado.
+#
+# CORRECCIONES (pedidos/pedido_informe_breve_correcciones.md, reemplaza al
+# pedido anterior en lo que difiere): (a) acentuacion correcta en todo el
+# texto visible -- via entidades HTML (&aacute; etc.) en el cuerpo de cada
+# pagina, o escapes \uXXXX en los titulos que pasan por pagina()/.esc()
+# (esa funcion escapa "&", asi que una entidad literal en un titulo quedaria
+# doblemente escapada) -- nunca caracteres acentuados literales en el codigo
+# fuente, para no depender de que Rscript lea el .R con la codificacion
+# correcta; (b) los p-valores se formatean con `.p_fmt()` (tres decimales,
+# coma decimal, "p < 0,001", "p = 1,00"), nunca en notacion cientifica cruda;
+# (c) sin codigos internos del repositorio (D7, D13) en el texto -- se
+# explican en palabras; la remision a docs/referencias.md se reemplaza por
+# citas numeradas normales (`REFERENCIAS_EPIDEMIO`, al pie de la pagina 1);
+# (d) las figuras estan numeradas ("Figura N.") y el texto las menciona por
+# numero; (e) se agrega una figura mas (acto2_corr_placenta_cerebro_fatp4.png,
+# ya generada por 08_acto2_correlaciones.R -- no es nueva ni propia de este
+# script) en la pagina 5, con un epigrafe que aclara que la diferencia entre
+# grupos no fue significativa por test formal, para que el patron visual no
+# se lea como si el LPS hubiera roto la correlacion.
 
 .aqui <- tryCatch(
   dirname(normalizePath(sub("^--file=", "",
@@ -140,6 +159,17 @@ leer_texto <- function(ruta) {
   x <- as.numeric(x); s <- sign(x); m <- 10^nd
   v <- floor(abs(x) * m + 0.5) / m * s
   sprintf(paste0("%.", nd, "f"), v)
+}
+# Formato de p-valor para texto corrido en espanol (pedido de correcciones,
+# seccion 1.2): tres decimales, coma decimal, "p < 0,001" por debajo del
+# umbral de precision razonable, "p = 1,00" cuando redondea a 1. Una sola
+# funcion, usada en todo el documento -- nunca se formatea un p a mano.
+.p_fmt <- function(x) {
+  v <- suppressWarnings(as.numeric(x))
+  if (length(v) != 1L || is.na(v)) return("")
+  if (v < 0.001) return("p &lt; 0,001")
+  if (v >= 0.9995) return("p = 1,00")
+  paste0("p = ", sub(".", ",", sprintf("%.3f", v), fixed = TRUE))
 }
 
 merge_por_script <- function(ruta, header, filas_nuevas, clave_orden) {
@@ -355,8 +385,8 @@ generar_figura_densidades <- function(genes, ruta) {
     facet_wrap(~GEN, nrow = 1, scales = "free") +
     labs(title = "Cerebro E15, hembras: densidad de -\u0394\u0394Ct por tratamiento",
          subtitle = paste0("Recorte de la diagonal del diagrama triangular ",
-                           "(genes con interaccion SEXO\u00d7TTO significativa ",
-                           "sobre la dispersion, BH < 0.05)"),
+                           "(genes con interacci\u00f3n SEXO\u00d7TTO significativa ",
+                           "sobre la dispersi\u00f3n, BH < 0.05)"),
          x = expression(-Delta*Delta*Ct), y = "Densidad") +
     theme_bw(base_size = 10) +
     theme(panel.grid.minor = element_blank(), legend.position = "top",
@@ -388,6 +418,54 @@ NOMBRE_DETECCION_BRAIN <- "acto1_deteccion_il6_BRAIN_E15_breve.png"
 # pisar outputs/figures/acto1_expresion_PLACENTA_E15_subset3.png.
 GENES_PLACENTA_BREVE <- c("il6", "fatp1", "slc38a2", "glut1")
 NOMBRE_PLACENTA_BREVE <- "acto1_expresion_PLACENTA_E15_breve4.png"
+
+# Figura de correlacion placenta-cerebro para fatp4 (pedido de correcciones,
+# seccion 5): NO es una figura nueva ni propia de este script -- ya la genera
+# 08_acto2_correlaciones.R para cada gen del Acto 2 (con la fuente de datos
+# vigente, real o sintetica) y ya tiene su fila en procedencia.csv con
+# tipo="figura". Este script solo la embebe con fig_outputs(), igual que
+# cualquier otra figura ya existente del pipeline.
+NOMBRE_CORR_FATP4 <- "acto2_corr_placenta_cerebro_fatp4.png"
+
+# Referencias bibliograficas citadas en la pagina 1 (pedido de correcciones,
+# seccion 1.3): copiadas tal cual de docs/referencias.md (no se reformulan,
+# no se inventan -- mismo criterio que ese archivo declara para si mismo).
+# Se citan en bloque (afirman lo mismo: la evidencia epidemiologica muestra
+# dimorfismo sexual en trastornos del neurodesarrollo), asi que se listan
+# todas juntas en vez de una por una en el cuerpo del texto.
+REFERENCIAS_EPIDEMIO <- c(
+  paste0("Hiller, R. M., Young, R. L. &amp; Weber, N. Sex differences in ",
+         "pre-diagnosis concerns for children later diagnosed with autism ",
+         "spectrum disorder. <em>Autism</em> <strong>20</strong>, 75&ndash;84 (2016)."),
+  paste0("Catal&aacute;-L&oacute;pez, F. et al. Prevalence of attention deficit ",
+         "hyperactivity disorder among children and adolescents in Spain: a ",
+         "systematic review and meta-analysis of epidemiological studies. ",
+         "<em>BMC Psychiatry</em> <strong>12</strong>, (2012)."),
+  paste0("Goldstein, J. M., Cherkerzian, S., Tsuang, M. T. &amp; Petryshen, T. L. ",
+         "Sex differences in the genetic risk for schizophrenia: history of the ",
+         "evidence for sex-specific and sex-dependent effects. <em>Am. J. Med. ",
+         "Genet. B. Neuropsychiatr. Genet.</em> <strong>162B</strong>, ",
+         "698&ndash;710 (2013)."),
+  paste0("Elbaz, A. et al. Risk tables for parkinsonism and Parkinson's disease. ",
+         "<em>J. Clin. Epidemiol.</em> <strong>55</strong>, 25&ndash;31 (2002)."),
+  paste0("McCombe, P. A. &amp; Henderson, R. D. Effects of gender in amyotrophic ",
+         "lateral sclerosis. <em>Gend. Med.</em> <strong>7</strong>, ",
+         "557&ndash;570 (2010)."),
+  paste0("Ferretti, M. T. et al. Sex differences in Alzheimer disease, the ",
+         "gateway to precision medicine. <em>Nat. Rev. Neurol.</em> ",
+         "<strong>14</strong>, 457&ndash;469 (2018)."),
+  paste0("Voskuhl, R. R. &amp; Gold, S. M. Sex-related factors in multiple ",
+         "sclerosis susceptibility and progression. <em>Nat. Rev. Neurol.</em> ",
+         "<strong>8</strong>, 255&ndash;263 (2012)."),
+  paste0("Voskuhl, R. R. The effect of sex on multiple sclerosis risk and ",
+         "disease progression. <em>Mult. Scler. J.</em> <strong>26</strong>, ",
+         "554&ndash;560 (2020)."),
+  paste0("Altemus, M., Sarvaiya, N. &amp; Neill Epperson, C. Sex differences in ",
+         "anxiety and depression: clinical perspectives. <em>Front. ",
+         "Neuroendocrinol.</em> <strong>35</strong>, 320&ndash;330 (2014)."),
+  paste0("Faravelli, C., Alessandra Scarpato, M., Castellini, G. &amp; Lo Sauro, ",
+         "C. Gender differences in depression and anxiety: The role of age. ",
+         "<em>Psychiatry Res.</em> <strong>210</strong>, 1301&ndash;1303 (2013)."))
 
 # =========================================================================
 # CSS -- variables en un unico bloque (misma paleta que 13_presentacion.R:
@@ -421,13 +499,26 @@ CSS <- paste0("\n",
 ".fig-modelo { max-height: 25vh; }\n",
 ".fig-boxplot { max-height: 26vh; }\n",
 ".fig-densidad { max-height: 24vh; }\n",
-".cols-fig { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }\n",
-".cols-fig figure { flex: 1 1 0; min-width: 0; margin: .5rem 0; }\n",
-".cols-fig .fig-chica { flex: 0 1 30%; max-height: 22vh; }\n",
-".cols-fig .fig-grande { flex: 1 1 65%; max-height: 22vh; }\n",
+".fig-corr { max-height: 20vh; }\n",
+# Las dos figuras de la pagina de cerebro tienen relaciones de aspecto muy
+# distintas (deteccion casi cuadrada, boxplots muy anchos): con solo
+# max-height terminaban con alturas visualmente distintas, porque la mas
+# ancha topaba antes con max-width:100% de su columna. Fila de ALTO FIJO,
+# las imagenes se estiran a esa altura y el ancho de cada columna se reparte
+# segun la relacion de aspecto real de cada imagen (proporcional, no 50/50).
+".cols-fig { display: flex; gap: 1rem; align-items: center; flex-wrap: nowrap;\n",
+"  height: 20vh; margin: .5rem 0; }\n",
+".cols-fig figure { margin: 0; height: 100%; min-width: 0; overflow: hidden;\n",
+"  display: flex; align-items: center; justify-content: center; }\n",
+".cols-fig img { height: 100%; width: auto; max-width: 100%; }\n",
+".cols-fig .fig-chica { flex: 1.1 1 0; }\n",
+".cols-fig .fig-grande { flex: 3.45 1 0; }\n",
 ".sim { background: var(--warn-bg); border: 1px solid var(--warn-border);\n",
 "  border-radius: 6px; padding: .55rem .9rem; font-size: .88rem;\n",
 "  font-family: var(--font-ui); text-align: left; }\n",
+".referencias { font: .78rem var(--font-ui); color: var(--ink-soft);\n",
+"  margin: .6rem 0 0 1.1rem; padding: 0; }\n",
+".referencias li { margin: .25rem 0; }\n",
 ".falta { color: #b00; font-style: italic; }\n",
 "code { font: .88em \"SF Mono\", Consolas, monospace; background: #f0eee8;\n",
 "       padding: .04em .3em; border-radius: 3px; }\n",
@@ -553,219 +644,268 @@ pagina <- function(id_, titulo, cuerpo) sprintf(
   '<section class="pagina" id="p%s">\n<h2>%s</h2>\n%s\n</section>', id_, .esc(titulo), cuerpo)
 
 pagina1 <- function(d) {
+  refs_html <- paste0('<li id="ref', seq_along(REFERENCIAS_EPIDEMIO), '">',
+                      REFERENCIAS_EPIDEMIO, '</li>', collapse = "\n")
   cuerpo <- paste0(
-    '<p>La activacion inmune materna (MIA) durante la gestacion es un factor de ',
-    'riesgo para trastornos del neurodesarrollo en la descendencia, y la evidencia ',
-    'epidemiologica muestra que esas patologias afectan de forma distinta a varones ',
-    'y mujeres (ver <code>docs/referencias.md</code>). La placenta es la interfaz ',
-    'entre la inflamacion materna y el desarrollo fetal: transporta los nutrientes ',
-    'que sostienen el crecimiento del cerebro fetal, y su funcion puede verse ',
-    'modificada por la inflamacion antes de que el cerebro mismo responda. Este ',
-    'proyecto pregunta si esa respuesta, en placenta y en cerebro, depende del ',
-    'sexo del feto.</p>\n',
+    '<p>La inflamaci&oacute;n materna durante la gestaci&oacute;n es considerada ',
+    'un factor de riesgo para trastornos del neurodesarrollo en la descendencia, ',
+    'y la evidencia epidemiol&oacute;gica muestra que esas patolog&iacute;as ',
+    'afectan de manera distinta a varones y mujeres',
+    '<sup>1&ndash;10</sup>. En este contexto, la placenta constituye la interfaz ',
+    'entre la madre y el ambiente fetal, y su correcto funcionamiento resulta ',
+    'esencial para el desarrollo del feto gestante. Este proyecto emplea un ',
+    'modelo animal de activaci&oacute;n inmune materna para caracterizar la ',
+    'respuesta placentaria y del cerebro fetal, en t&eacute;rminos de la ',
+    'expresi&oacute;n de transportadores de nutrientes, frente a un est&iacute;mulo ',
+    'inflamatorio materno inducido con lipopolisac&aacute;rido (LPS), componente ',
+    'de la membrana externa de las bacterias gram negativas.</p>\n',
     '<h3>Modelo experimental</h3>\n',
     fig_asset("modelo-experimental.png", "Modelo experimental", "fig-modelo"),
-    '<p class="epigrafe">LPS 100 &mu;g/kg i.p. en el dia 15 de gestacion (E15), ',
-    'coleccion a las 6 horas.</p>\n',
+    '<p class="epigrafe"><strong>Figura 1.</strong> LPS 100 &mu;g/kg i.p. en el ',
+    'd&iacute;a 15 de gestaci&oacute;n (E15), colecci&oacute;n a las 6 horas.</p>\n',
     '<p>', d$n_fetos, ' fetos de 18 camadas (un feto de cada sexo por camada); ',
     'placenta y cerebro del mismo individuo. Tres mediciones: IL-6 por ELISA en ',
-    'suero materno y liquido amniotico, 10 genes por RT-qPCR (transportadores de ',
-    'nutrientes y via de senalizacion IL-6/STAT3), y pSTAT3 en placenta por Western ',
-    'blot. Cuatro grupos (sexo &times; tratamiento), n = 9.</p>\n',
-    '<h3>Como se organizo el trabajo</h3>\n',
-    '<p>Las decisiones metodologicas centrales (que escala usar, como tratar los ',
-    'valores no detectados, que modelo ajustar, cuando hacer comparaciones post ',
-    'hoc) se fijaron por escrito antes de correr ningun analisis, y no se ',
-    'reabrieron despues de ver los resultados. El trabajo se dividio en tareas ',
-    'acotadas, cada una con su propio cierre. El repositorio deja registro de ',
-    'procedencia (de donde sale cada tabla y cada figura) y de verificaciones ',
-    '(que se comprobo y como), y toda la implementacion existe por duplicado en R ',
-    'y en Python, comparada celda a celda.</p>')
-  pagina(1, "Problema, modelo experimental y metodo de trabajo", cuerpo)
+    'suero materno y l&iacute;quido amni&oacute;tico, 10 genes por RT-qPCR ',
+    '(transportadores de nutrientes y v&iacute;a de se&ntilde;alizaci&oacute;n ',
+    'IL-6/STAT3), y pSTAT3 en placenta por Western blot. Cuatro grupos (sexo ',
+    '&times; tratamiento), n = 9.</p>\n',
+    '<h3>C&oacute;mo se organiz&oacute; el trabajo</h3>\n',
+    '<p>Las decisiones metodol&oacute;gicas centrales se fijaron por escrito ',
+    'antes de ejecutar cualquier an&aacute;lisis y no se reabrieron una vez ',
+    'conocidos los resultados: la escala de an&aacute;lisis, el tratamiento de ',
+    'los valores no detectados, el modelo a ajustar y el criterio para realizar ',
+    'comparaciones post hoc. El trabajo se dividi&oacute; en tareas acotadas, ',
+    'cada una con su propio cierre. El repositorio conserva el registro de ',
+    'procedencia de cada tabla y cada figura, y el de las verificaciones ',
+    'aplicadas a cada resultado. La implementaci&oacute;n existe por duplicado, ',
+    'en R y en Python, y ambas se comparan celda a celda.</p>\n',
+    '<ol class="referencias">', refs_html, '</ol>')
+  pagina(1, "Problema, modelo experimental y método de trabajo", cuerpo)
 }
 
 pagina2 <- function() {
   cuerpo <- paste0(
-    '<p>Se entregaron al agente las tablas de datos crudos, sobre las que aplico ',
-    'los calculos estandarizados para obtener la cuantificacion relativa de cada ',
-    'target. Las comparaciones entre los grupos experimentales de interes se ',
-    'definieron de antemano. Cuando el grupo calibrador no pudo cuantificarse por ',
-    'limitaciones del metodo experimental, ese gen no se analizo como expresion ',
-    'relativa sino como proporcion de deteccion, mediante el test exacto de ',
+    '<p>Se entregaron al agente las tablas de datos crudos, sobre las que ',
+    'aplic&oacute; los c&aacute;lculos estandarizados para obtener la ',
+    'cuantificaci&oacute;n relativa de cada target. Las comparaciones entre los ',
+    'grupos experimentales de inter&eacute;s se definieron de antemano. Cuando ',
+    'el grupo calibrador no pudo cuantificarse por limitaciones del m&eacute;todo ',
+    'experimental, ese gen no se analiz&oacute; como expresi&oacute;n relativa ',
+    'sino como proporci&oacute;n de detecci&oacute;n, mediante el test exacto de ',
     'Fisher.</p>\n',
-    '<p>La placenta y el cerebro analizados provienen del mismo individuo, de modo ',
-    'que las observaciones de ambos tejidos estan pareadas por feto.</p>\n',
-    '<p>El analisis se realizo sobre -&Delta;&Delta;Ct, en escala logaritmica de ',
-    'base 2, donde las diferencias son simetricas y aditivas; el fold-change se ',
-    'reservo para la representacion grafica, con eje logaritmico. Los valores no ',
-    'detectados se mantuvieron como faltantes y no se imputaron. Para cada gen y ',
-    'tejido se ajusto el modelo -&Delta;&Delta;Ct ~ sexo &times; tratamiento, ',
-    'eligiendo el metodo segun el diagnostico de los residuos: ANOVA de tipo III ',
-    'cuando se cumplian normalidad y homocedasticidad, errores robustos cuando ',
-    'fallaba la homocedasticidad, y una transformacion por rangos alineados cuando ',
-    'fallaba la normalidad. Las comparaciones post hoc se realizaron unicamente ',
-    'cuando la interaccion entre sexo y tratamiento resulto significativa, sobre ',
-    'cuatro contrastes definidos de antemano y con correccion de Holm.</p>\n',
-    '<p>En el ELISA de liquido amniotico, los valores por debajo del limite de ',
-    'deteccion se trataron como censurados a izquierda y se analizaron con ',
-    'metodos especificos para datos censurados.</p>')
-  pagina(2, "Metodos", cuerpo)
+    '<p>La placenta y el cerebro analizados provienen del mismo individuo, de ',
+    'modo que las observaciones de ambos tejidos est&aacute;n pareadas por ',
+    'feto.</p>\n',
+    '<p>El an&aacute;lisis se realiz&oacute; sobre -&Delta;&Delta;Ct, en escala ',
+    'logar&iacute;tmica de base 2, donde las diferencias son sim&eacute;tricas y ',
+    'aditivas; el fold-change se reserv&oacute; para la representaci&oacute;n ',
+    'gr&aacute;fica, con eje logar&iacute;tmico. Los valores no detectados se ',
+    'mantuvieron como faltantes y no se imputaron. Para cada gen y tejido se ',
+    'ajust&oacute; el modelo -&Delta;&Delta;Ct ~ sexo &times; tratamiento, ',
+    'eligiendo el m&eacute;todo seg&uacute;n el diagn&oacute;stico de los ',
+    'residuos: ANOVA de tipo III cuando se cumpl&iacute;an normalidad y ',
+    'homocedasticidad, errores robustos cuando fallaba la homocedasticidad, y ',
+    'una transformaci&oacute;n por rangos alineados cuando fallaba la ',
+    'normalidad. Las comparaciones post hoc se realizaron &uacute;nicamente ',
+    'cuando la interacci&oacute;n entre sexo y tratamiento result&oacute; ',
+    'significativa, sobre cuatro contrastes definidos de antemano y con ',
+    'correcci&oacute;n de Holm.</p>\n',
+    '<p>En el ELISA de l&iacute;quido amni&oacute;tico, los valores por debajo ',
+    'del l&iacute;mite de detecci&oacute;n se trataron como censurados a ',
+    'izquierda y se analizaron con m&eacute;todos espec&iacute;ficos para datos ',
+    'censurados.</p>')
+  pagina(2, "Métodos", cuerpo)
 }
 
 pagina3 <- function(d, sint) {
   intro <- paste0(
-    '<p>El agente devolvio el analisis por tejido y por gen, separando por sexo. ',
-    'En placenta se evaluo la expresion de diez genes: tres componentes de la via ',
-    'de IL-6, una citoquina proinflamatoria fuertemente vinculada a patologias del ',
+    '<p>El agente devolvi&oacute; el an&aacute;lisis por tejido y por gen, ',
+    'separando por sexo. En placenta se evalu&oacute; la expresi&oacute;n de ',
+    'diez genes: tres componentes de la v&iacute;a de IL-6, una citoquina ',
+    'proinflamatoria fuertemente vinculada a patolog&iacute;as del ',
     'neurodesarrollo, y siete transportadores de nutrientes esenciales para el ',
-    'desarrollo fetal, correspondientes al transporte de glucosa, aminoacidos y ',
-    'lipidos.</p>')
+    'desarrollo fetal, correspondientes al transporte de glucosa, ',
+    'amino&aacute;cidos y l&iacute;pidos (Figura 2).</p>')
   resultado <- if (sint) paste0(
-    '<p>Para validar el modelo se evaluo si IL-6 era detectable de forma ',
-    'diferencial entre grupos, en suero materno y en liquido amniotico, mediante ',
-    'el test exacto de Fisher. Sobre los diez genes de placenta se evaluo cuantos ',
-    'mostraban efecto de tratamiento y si alguno mostraba interaccion entre sexo y ',
-    'tratamiento; pSTAT3 se evaluo por separado, para comparar el patron de ',
-    'senalizacion con el de los transportadores.</p>\n',
-    sim_bloque("El resultado de esta validacion y de los analisis por gen")
+    '<p>Para validar el modelo se evalu&oacute; si IL-6 era detectable de forma ',
+    'diferencial entre grupos, en suero materno y en l&iacute;quido ',
+    'amni&oacute;tico, mediante el test exacto de Fisher. Sobre los diez genes ',
+    'de placenta se evalu&oacute; cu&aacute;ntos mostraban efecto de tratamiento ',
+    'y si alguno mostraba interacci&oacute;n entre sexo y tratamiento; pSTAT3 se ',
+    'evalu&oacute; por separado, para comparar el patr&oacute;n de ',
+    'se&ntilde;alizaci&oacute;n con el de los transportadores.</p>\n',
+    sim_bloque("El resultado de esta validaci&oacute;n y de los an&aacute;lisis por gen")
   ) else paste0(
-    '<p>La validacion del modelo se apoyo en IL-6: en suero materno fue detectable ',
-    'en ', d$ms_lps_det, ' de ', d$ms_lps_n, ' madres tratadas con LPS, frente a ',
-    d$ms_ctrl_det, ' de ', d$ms_ctrl_n, ' en el grupo control (test exacto de ',
-    'Fisher, p = ', d$ms_p, '). En liquido amniotico ningun contraste alcanzo ',
-    'significancia (hembras: n = ', d$la_ctrl_n, ' control y ', d$la_lps_n,
-    ' LPS, p = ', d$la_h_p, '; machos: n = ', d$la_ctrl_n, ' control y ',
-    d$la_lps_n, ' LPS, p = ', d$la_m_p, ').</p>\n',
+    '<p>La validaci&oacute;n del modelo se apoy&oacute; en IL-6: en suero ',
+    'materno fue detectable en ', d$ms_lps_det, ' de ', d$ms_lps_n, ' madres ',
+    'tratadas con LPS, frente a ', d$ms_ctrl_det, ' de ', d$ms_ctrl_n, ' en el ',
+    'grupo control (test exacto de Fisher, ', .p_fmt(d$ms_p), '). En l&iacute;quido ',
+    'amni&oacute;tico ning&uacute;n contraste alcanz&oacute; significancia ',
+    '(hembras: n = ', d$la_ctrl_n, ' control y ', d$la_lps_n, ' LPS, ',
+    .p_fmt(d$la_h_p), '; machos: n = ', d$la_ctrl_n, ' control y ', d$la_lps_n,
+    ' LPS, ', .p_fmt(d$la_m_p), ').</p>\n',
     '<p>', length(d$pla_tto_genes), ' de los ', d$pla_modelados, ' genes de ',
     'placenta mostraron efecto de tratamiento: ', .join_y(d$pla_tto_genes),
-    ' (p = ', paste(d$pla_tto_ps, collapse = "; "), ', respectivamente), todos ',
-    'aumentando su expresion bajo LPS; ninguno mostro interaccion sexo &times; ',
-    'tratamiento (', d$pla_int_n, ' de ', d$pla_modelados, ').</p>\n',
-    '<p>pSTAT3 aumenta en placentas de fetos hembra (p<sub>Holm</sub> = ',
-    d$pstat3_hh_p, ') y no se modifica en machos (p<sub>Holm</sub> = ',
-    d$pstat3_mm_p, ', sin figura): el dimorfismo placentario aparece en la ',
-    'senalizacion y no en el transporte.</p>')
+    ' (', paste(vapply(d$pla_tto_ps, .p_fmt, character(1)), collapse = "; "),
+    ', respectivamente), todos aumentando su expresi&oacute;n bajo LPS; ninguno ',
+    'mostr&oacute; interacci&oacute;n sexo &times; tratamiento (', d$pla_int_n,
+    ' de ', d$pla_modelados, ').</p>\n',
+    '<p>pSTAT3 aument&oacute; en placentas de fetos hembra (',
+    .p_fmt(d$pstat3_hh_p), ') y no se modific&oacute; en machos (',
+    .p_fmt(d$pstat3_mm_p), '). El dimorfismo placentario se manifiesta, ',
+    'entonces, en la se&ntilde;alizaci&oacute;n de esta v&iacute;a a nivel ',
+    'proteico, y no en la expresi&oacute;n g&eacute;nica de los transportadores ',
+    'de nutrientes.</p>')
   cuerpo <- paste0(intro, resultado, '\n',
     fig_outputs(NOMBRE_PLACENTA_BREVE, "Boxplots de il6, fatp1, slc38a2 y glut1 en placenta",
                "fig-boxplot"),
-    '<p class="epigrafe">Placenta: il6, fatp1, slc38a2 y glut1, por sexo y ',
-    'tratamiento.</p>')
+    '<p class="epigrafe"><strong>Figura 2.</strong> Placenta: il6, fatp1, ',
+    'slc38a2 y glut1, por sexo y tratamiento (pSTAT3 se describe en el texto, ',
+    'sin figura).</p>')
   pagina(3, "Placenta", cuerpo)
 }
 
 pagina4 <- function(d, sint) {
   intro <- paste0(
-    '<p>El mismo analisis se aplico al cerebro fetal. Mientras la placenta ',
-    'respondio al estimulo inflamatorio de manera equivalente en ambos sexos, en ',
-    'el cerebro fetal la respuesta de los transportadores de nutrientes resulto ',
-    'dimorfica.</p>')
+    '<p>El mismo an&aacute;lisis se aplic&oacute; al cerebro fetal. Mientras la ',
+    'placenta respondi&oacute; al est&iacute;mulo inflamatorio de manera ',
+    'equivalente en ambos sexos, en el cerebro fetal la respuesta de los ',
+    'transportadores de nutrientes result&oacute; dim&oacute;rfica (Figura ',
+    '3).</p>')
   resultado <- if (sint) paste0(
-    '<p>En cerebro se evaluo, para cada uno de los genes modelados, si la ',
-    'interaccion entre sexo y tratamiento era significativa y, cuando lo fue, si ',
-    'alguna de las cuatro comparaciones post hoc la explicaba.</p>\n',
-    sim_bloque("El numero de genes con interaccion en cerebro y el patron por gen")
+    '<p>En cerebro se evalu&oacute;, para cada uno de los genes modelados, si la ',
+    'interacci&oacute;n entre sexo y tratamiento era significativa y, cuando lo ',
+    'fue, si alguna de las cuatro comparaciones post hoc la explicaba.</p>\n',
+    sim_bloque("El n&uacute;mero de genes con interacci&oacute;n en cerebro y el patr&oacute;n por gen")
   ) else paste0(
-    '<p>', d$bra_int_n, ' de los ', d$bra_modelados, ' genes modelados en cerebro ',
-    'mostraron interaccion sexo &times; tratamiento (frente a ninguno en ',
-    'placenta). En ', .join_y(d$bra_con_posthoc), ' el post hoc ubica el efecto ',
-    'en las hembras: el grupo control de hembras difiere del grupo LPS de ',
-    'hembras, y este ultimo difiere del grupo LPS de machos, mientras que los ',
-    'machos no se modifican. En ', .join_y(d$bra_sin_posthoc), ' la interaccion ',
-    'fue significativa pero ninguna comparacion entre medias la explicaba, lo que ',
-    'motivo el analisis de dispersion de la seccion siguiente.</p>')
+    '<p>', d$bra_int_n, ' de los ', d$bra_modelados, ' genes modelados en ',
+    'cerebro mostraron interacci&oacute;n sexo &times; tratamiento (frente a ',
+    'ninguno en placenta). En ', .join_y(d$bra_con_posthoc), ' el post hoc ubica ',
+    'el efecto en las hembras: el grupo control de hembras difiere del grupo ',
+    'LPS de hembras, y este &uacute;ltimo difiere del grupo LPS de machos, ',
+    'mientras que los machos no se modifican. En ', .join_y(d$bra_sin_posthoc),
+    ' la interacci&oacute;n result&oacute; significativa sin que ninguna de las ',
+    'comparaciones entre medias diera cuenta de ella. Esa falta de ',
+    'explicaci&oacute;n por las medias motiv&oacute; la exploraci&oacute;n de ',
+    'los datos que se describe en la secci&oacute;n siguiente.</p>')
   cuerpo <- paste0(intro, resultado, '\n',
     '<div class="cols-fig">',
-    fig_outputs(NOMBRE_DETECCION_BRAIN, "Deteccion de il6 en cerebro", "fig-chica"),
+    fig_outputs(NOMBRE_DETECCION_BRAIN, "Detección de il6 en cerebro", "fig-chica"),
     fig_outputs(.ENV13()$NOMBRE_SUBSET_BRAIN,
                "Boxplots de glut1, slc38a2 y fatp1 en cerebro", "fig-grande"),
     '</div>\n',
-    '<p class="epigrafe">Izquierda: proporcion de deteccion de il6 en cerebro ',
-    '(D7, no cuantificable). Derecha: glut1, slc38a2 y fatp1 en cerebro, por ',
-    'sexo y tratamiento.</p>')
+    '<p class="epigrafe"><strong>Figura 3.</strong> Izquierda: proporci&oacute;n ',
+    'de detecci&oacute;n de il6 en cerebro; este gen no pudo cuantificarse como ',
+    'expresi&oacute;n relativa por limitaciones del m&eacute;todo experimental ',
+    '(ver M&eacute;todos). Derecha: glut1, slc38a2 y fatp1 en cerebro, por sexo ',
+    'y tratamiento.</p>')
   pagina(4, "Cerebro fetal", cuerpo)
 }
 
 pagina5 <- function(d, sint) {
   intro <- paste0(
-    '<p>Con el analisis convencional cerrado, el agente propuso profundizar por ',
-    'dos vias: correlacionar la expresion de cada gen entre la placenta y el ',
-    'cerebro de un mismo feto, y explorar la co-expresion entre genes dentro de ',
-    'cada tejido.</p>')
+    '<p>Con el an&aacute;lisis convencional cerrado, el agente propuso ',
+    'profundizar por dos v&iacute;as: correlacionar la expresi&oacute;n de cada ',
+    'gen entre la placenta y el cerebro de un mismo feto, y explorar la ',
+    'co-expresi&oacute;n entre genes dentro de cada tejido.</p>')
   correl <- if (sint) paste0(
-    '<h3>Correlacion entre tejidos</h3>\n',
-    '<p>Se evaluo si las correlaciones entre placenta y cerebro cambiaban entre ',
-    'el grupo control y el grupo LPS, mediante un test formal (Fisher z sobre ',
-    '&rho; de Spearman), y se simulo si una simple reduccion de la variabilidad ',
-    'alcanzaria para explicar una eventual caida de correlacion sin que la ',
-    'relacion subyacente cambiara.</p>\n',
-    sim_bloque("El resultado del test de correlaciones y de la simulacion")
+    '<h3>Correlaci&oacute;n entre tejidos</h3>\n',
+    '<p>Se evalu&oacute; si las correlaciones entre placenta y cerebro cambiaban ',
+    'entre el grupo control y el grupo LPS, mediante un test formal (Fisher z ',
+    'sobre &rho; de Spearman), y se simul&oacute; si una simple ',
+    'reducci&oacute;n de la variabilidad alcanzar&iacute;a para explicar una ',
+    'eventual ca&iacute;da de correlaci&oacute;n sin que la relaci&oacute;n ',
+    'subyacente cambiara.</p>\n',
+    sim_bloque("El resultado del test de correlaciones y de la simulaci&oacute;n")
   ) else paste0(
-    '<h3>Correlacion entre tejidos</h3>\n',
+    '<h3>Correlaci&oacute;n entre tejidos</h3>\n',
     '<p>En las hembras, las correlaciones altas observadas en el grupo control ',
-    'caian bajo LPS, lo que sugeria una perdida de acoplamiento entre placenta y ',
-    'cerebro. El test formal (Fisher z sobre &rho; de Spearman, Control vs LPS) ',
-    'no mostro diferencias significativas en ninguna de las ', d$corr_n_test,
-    ' comparaciones evaluadas (', d$corr_n_sig, ' de ', d$corr_n_test,
-    '), y una simulacion mostro que una reduccion de la variabilidad alcanza por ',
-    'si sola para producir esa caida, sin que la relacion subyacente cambie. La ',
-    'aparente perdida de acoplamiento placenta-cerebro en hembras es compatible ',
-    'con la reduccion de dispersion: la simulacion muestra que esta alcanza para ',
-    'explicarla, aunque no permite descartar un cambio de coordinacion.</p>')
+    'ca&iacute;an bajo LPS, lo que suger&iacute;a una p&eacute;rdida de ',
+    'acoplamiento entre placenta y cerebro (Figura 4). El test formal (Fisher z ',
+    'sobre &rho; de Spearman, Control vs LPS) no mostr&oacute; diferencias ',
+    'significativas en ninguna de las ', d$corr_n_test, ' comparaciones ',
+    'evaluadas (', d$corr_n_sig, ' de ', d$corr_n_test, '), y una ',
+    'simulaci&oacute;n mostr&oacute; que una reducci&oacute;n de la ',
+    'variabilidad alcanza por s&iacute; sola para producir esa ca&iacute;da, ',
+    'sin que la relaci&oacute;n subyacente cambie. La aparente p&eacute;rdida de ',
+    'acoplamiento placenta-cerebro en hembras es compatible con la ',
+    'reducci&oacute;n de dispersi&oacute;n: la simulaci&oacute;n muestra que ',
+    'esta alcanza para explicarla, aunque no permite descartar un cambio de ',
+    'coordinaci&oacute;n.</p>')
+  fig_corr_epigrafe <- if (sint) paste0(
+    '<p class="epigrafe"><strong>Figura 4.</strong> Correlaci&oacute;n ',
+    'placenta-cerebro para fatp4, por sexo y tratamiento (corrida con datos ',
+    'sint&eacute;ticos).</p>'
+  ) else paste0(
+    '<p class="epigrafe"><strong>Figura 4.</strong> Correlaci&oacute;n ',
+    'placenta-cerebro para fatp4, por sexo y tratamiento. La diferencia entre ',
+    'grupos se evalu&oacute; con un test formal y no result&oacute; ',
+    'significativa; el patr&oacute;n es compatible con la reducci&oacute;n de ',
+    'variabilidad descripta en esta secci&oacute;n, no con una p&eacute;rdida ',
+    'de correlaci&oacute;n.</p>')
+  fig_corr <- paste0(
+    fig_outputs(NOMBRE_CORR_FATP4, "Correlación placenta-cerebro fatp4", "fig-corr"),
+    fig_corr_epigrafe)
   coexpr <- if (sint) paste0(
-    '<h3>Co-expresion dentro de cada tejido</h3>\n',
-    '<p>Los diagramas triangulares son exploratorios y describen como se ',
-    'acompanan los genes entre si; sobre ellos no se testeo ninguna diferencia ',
-    'entre grupos y no se interpretan diferencias de &rho;. Ademas se evaluo que ',
-    'proporcion de la varianza explica el primer componente principal en cada ',
-    'tejido.</p>\n',
+    '<h3>Co-expresi&oacute;n dentro de cada tejido</h3>\n',
+    '<p>Los diagramas triangulares son exploratorios y describen c&oacute;mo se ',
+    'acompa&ntilde;an los genes entre s&iacute;; sobre ellos no se test&eacute;o ',
+    'ninguna diferencia entre grupos y no se interpretan diferencias de &rho;. ',
+    'Adem&aacute;s se evalu&oacute; qu&eacute; proporci&oacute;n de la varianza ',
+    'explica el primer componente principal en cada tejido.</p>\n',
     sim_bloque("Los porcentajes de varianza explicada")
   ) else paste0(
-    '<h3>Co-expresion dentro de cada tejido</h3>\n',
-    '<p>Los diagramas triangulares son exploratorios y describen como se ',
-    'acompanan los genes entre si; sobre ellos no se testeo ninguna diferencia ',
-    'entre grupos y no se interpretan diferencias de &rho;. Lo que si queda ',
-    'establecido es que los transportadores varian mayormente juntos: el primer ',
-    'componente principal explica el ', d$pc1_pla, ' % de la varianza en ',
-    'placenta y el ', d$pc1_bra, ' % en cerebro.</p>')
+    '<h3>Co-expresi&oacute;n dentro de cada tejido</h3>\n',
+    '<p>Los diagramas triangulares son exploratorios y describen c&oacute;mo se ',
+    'acompa&ntilde;an los genes entre s&iacute;; sobre ellos no se test&eacute;o ',
+    'ninguna diferencia entre grupos y no se interpretan diferencias de &rho;. ',
+    'Lo que s&iacute; queda establecido es que los transportadores var&iacute;an ',
+    'mayormente juntos: el primer componente principal explica el ', d$pc1_pla,
+    ' % de la varianza en placenta y el ', d$pc1_bra, ' % en cerebro (Figura ',
+    '5).</p>')
   fig_epigrafe <- if (sint) paste0(
-    '<p class="epigrafe">Cerebro fetal, hembras: densidades de ',
-    '-&Delta;&Delta;Ct por tratamiento en los mismos cinco genes (recorte de la ',
-    'diagonal del diagrama triangular; corrida con datos sinteticos).</p>'
+    '<p class="epigrafe"><strong>Figura 5.</strong> Cerebro fetal, hembras: ',
+    'densidades de -&Delta;&Delta;Ct por tratamiento en los mismos cinco genes ',
+    '(recorte de la diagonal del diagrama triangular; corrida con datos ',
+    'sint&eacute;ticos).</p>'
   ) else paste0(
-    '<p class="epigrafe">Cerebro fetal, hembras: densidades de ',
-    '-&Delta;&Delta;Ct por tratamiento en los cinco genes con interaccion ',
-    'significativa sobre la dispersion (recorte de la diagonal del diagrama ',
-    'triangular). La distribucion del grupo LPS es marcadamente mas concentrada ',
-    'que la del control, y esa reduccion de variabilidad es el mecanismo que ',
-    'explica la caida de correlacion.</p>')
+    '<p class="epigrafe"><strong>Figura 5.</strong> Cerebro fetal, hembras: ',
+    'densidades de -&Delta;&Delta;Ct por tratamiento en los cinco genes con ',
+    'interacci&oacute;n significativa sobre la dispersi&oacute;n (recorte de la ',
+    'diagonal del diagrama triangular). La distribuci&oacute;n del grupo LPS es ',
+    'marcadamente m&aacute;s concentrada que la del control, y esa ',
+    'reducci&oacute;n de variabilidad es el mecanismo que explica la ',
+    'ca&iacute;da de correlaci&oacute;n.</p>')
   limitaciones <- paste0(
     '<h3>Limitaciones</h3>\n',
     '<p>Todas las comparaciones se hacen con n = 9 por grupo, lo que limita la ',
     'potencia, en especial en los contrastes estratificados por sexo. El ',
-    'analisis asume independencia entre fetos aunque el tratamiento se ',
-    'administra a la madre y cada camada aporta un feto de cada sexo (D13). El ',
-    'efecto sobre la dispersion en cerebro fetal constituye un patron compartido ',
-    'por varios transportadores, y no un conjunto de hallazgos independientes ',
-    'gen por gen.</p>')
+    'an&aacute;lisis asume independencia entre fetos, aunque el tratamiento se ',
+    'administra a la madre y cada camada aporta un feto de cada sexo, por lo ',
+    'que esa independencia no puede garantizarse por completo. El efecto sobre ',
+    'la dispersi&oacute;n en cerebro fetal constituye un patr&oacute;n ',
+    'compartido por varios transportadores, y no un conjunto de hallazgos ',
+    'independientes gen por gen.</p>')
   conclusion <- if (sint) paste0(
-    '<h3>Conclusion</h3>\n', sim_bloque("La conclusion biologica de este proyecto")
+    '<h3>Conclusi&oacute;n</h3>\n',
+    sim_bloque("La conclusi&oacute;n biol&oacute;gica de este proyecto")
   ) else paste0(
-    '<h3>Conclusion</h3>\n',
-    '<p>El sexo del feto influye en la respuesta al LPS, pero de manera distinta ',
-    'en cada tejido. En la placenta, los transportadores responden de forma ',
-    'equivalente en ambos sexos y el dimorfismo aparece en la senalizacion. En ',
-    'el cerebro fetal, el dimorfismo se expresa en los transportadores, ',
-    'desplazando el nivel de expresion en unos genes y la variabilidad entre ',
-    'individuos en otros.</p>')
+    '<h3>Conclusi&oacute;n</h3>\n',
+    '<p>El sexo del feto influye en la respuesta al LPS, pero de manera ',
+    'distinta en cada tejido. En la placenta, los transportadores responden de ',
+    'forma equivalente en ambos sexos y el dimorfismo aparece en la ',
+    'se&ntilde;alizaci&oacute;n. En el cerebro fetal, el dimorfismo se expresa ',
+    'en los transportadores, desplazando el nivel de expresi&oacute;n en unos ',
+    'genes y la variabilidad entre individuos en otros.</p>')
   pie <- paste0(
     '<footer>Detalle completo, procedencia y verificaciones: ',
-    '<code>docs/informe.html</code>. Presentacion: <code>docs/index.html</code>.',
-    '</footer>')
+    '<code>docs/informe.html</code>. Presentaci&oacute;n: ',
+    '<code>docs/index.html</code>.</footer>')
   cuerpo <- paste0(
-    intro, correl, coexpr, '\n',
+    intro, correl, fig_corr, coexpr, '\n',
     fig_outputs(NOMBRE_DENSIDADES, "Densidades de -ddCt en cerebro, hembras", "fig-densidad"),
     fig_epigrafe, limitaciones, conclusion, pie)
-  pagina(5, "Exploracion, limites y conclusion", cuerpo)
+  pagina(5, "Exploración, límites y conclusión", cuerpo)
 }
 
 # =========================================================================
@@ -782,7 +922,7 @@ construir_html <- function(d) {
     "<title>Informe breve: MIA-LPS</title>\n<style>", CSS, "</style>\n",
     "</head>\n<body>\n<main>\n",
     "<h1>Transportadores de nutrientes en el eje placenta&ndash;cerebro fetal en ",
-    "un modelo de activacion inmune materna</h1>\n",
+    "un modelo de activaci&oacute;n inmune materna</h1>\n",
     "<p class=\"subtitulo\">Informe breve</p>\n",
     paginas,
     "\n</main>\n</body>\n</html>\n")

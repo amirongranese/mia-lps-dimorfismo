@@ -195,6 +195,24 @@ la misma secuencia que exige `13_presentacion.R` (ver leccion documentada en `ES
 sesion de la presentacion: no alcanza con bloquear el texto, las figuras tambien tienen
 que venir de la corrida sintetica).
 
+**Correcciones de redaccion (`pedidos/pedido_informe_breve_correcciones.md`, reemplaza
+al pedido anterior en lo que difiere):** el texto de las 5 paginas lleva acentuacion
+correcta (nunca caracteres acentuados literales en el codigo fuente de R -- entidades
+HTML en el cuerpo de cada pagina, que no pasa por `.esc()`; escapes `\uXXXX` en los
+titulos de pagina, que si pasan por `.esc()` y esa funcion escaparia una entidad
+literal; y `\uXXXX` tambien para el texto que va dentro de una figura PNG, que no es
+HTML), p-valores formateados con una unica funcion `.p_fmt()` (nunca notacion
+cientifica cruda), sin codigos internos del repositorio en el texto (D7/D13 explicados
+en palabras) ni remision a `docs/referencias.md` (reemplazada por citas numeradas
+normales, copiadas tal cual de ese archivo, al pie de la primera pagina), y figuras
+numeradas ("Figura N.") referenciadas por numero en el texto. Se agrega una CUARTA
+figura reusada -- `acto2_corr_placenta_cerebro_fatp4.png`, que ya genera
+`08_acto2_correlaciones.R` con su propia fila `tipo = "figura"` en `procedencia.csv`
+(este script no le agrega una fila propia) -- con un epigrafe que aclara que la
+diferencia entre grupos no fue significativa por test formal, para que el lector no
+interprete el patron visual (correlacion aparente en control, ninguna en LPS, en
+hembras) como una perdida de correlacion real.
+
 **Convención de nombres de salidas:**
 
 - Figuras: `outputs/figures/actoN_<tema>_<gen|tejido|detalle>.png`, 300 dpi, texto legible.

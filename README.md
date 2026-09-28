@@ -235,13 +235,17 @@ las citas de `pedidos/referencias_epidemiologia.md`, copiadas a `docs/referencia
 ### Informe breve (`14_informe_breve`, solo R)
 
 Informe de máximo 5 páginas para lectura rápida
-(`pedidos/pedido_informe_breve_final.md`, reemplaza a `pedidos/pedido_informe_breve.md`),
-capa de presentación sobre lo que ya calcularon 02..12, sin recalcular nada. Reusa el
-subconjunto de boxplots de cerebro de `13_presentacion.R` y agrega tres figuras propias:
-un subconjunto de boxplots de placenta con lista de genes propia, un panel de detección
-de il6 en cerebro (reusa `panel_deteccion()` de `07_figuras_acto1.R`) y un recorte de la
-diagonal del SPLOM de co-expresión (densidades de dispersión, solo hembras, cerebro
-fetal). Mismo mecanismo de dos versiones:
+(`pedidos/pedido_informe_breve_correcciones.md`, reemplaza en lo que difiere a
+`pedidos/pedido_informe_breve_final.md`, que a su vez reemplazó a
+`pedidos/pedido_informe_breve.md`), capa de presentación sobre lo que ya calcularon
+02..12, sin recalcular nada. Reusa el subconjunto de boxplots de cerebro de
+`13_presentacion.R` y la figura de correlación placenta-cerebro de fatp4 de
+`08_acto2_correlaciones.R`, y agrega tres figuras propias: un subconjunto de boxplots
+de placenta con lista de genes propia, un panel de detección de il6 en cerebro (reusa
+`panel_deteccion()` de `07_figuras_acto1.R`) y un recorte de la diagonal del SPLOM de
+co-expresión (densidades de dispersión, solo hembras, cerebro fetal). El texto usa
+acentuación correcta, p-valores en formato de texto científico y figuras numeradas.
+Mismo mecanismo de dos versiones:
 
 ```powershell
 # Version PUBLICA (datos sinteticos) -> docs/informe_breve.html + docs/informe_breve.pdf
