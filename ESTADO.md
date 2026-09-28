@@ -2389,3 +2389,315 @@ queda no es del pedido:
   inmutable de artefactos con hashes SHA-256), los únicos que quedaron en
   **Pendiente**.
 - Punto (c) de la sección 5 de la sesión 19 (SPLOM) sigue sin aplicar.
+
+---
+
+## Sesión 22 — 2026-09-28 — `pedidos/cambios_presentacion.md`: pagina de presentacion (11 diapositivas)
+
+> Pedido nuevo, post-cierre (el proyecto ya estaba terminado en T11): una pagina HTML +
+> PDF para exponer, con enlace publico desde la pagina del curso. La consigna exige DOS
+> versiones porque los resultados son ineditos: publica (datos sinteticos, se versiona)
+> y para exponer (datos reales, nunca se versiona). Referencias del grafico de la
+> diapositiva 2 en `pedidos/referencias_epidemiologia.md`.
+
+### Qué se completó
+
+- **`R/13_presentacion.R`** (nuevo, ~830 líneas), **excepción documentada a la regla de
+  scripts gemelos** (sin `python/13_presentacion.py`, anotado en `AGENTS.md`/`CLAUDE.md`
+  §3): es capa de presentación, no análisis — no calcula ningún resultado nuevo, solo lee
+  lo que ya escribieron 02..12. Reusa (copiada, no cross-importada — misma convención que
+  `99_verificar` con `98_comparacion`) la maquinaria de `12_informe.R`: base64 propio,
+  PDF por impresión headless (Edge/Chrome), lectura de CSV, `registrar_procedencia`/
+  `registrar_verificaciones`.
+- **Dos versiones, mismo código**, el destino lo decide `fuente_datos()` (igual mecanismo
+  que el aviso sintético de `12_informe`): sintético → `docs/index.html` +
+  `docs/presentacion.pdf` (**PUBLICA, se versiona**); real → `outputs/presentacion_real/`
+  (**NUNCA se versiona**). `.gitignore`: agregado `outputs/presentacion_real/` (no estaba
+  cubierto por ninguna regla existente — verificado con `git check-ignore` ANTES de
+  escribir nada, como pedía el punto 0) y tres excepciones a `docs/*`
+  (`!docs/index.html`, `!docs/presentacion.pdf`, `!docs/referencias.md`);
+  `docs/informe.{html,pdf}` siguen sin versionarse.
+- **11 diapositivas** (`slide1`..`slide11`), estructura exacta del pedido:
+  1. Título (README h1 + fecha `Sys.Date()`; autora/curso quedan
+     `<<< COMPLETAR >>>` a propósito — no son datos que salgan de ninguna tabla).
+  2. El problema: `assets/ilustracion-mia.png` + 3 rayos en **SVG propio** (zigzag,
+     color de acento), flecha + recuadro **HTML/SVG** ("Trastornos del neurodesarrollo",
+     no imagen), y el gráfico epidemiológico (2bis) al lado.
+  3. El experimento: `assets/modelo-experimental.png` sin modificar + texto mínimo
+     (fetos/genes/grupos leídos de `verificaciones.csv`/`00_config.R`, no a mano).
+  4. El punto de partida fue un prompt: D1/D2/D5 extraídos **en vivo** de `AGENTS.md`
+     (`extraer_decision()`, grep de la fila de la tabla), no parafraseados.
+  5. Lo que salió de ahí: conteos leídos del repo (scripts, figuras, tablas,
+     filas de `procedencia.csv`, `verificaciones.csv` por tipo, CSV byte-idénticos
+     R↔Python) — nada escrito a mano.
+  6–8. Placenta / Cerebro fetal / Dispersión (**diapositiva clave**, pedido explícito):
+     figuras de `outputs/figures/` + texto con números leídos de las tablas reales
+     (`pstat3_modelo_clasificacion.csv`, `qpcr_modelos_clasificacion.csv`,
+     `acto2_dispersion_interaccion.csv`). Con fuente sintética, el texto se reemplaza
+     por el mismo aviso de `12_informe` (adaptado) — la figura se muestra igual.
+  9. Decisiones que el agente documenta como propias: la historia real es la de
+     `09_acto2_dispersion` (no la de `08_acto2_correlaciones`, que se revirtió por
+     pedido explícito del usuario, no por lectura del informe) — "el informe mostraba
+     una cosa y testeaba otra", frase literal de `analisis_descartados.md` línea 278.
+     Avisé de esto al usuario antes de escribir código.
+  10. Las verificaciones no verificaban: `revisiones/AUDITORIA.md`/`RESPUESTA.md`
+      (`informe_pdf` siempre TRUE, `pstat3_rama_cascada` fija, sin desglose por tipo).
+  11. Cierre.
+- **Gráfico epidemiológico (2bis)**: el único de la presentación que NO sale de
+  `outputs/figures/` — se regenera en **HTML/CSS** (barras con la paleta de la
+  presentación), no `assets/epidemiologia.png` (que queda sin usar, como pide el
+  pedido). Datos literales de `pedidos/referencias_epidemiologia.md`: 8 patologías,
+  rangos dibujados como rango (segmento más claro del extremo bajo al alto, no un
+  valor único), ordenadas por razón descendente dentro de cada bloque
+  (varones/mujeres). `docs/referencias.md` (o su copia en `outputs/presentacion_real/`)
+  con las 10 citas **copiadas tal cual**, sin agregar ni reformular ninguna.
+- **Paleta**: variables CSS en un único bloque, tomadas de `COL_CTRL`/`COL_LPS` de
+  `00_config.R` (azules HEMBRA/MACHO para el gráfico epidemiológico y como base neutra;
+  IL-6 morado como acento principal — la vía central de la historia).
+- **Verificaciones nuevas** (5, todas `recalculo`, registradas en `verificaciones.csv`
+  con `script=13_presentacion`): `presentacion_html_generado`,
+  `presentacion_sin_interpretacion` (cuenta el aviso: 3/3 si sintético, 0/0 si real —
+  mismo principio que `informe_sintetico_sin_interpretacion`),
+  `presentacion_figuras_existen`, `presentacion_gitignore_real` (`git check-ignore -q`
+  vía `system2`, degrada a `NO_EJECUTADA` si git no está disponible), `presentacion_pdf`.
+
+### Bug propio encontrado y corregido en el camino (antes de publicar)
+
+- **Slide 9 filtraba un resultado biológico inédito.** La primera versión citaba el
+  número real (`fatcd36`: rho=0.86 ♀ / −0.43 ♂ / 0.47 agrupado) como texto fijo, igual
+  en las dos versiones — pero por ser texto fijo (no gateado por `fuente_datos()`),
+  ese número real iba a terminar en `docs/index.html`, que SÍ se versiona y se publica
+  en GitHub. Es exactamente el tipo de fuga que toda la arquitectura del proyecto
+  (`.gitignore` de `data/raw/`/`outputs/`, aviso sintético de `12_informe`) existe para
+  evitar. Corregido: la diapositiva 9 describe el patrón cualitativamente ("un sexo
+  mostraba correlación positiva fuerte, el otro negativa; agrupados se promedian en un
+  valor que no describe a ninguno de los dos"), sin citar el número real. Verificado
+  con grep (con los blobs base64 removidos primero — un primer chequeo con grep sin
+  escapar los puntos decimales dio falsos positivos dentro del base64 de las figuras).
+
+### Verificado
+
+- **Las dos versiones generadas y comprobadas sin fuga de datos:**
+  - Pública: `docs/index.html` (1936 KB), `docs/presentacion.pdf` (1576 KB, 11
+    páginas), `docs/referencias.md`. 3/3 avisos sintéticos; 0 apariciones de
+    cualquier número real (`1.683745e-05`, `7 de 8`, `5 de 8`, `0.86 (n=8)`, etc.).
+  - Para exponer: `outputs/presentacion_real/index.html` (1936 KB),
+    `.../presentacion.pdf` (1619 KB, 11 páginas), `.../referencias.md`. 0/0 avisos;
+    texto interpretativo completo con los números reales.
+  - Slide 9 confirmado **byte-idéntico** entre las dos versiones (como pide el
+    pedido: "las diapositivas 1 a 5 y 9 a 11 son iguales en las dos versiones").
+- PDF revisado página por página (las 11): título, problema (ilustración + rayos SVG +
+  flecha/recuadro + gráfico epidemiológico), experimento, D1/D2/D5, conteos, placenta,
+  cerebro, dispersión (con gene-tags), las dos de errores, cierre.
+- `.gitignore`: `git check-ignore` confirma `outputs/presentacion_real/index.html`
+  ignorado y `docs/index.html`/`docs/presentacion.pdf`/`docs/referencias.md`
+  **no** ignorados (probado con archivos dummy antes de tocar el script real).
+- **`.\run_all.ps1` completo (no se modificó — `13_presentacion` queda fuera del
+  pipeline automático, es invocación manual): `TODAS LAS VERIFICACIONES PASARON` en R
+  y Python, 77/77 chequeos duros, 32/32 CSV byte-idénticos** — confirma que agregar el
+  script y sus filas a `procedencia.csv`/`verificaciones.csv` no rompió nada del
+  checklist T11.
+- `99_verificar` (R y Python) corridos sueltos después, mismo resultado.
+
+### Decisiones de alcance (no pedidas explícitamente, aplicadas por criterio propio)
+
+- **`13_presentacion` NO se agregó a `run_all.ps1`**: el pedido no lo exige, y
+  automatizarlo forzaría una interpretación de CUÁNDO correrlo (¿en cada pasada real
+  sobrescribe `outputs/presentacion_real/`? ¿y la pública, solo con `-FromSynthetic`?)
+  que el pedido no fijó. Queda documentado en el README como invocación manual, con
+  los dos comandos exactos.
+- **No se agregó al checklist de `AGENTS.md` §1 / `99_verificar`**: mismo criterio que
+  los demás pedidos post-cierre (sesiones 13–21): el proyecto ya terminó en T11: lo que
+  se agrega después no reabre ese checklist.
+
+### Pendiente / siguiente paso concreto
+
+- **`PRESENTACION_AUTORA` y `PRESENTACION_CURSO`** en `R/13_presentacion.R` (línea
+  ~410) quedan `<<< COMPLETAR >>>` a propósito: el usuario tiene que poner su nombre y
+  el nombre del curso antes de exponer, y volver a correr el script (las dos versiones)
+  para que la diapositiva 1 quede completa. El script avisa por consola si quedan sin
+  completar.
+- Mismos pendientes de la sesión 21 (marcador de `analisis_descartados.md` D13,
+  decisión de publicación de `docs/`/`outputs/`, SPLOM de la sesión 19c) — sin cambios.
+
+---
+
+## Sesión 23 — 2026-09-28 — `pedidos/cambios_presentacion_2.md`: segunda tanda de la presentación
+
+> Continuación directa de la sesión 22. El pedido reestructura la presentación
+> alrededor de una tesis explícita: *"Sola habría hecho boxplots; con el agente
+> pude hacer análisis que no hacía, y esos análisis explicaron cosas que el
+> boxplot dejaba sin resolver."* Pasa de 11 a **12 diapositivas**: 6-7 son
+> "el análisis convencional", 8-9 son "lo que agregó explorar con el agente" —
+> el contraste es el argumento, no un detalle de orden.
+
+### Qué se completó
+
+- **Diapositiva 1** — título real del trabajo (dado literal por el usuario:
+  *"Transportadores de nutrientes en el eje placenta–cerebro fetal en un
+  modelo de activación inmune materna"*), ya no el h1 de `README.md`. Autora
+  y curso, completados por el usuario en el archivo entre sesiones (quedó
+  con los `<<< >>>` de marcador todavía puestos; se los saqué porque en una
+  diapositiva de título se leen como un placeholder sin completar, no como
+  estilo — avisado en este resumen, no revertido en silencio).
+- **Diapositiva 2** ("Antecedentes", no "El problema"): rayos rehechos para
+  apuntar AL vientre (grupo reposicionado a la izquierda de la ilustración,
+  cada zigzag con punta de flecha `marker-end` orientada a lo largo del
+  trazo) en vez de leerse como si emanaran hacia afuera; frase de cierre
+  ahora dentro de una tarjeta (`.card`) con fondo suave y borde fino, no
+  suelta al pie.
+- **Diapositiva 3** ("Modelo experimental", no "El experimento"): mismo
+  código, misma ruta de archivo — `assets/modelo-experimental.png` fue
+  reemplazado por el usuario (sin las anotaciones de qué se mide en cada
+  tejido) durante la sesión; no hizo falta tocar nada.
+- **Diapositiva 4**: agregado el cierre del arco después de «No fue "analiza
+  mis datos"»: sobre esas decisiones se pidió después el análisis
+  convencional, y encima una exploración que el análisis convencional no
+  incluía.
+- **`--` sacado de todo el texto de las diapositivas** (quedaba en varias
+  como guion doble literal): reemplazado por coma, dos puntos o punto según
+  el lugar. Los comentarios de código (que ya usaban `--` como convención de
+  todo el repo) no se tocaron — el pedido apuntaba al texto que se proyecta,
+  no al código.
+- **Segunda excepción documentada** (`AGENTS.md`/`CLAUDE.md`): las
+  diapositivas 6 y 7 necesitan boxplots de un subconjunto de 3 genes por
+  tejido, no el panel completo. `generar_panel_subset()` reusa `panel_gen()`
+  y sus dependencias de `07_figuras_acto1.R` (pedido explícito: "sin
+  recalcular nada"), sourceando ese archivo COMPLETO con
+  `local = <environment nuevo>` para no chocar con los nombres propios de
+  `13_presentacion` (07 redefine `ESTE_SCRIPT`, `registrar_procedencia`, etc.
+  con firmas distintas). Genera
+  `outputs/figures/acto1_expresion_{PLACENTA,BRAIN}_E15_subset3.png`, cada
+  vez que corre el script (idempotente, sin recalcular ninguna estadística:
+  `cargar()` solo lee tablas que 04/05 ya escribieron).
+- **Diapositivas 6-7** ("El análisis convencional"): placenta muestra
+  `il6, glut3, slc38a2` (subconjunto) + pSTAT3 más chico al costado; cerebro
+  muestra `glut1, slc38a2, fatp1` (los que tienen post hoc significativo),
+  no el panel completo de 8 genes ("con el panel completo no se lee nada").
+- **Diapositiva 8, nueva** ("Co-expresión entre genes", "lo que agregó
+  explorar con el agente"): SPLOM de cerebro a nivel de tejido (no separado
+  por sexo — con separación por sexo se duplican los paneles sin ganar
+  legibilidad proyectado; ver aviso más abajo).
+- **Diapositiva 9** ("La dispersión"), reescrita con el razonamiento completo
+  de 3 pasos que pedía el pedido, con los conteos y nombres de gen
+  **derivados de las tablas** (`recolectar_datos()`), no escritos a mano:
+  7 genes con interacción en el boxplot → 4 sin ningún contraste post hoc
+  significativo (`fatcd36, fatp4, gp130, slc38a1`) → de esos 4, 3 explicados
+  por el análisis de dispersión con BH<0.05 (`fatcd36, fatp4, gp130`) y 1 en
+  tendencia sin llegar a significancia (`slc38a1`). Mantuve
+  `acto2_dispersion_sd.png` como figura (no la alternativa del diagrama
+  triangular de cerebro hembras que sugería el pedido): es la figura que
+  muestra directamente SD/dispersión por sexo y tratamiento, más legible
+  para este argumento puntual que ubicar el panel diagonal correcto dentro
+  de un SPLOM de 8×8 — avisado en este resumen, no decidido en silencio.
+  Se sacó el rótulo "la diapositiva clave" del kicker, como pedía el punto 7.
+- **Diapositiva 10** (decisiones propias, sin cambio de contenido): texto
+  movido a una columna lateral angosta. **No encontré una figura que muestre
+  el desacople sin exponer un número inédito** (toda figura de correlación
+  por sexo trae rho/p impresos en la propia imagen) — dejé la diapositiva sin
+  figura, como autorizaba el pedido explícitamente, y lo aviso acá.
+- **Diapositivas 11-12** (verificaciones, cierre): sin cambios de contenido,
+  solo renumeradas.
+- **Gating sintético ampliado de 3 a 4 diapositivas** (6,7,8,9, no solo
+  6,7,8): la nueva diapositiva de co-expresión y la de dispersión reescrita
+  también entran en el aviso — regla explícita del pedido punto 7 ("nada de
+  esto puede incluir números reales en la versión pública").
+- **Verificación `presentacion_sin_interpretacion`** actualizada: espera 4
+  avisos con fuente sintética (antes 3), 0 con fuente real.
+- **Bug de layout crítico encontrado y corregido**: el CSS de impresión
+  fijaba `height: 100vh` (no solo `min-height`) más `break-inside: avoid`
+  en cada diapositiva. Con la diapositiva 9 reescrita (más texto) el
+  contenido desbordaba esa altura fija, y como el box no podía crecer, el
+  desborde se pintaba **encima** de la diapositiva siguiente en el PDF en
+  vez de pasar de página — texto de dos diapositivas literalmente
+  superpuesto e ilegible. Corregido a solo `min-height: 100vh` (sin altura
+  fija, sin `break-inside: avoid`): una diapositiva con más contenido del
+  que entra en una página ahora se extiende a una segunda página en vez de
+  chocar con la siguiente. Costo aceptado: el PDF real pasó de 12 a 13
+  páginas físicas (dos diapositivas -- "Antecedentes" y la de decisiones --
+  ahora ocupan 2 páginas cada una); las 12 diapositivas lógicas siguen
+  siendo 12 (`N / 12` en cada una).
+
+### Bug de fuga de datos encontrado y corregido (el más importante de la sesión)
+
+- **Las salidas "públicas" ya publicadas localmente (commit `28bd71f`,
+  sesión 22) en realidad contenían figuras de DATOS REALES**, no
+  sintéticas. La causa: `13_presentacion.R` nunca recalcula nada — solo lee
+  lo que ya esté en `outputs/figures/` y `outputs/tables/R/`. En la sesión
+  22 generé la versión "pública" corriendo `01_generar_sinteticos.R` (que
+  solo escribe `data/synthetic/*.tsv`) y después `13_presentacion.R`
+  directo, **sin correr el pipeline 02-11 con datos sintéticos primero** —
+  así que las figuras referenciadas (`acto1_pstat3.png`,
+  `acto1_expresion_BRAIN_E15.png`, `acto2_dispersion_sd.png`) seguían
+  siendo las de la corrida real anterior, con p-valores reales impresos en
+  la propia imagen. El texto interpretativo sí estaba correctamente
+  bloqueado (aviso sintético), pero las FIGURAS no.
+  - **Por qué no es una fuga pública real:** confirmado con
+    `git remote -v` + `git log --oneline --all`: `origin/HEAD` sigue en
+    `c2beacf` (cierre de la sesión 21) y los tres commits de la sesión 22
+    (`89e6f9e`, `28bd71f`, `f254212`) son **solo locales, nunca
+    pusheados**. No llegó a GitHub.
+  - **Corrección aplicada:** antes de generar la versión pública, correr
+    `.\run_all.ps1 -Only R -FromSynthetic` (regenera TODO
+    `outputs/figures/` y `outputs/tables/R/` desde datos sintéticos, ~3
+    min) y recién ahí `13_presentacion.R` con
+    `MIA_LPS_FORZAR_SINTETICO=1`. Después, para volver al estado real:
+    `.\run_all.ps1` completo (sin `-FromSynthetic`) y `13_presentacion.R`
+    de nuevo. Verificado con hash MD5 que `docs/index.html` y
+    `outputs/presentacion_real/index.html` difieren de verdad (antes eran
+    casi el mismo contenido con el aviso pegado encima).
+  - **Bug secundario, encontrado al aplicar la corrección:** las dos
+    figuras de subconjunto (`tipo = "figura"` en `procedencia.csv`)
+    hacían fallar `informe_figuras_procedencia_embebidas` de
+    `12_informe.R` (que exige que toda fila `tipo == "figura"` esté
+    embebida en `docs/informe.html`) porque no son parte del informe.
+    Corregido con `tipo = "figura_presentacion"` (ver segunda excepción
+    más arriba). Confirmado con `.\run_all.ps1` completo después:
+    `TODAS LAS VERIFICACIONES PASARON`, 77/77, 32/32 CSV byte-idénticos.
+  - **Recomendación explícita:** no hacer `git push` de este repo hasta
+    confirmar (con `git log` local vs. `git log origin/main`) que solo
+    contenidos correctos quedaron en la rama antes de subirla.
+
+### Verificado
+
+- **Pública** (`docs/index.html`, 1050 KB; `docs/presentacion.pdf`, 1301 KB
+  / 13 páginas): 4/4 avisos sintéticos; 0 apariciones de cualquier número
+  real (`1.683745e-05`, `7 de 8`, etc., con los blobs base64 removidos
+  antes del grep); figuras visiblemente distintas de la versión real
+  (boxplots con otro patrón, confirmado también por hash MD5 del HTML).
+- **Para exponer** (`outputs/presentacion_real/index.html`, 2071 KB;
+  `.../presentacion.pdf`, 1800 KB / 13 páginas): texto interpretativo
+  completo con los números reales, figuras reales.
+- `git check-ignore -q outputs/presentacion_real/index.html` → ignorado.
+  `docs/index.html`, `docs/presentacion.pdf`, `docs/referencias.md` →
+  ninguno ignorado (se versionan).
+- PDF revisado página por página dos veces (antes y después del fix de
+  layout): título, antecedentes (rayos + tarjeta), modelo experimental,
+  prompt+arco, conteos, placenta (subset+pSTAT3), cerebro (subset),
+  co-expresión, dispersión (3 pasos), decisiones (columna lateral, 2
+  páginas), verificaciones, cierre.
+- **`.\run_all.ps1` completo (datos reales, tras las dos regeneraciones
+  synth→real de esta sesión): `TODAS LAS VERIFICACIONES PASARON` en R y
+  Python, 77/77 chequeos duros, 0 NO_EJECUTADA, 32/32 CSV
+  byte-idénticos.**
+
+### Pendiente / siguiente paso concreto
+
+- **Avisos explícitos pedidos por el pedido, sin resolver por decisión
+  propia documentada arriba** (no bloquean nada, pero el pedido pedía
+  avisar):
+  - Diapositiva 8: SPLOM a nivel de tejido (cerebro), no separado por sexo.
+  - Diapositiva 9: se mantuvo `acto2_dispersion_sd.png` en vez de la
+    alternativa del diagrama triangular sugerida.
+  - Diapositiva 10: quedó sin figura (ninguna existente muestra el
+    desacople sin exponer un número inédito).
+- Si el usuario prefiere otra elección en cualquiera de los tres puntos
+  anteriores, es un cambio acotado a esa diapositiva.
+- Mismos pendientes de sesiones anteriores sin cambios: marcador de
+  `analisis_descartados.md` (D13), decisión de publicación de `docs/` /
+  `outputs/`, SPLOM de la sesión 19c.
+- **No pushear a `origin` sin confirmar antes** que la rama local no
+  arrastra ningún estado intermedio con datos reales mal etiquetados
+  (ver bug de fuga de datos arriba). El estado actual de `main` en disco
+  ya es correcto; el aviso es sobre el HISTORIAL de commits si se decide
+  reescribirlo o pushear tal cual.
