@@ -60,13 +60,25 @@
 # coma decimal, "p < 0,001", "p = 1,00"), nunca en notacion cientifica cruda;
 # (c) sin codigos internos del repositorio (D7, D13) en el texto -- se
 # explican en palabras; la remision a docs/referencias.md se reemplaza por
-# citas numeradas normales (`REFERENCIAS_EPIDEMIO`, al pie de la pagina 1);
-# (d) las figuras estan numeradas ("Figura N.") y el texto las menciona por
-# numero; (e) se agrega una figura mas (acto2_corr_placenta_cerebro_fatp4.png,
-# ya generada por 08_acto2_correlaciones.R -- no es nueva ni propia de este
-# script) en la pagina 5, con un epigrafe que aclara que la diferencia entre
-# grupos no fue significativa por test formal, para que el patron visual no
-# se lea como si el LPS hubiera roto la correlacion.
+# citas numeradas normales (`REFERENCIAS_EPIDEMIO`); (d) las figuras estan
+# numeradas ("Figura N.") y el texto las menciona por numero.
+#
+# FIGURAS (pedidos/pedido_informe_breve_figuras.md, reemplaza al pedido
+# anterior en lo que difiere): las tres figuras de la sesion anterior se
+# reemplazan por variantes que se ven mejor impresas, todas generadas desde
+# el codigo (nunca una imagen prearmada, que se usaria igual en la version
+# publica y expondria datos reales): (1) Figura 3 (cerebro) pasa de dos PNG
+# compuestos por CSS (con alturas distintas) a UNA imagen de 4 paneles
+# iguales, mismo mecanismo que la Figura 2; (2) Figura 5 pasa de un recorte
+# de solo la diagonal del SPLOM a un recorte de la ESTRUCTURA COMPLETA
+# (diagonal + dispersion + rho/n), reusando DIRECTAMENTE `figura_splom()` de
+# 08_acto2_correlaciones.R (QUINTA EXCEPCION, ver `.ENV08()`) en vez de
+# reimplementar solo la diagonal en ggplot2 puro; (3) Figura 4 (correlacion
+# de fatp4) pasa a ser una VARIANTE PROPIA de este informe (con su propia
+# fila en procedencia.csv), con la leyenda de Spearman en una columna aparte
+# en vez de como "caption" debajo del grafico -- la figura original que usan
+# el informe tecnico y la presentacion no se toca. Ademas, la bibliografia
+# se mueve al final del documento (antes iba al pie de la pagina 1).
 
 .aqui <- tryCatch(
   dirname(normalizePath(sub("^--file=", "",
@@ -326,6 +338,30 @@ contar_paginas_pdf <- function(ruta) {
 })
 
 # =========================================================================
+# QUINTA EXCEPCION (pedidos/pedido_informe_breve_figuras.md): 08_acto2_
+# correlaciones.R completo, aislado igual que .ENV13() -- para reusar,
+# sin recalcular nada, cargar() (los mismos pares -ddCt), figura_splom()
+# (el diagrama triangular completo: diagonal + dispersion + rho/n) y las
+# piezas de figura_gen_sexo() (pares(), spearman_rho/p(), .linea_leyenda(),
+# PISO_PAR, PCH_TTO, NOTA_PIE) para la variante de fatp4 con leyenda al
+# costado. `08_acto2_correlaciones.R` tiene el mismo guardian
+# `if (sys.nframe()==0L) main()` que 07/13, asi que sourcearlo con
+# `local=<environment nuevo>` NO dispara su main() (mismo mecanismo ya
+# probado para .ENV13()/.ENV07()).
+# =========================================================================
+.ENV08 <- local({
+  e <- NULL
+  function() {
+    if (is.null(e))
+      e <<- { env <- new.env()
+              source(file.path(RAIZ_REPO, "R", "08_acto2_correlaciones.R"),
+                     local = env, encoding = "UTF-8")
+              env }
+    e
+  }
+})
+
+# =========================================================================
 # Aviso puntual -- ver "MECANISMO DE AVISO" en la cabecera. Un parrafo corto,
 # con clase "sim", que reemplaza SOLO la frase que afirma que DIO un analisis
 # sobre datos reales; la narrativa, la descripcion de que se hizo y las
@@ -341,75 +377,57 @@ sim_bloque <- function(desc) sprintf(
 # =========================================================================
 COL_TTO <- c(CONTROL = "#0072B2", LPS = "#D55E00")  # identico a 08/09_acto2_*.R
 
-# Recorte de la diagonal del SPLOM de co-expresion (08_acto2_correlaciones.R):
-# densidades de -ddCt por tratamiento, SOLO hembras, cerebro E15, en los genes
-# con interaccion SEXOxTTO significativa sobre la DISPERSION (BH<0.05, leidos
-# de acto2_dispersion_interaccion.csv -- misma lista que calcula 12_informe.R
-# para "disp_bra_sig_genes", reusada aca sin recalcular el criterio). Se
-# reimplementa en ggplot2 puro (sin GGally, que arma la matriz completa: el
-# pedido es explicitamente un recorte de la diagonal, no el SPLOM entero).
-# Usa los mismos -ddCt de data/processed/qpcr_cuantificacion_long.tsv que el
-# resto del pipeline -- no recalcula nada.
-generar_figura_densidades <- function(genes, ruta) {
-  suppressMessages(library(ggplot2))
-  # leer_csv() de este script asume separador ",": el TSV usa tab, parseo aparte.
-  txt <- leer_texto(file.path(RUTA_DATOS_PROC, "qpcr_cuantificacion_long.tsv"))
-  lineas <- strsplit(txt, "\n", fixed = TRUE)[[1]]
-  enc <- strsplit(lineas[1], "\t", fixed = TRUE)[[1]]
-  filas <- lapply(lineas[-1], function(l) strsplit(l, "\t", fixed = TRUE)[[1]])
-  j <- function(nom) match(nom, enc)
-  gdisp <- tryCatch(.ENV13()$.ENV07()$GDISP, error = function(e) NULL)
-  etiqueta_gen <- function(g) if (!is.null(gdisp) && g %in% names(gdisp)) gdisp[[g]] else g
-
-  reg <- list()
-  for (f in filas) {
-    if (length(f) < length(enc)) next
-    if (f[j("TEJIDO")] != "BRAIN_E15" || f[j("SEXO")] != "HEMBRA") next
-    if (!(f[j("GEN")] %in% genes)) next
-    if (identical(f[j("no_detectado")], "TRUE") || !nzchar(f[j("neg_ddCt")])) next
-    reg[[length(reg) + 1L]] <- data.frame(
-      TTO = f[j("TTO")], GEN = f[j("GEN")],
-      neg_ddCt = as.numeric(f[j("neg_ddCt")]), stringsAsFactors = FALSE)
-  }
-  d <- do.call(rbind, reg)
-  d$GEN <- factor(vapply(d$GEN, etiqueta_gen, character(1)),
-                  levels = vapply(genes, etiqueta_gen, character(1)))
-  d$TTO <- factor(d$TTO, levels = c("CONTROL", "LPS"), labels = c("Control", "LPS"))
-
-  p <- ggplot(d, aes(neg_ddCt, fill = TTO, colour = TTO)) +
-    geom_density(alpha = 0.4, linewidth = 0.5) +
-    scale_fill_manual(values = c(Control = unname(COL_TTO["CONTROL"]),
-                                 LPS = unname(COL_TTO["LPS"])), name = NULL) +
-    scale_colour_manual(values = c(Control = unname(COL_TTO["CONTROL"]),
-                                   LPS = unname(COL_TTO["LPS"])), name = NULL) +
-    facet_wrap(~GEN, nrow = 1, scales = "free") +
-    labs(title = "Cerebro E15, hembras: densidad de -\u0394\u0394Ct por tratamiento",
-         subtitle = paste0("Recorte de la diagonal del diagrama triangular ",
-                           "(genes con interacci\u00f3n SEXO\u00d7TTO significativa ",
-                           "sobre la dispersi\u00f3n, BH < 0.05)"),
-         x = expression(-Delta*Delta*Ct), y = "Densidad") +
-    theme_bw(base_size = 10) +
-    theme(panel.grid.minor = element_blank(), legend.position = "top",
-          strip.background = element_rect(fill = "grey93", colour = NA),
-          plot.subtitle = element_text(size = 8))
-  ggsave(ruta, p, width = 11.5, height = 2.9, dpi = 300)
+# Recorte del diagrama triangular de co-expresion (08_acto2_correlaciones.R),
+# COMPLETO -- diagonal (densidades Control/LPS superpuestas), triangulo
+# inferior (dispersion de puntos individuales) y triangulo superior (rho y n)
+# -- SOLO hembras, cerebro E15, en los genes con interaccion SEXOxTTO
+# significativa sobre la DISPERSION (BH<0.05, leidos de
+# acto2_dispersion_interaccion.csv -- misma lista que calcula 12_informe.R
+# para "disp_bra_sig_genes", reusada aca sin recalcular el criterio).
+# pedidos/pedido_informe_breve_figuras.md seccion 2 pide la ESTRUCTURA
+# completa del diagrama, no solo la diagonal (la version anterior de esta
+# figura, sesion 26, reimplementaba densityDiag en ggplot2 puro porque
+# entonces solo hacia falta la diagonal). Ahora se reusa DIRECTAMENTE
+# figura_splom() de 08_acto2_correlaciones.R (misma funcion que arma el SPLOM
+# completo del informe tecnico) pasandole un subconjunto de genes -- la
+# funcion ya hace diag=densityDiag, lower=points, upper=rho+n, y ya pone el
+# nombre de cada gen en la faja de cada columna: nada de esto se reimplementa.
+generar_splom_cerebro_breve <- function(genes, ruta) {
+  e08 <- .ENV08()
+  D <- e08$cargar()
+  e08$figura_splom(D, "BRAIN_E15", ruta, genes, "HEMBRA")
   invisible(ruta)
 }
-NOMBRE_DENSIDADES <- "acto2_densidades_dispersion_BRAIN_E15_HEMBRA.png"
+NOMBRE_SPLOM_BREVE <- "acto2_coexpresion_SPLOM_BRAIN_E15_HEMBRA_breve.png"
 
-# Figura de deteccion de il6 en cerebro (D7, no cuantificable): reusa
-# panel_deteccion() de 07_figuras_acto1.R (a traves de .ENV13()$.ENV07()), el
-# mismo panel que integra la figura completa del Acto 1, pero en un PNG propio
-# de una sola celda -- sin recalcular nada.
-generar_panel_deteccion_brain <- function(ruta) {
+# Figura de cerebro fetal: panel de deteccion de il6 (D7, no cuantificable) +
+# boxplots de glut1, slc38a2 y fatp1, los CUATRO paneles EN UNA SOLA IMAGEN,
+# mismo ancho y alto que los 4 paneles de la Figura 2 (generar_panel_subset())
+# -- pedidos/pedido_informe_breve_figuras.md seccion 1: antes eran DOS PNG
+# compuestos por CSS (flex, alturas ajustadas a mano por relacion de aspecto,
+# sesion 27), lo que dejaba los boxplots comprimidos; ahora es una unica
+# figura con layout(matrix(1:4, nrow=1)) -- exactamente el mismo mecanismo de
+# generar_panel_subset(), reusando panel_deteccion() y panel_gen() de
+# 07_figuras_acto1.R (via .ENV13()$.ENV07()) en vez de reimplementarlos.
+GENES_CEREBRO_BREVE <- c("glut1", "slc38a2", "fatp1")
+NOMBRE_CEREBRO_COMPLETO <- "acto1_cerebro_completo_BRAIN_E15_breve.png"
+generar_panel_cerebro_completo <- function(ruta) {
   e07 <- .ENV13()$.ENV07()
   D <- e07$cargar()
-  grDevices::png(ruta, width = 1150L, height = 1050L, res = e07$DPI)
+  n <- length(GENES_CEREBRO_BREVE) + 1L
+  grDevices::png(ruta, width = n * 1150L, height = 1000L, res = e07$DPI)
   on.exit(grDevices::dev.off(), add = TRUE)
+  set.seed(SEMILLA)   # jitter reproducible, igual que generar_panel_subset()
+  graphics::layout(matrix(seq_len(n), nrow = 1L))
   e07$panel_deteccion(D$il6_tab, D$il6_fis)
+  for (gen in GENES_CEREBRO_BREVE) {
+    fc <- e07$fc_por_grupo(D$cuant, "BRAIN_E15", gen)
+    fila_clasif <- e07$fila_de(D$clasif, "BRAIN_E15", gen)
+    ph <- e07$pholm_lista(D$posthoc, "BRAIN_E15", gen)
+    e07$panel_gen(fc, gen, "BRAIN_E15", fila_clasif, ph)
+  }
   invisible(ruta)
 }
-NOMBRE_DETECCION_BRAIN <- "acto1_deteccion_il6_BRAIN_E15_breve.png"
 
 # Boxplots de placenta, subconjunto propio de este informe (il6, fatp1,
 # slc38a2, glut1 -- pedido_informe_breve_final.md seccion 3): reusa
@@ -419,13 +437,90 @@ NOMBRE_DETECCION_BRAIN <- "acto1_deteccion_il6_BRAIN_E15_breve.png"
 GENES_PLACENTA_BREVE <- c("il6", "fatp1", "slc38a2", "glut1")
 NOMBRE_PLACENTA_BREVE <- "acto1_expresion_PLACENTA_E15_breve4.png"
 
-# Figura de correlacion placenta-cerebro para fatp4 (pedido de correcciones,
-# seccion 5): NO es una figura nueva ni propia de este script -- ya la genera
-# 08_acto2_correlaciones.R para cada gen del Acto 2 (con la fuente de datos
-# vigente, real o sintetica) y ya tiene su fila en procedencia.csv con
-# tipo="figura". Este script solo la embebe con fig_outputs(), igual que
-# cualquier otra figura ya existente del pipeline.
-NOMBRE_CORR_FATP4 <- "acto2_corr_placenta_cerebro_fatp4.png"
+# Figura de correlacion placenta-cerebro para fatp4, VARIANTE PROPIA de este
+# informe (pedidos/pedido_informe_breve_figuras.md seccion 3): la figura
+# original de 08_acto2_correlaciones.R (figura_gen_sexo()) pone la leyenda de
+# Spearman como "caption" DEBAJO del grafico, lo que obliga a achicar el area
+# de los paneles. El pedido explicito es "no modifiques la figura original
+# que usan el informe tecnico y la presentacion": esta es una figura NUEVA,
+# solo para este informe, con su propia fila en procedencia.csv (tipo =
+# "figura_presentacion"). Reusa, sin recalcular nada, pares()/spearman_rho()/
+# spearman_p()/.linea_leyenda()/PISO_PAR/PCH_TTO/NOTA_PIE de
+# 08_acto2_correlaciones.R (via .ENV08()) -- la unica diferencia real con
+# figura_gen_sexo() es DONDE se dibuja la leyenda (columna aparte via
+# grid::viewport, no "caption" de ggplot2), lo que deja mas espacio para los
+# paneles de dispersion.
+NOMBRE_CORR_FATP4_BREVE <- "acto2_corr_placenta_cerebro_fatp4_breve.png"
+generar_corr_fatp4_informe <- function(ruta) {
+  suppressMessages(library(ggplot2))
+  e08 <- .ENV08()
+  D <- e08$cargar()
+  item <- "fatp4"
+  filas <- list()
+  for (sx in c("HEMBRA", "MACHO")) for (tt in NIVELES_TTO) {
+    pr <- e08$pares(D, item, paste0(sx, "_", tt))
+    if (!length(pr$x)) next
+    filas[[length(filas) + 1L]] <- data.frame(
+      sexo_panel = if (sx == "HEMBRA") "Females" else "Males",
+      tto = tt, x = pr$x, y = pr$y, stringsAsFactors = FALSE)
+  }
+  d <- do.call(rbind, filas)
+  d$sexo_panel <- factor(d$sexo_panel, levels = c("Females", "Males"))
+  n_celda <- table(d$sexo_panel, d$tto)
+  d_ok <- do.call(rbind, lapply(seq_len(nrow(d)), function(i) {
+    if (n_celda[as.character(d$sexo_panel[i]), d$tto[i]] >= e08$PISO_PAR) d[i, ] else NULL
+  }))
+  d$xp <- 2^d$x; d$yp <- 2^d$y
+  if (!is.null(d_ok)) { d_ok$xp <- 2^d_ok$x; d_ok$yp <- 2^d_ok$y }
+  lab_x <- sprintf("Placenta E15 — %s/rsp29 relative expression", item)
+  lab_y <- sprintf("Brain E15 — %s/rsp29 relative expression", item)
+
+  leyenda <- paste(c(
+    e08$.linea_leyenda("♀ Control", D, item, "HEMBRA", "CONTROL"),
+    e08$.linea_leyenda("♀ LPS",     D, item, "HEMBRA", "LPS"),
+    e08$.linea_leyenda("♂ Control", D, item, "MACHO",  "CONTROL"),
+    e08$.linea_leyenda("♂ LPS",     D, item, "MACHO",  "LPS")
+  ), collapse = "\n\n")
+  # NOTA_PIE viene como una sola linea larga separada por "|": en columna
+  # angosta no entra sin cortarse, se parte en una linea por clausula.
+  nota_pie_multilinea <- gsub(" | ", "\n", e08$NOTA_PIE, fixed = TRUE)
+  leyenda <- paste0(leyenda, "\n\n", nota_pie_multilinea)
+
+  p <- ggplot(d, aes(xp, yp, colour = tto, shape = tto)) +
+    geom_point(size = 1.8, alpha = 0.85) +
+    scale_colour_manual(values = COL_TTO, guide = "none") +
+    scale_shape_manual(values = e08$PCH_TTO, guide = "none") +
+    facet_wrap(~ sexo_panel, ncol = 2) +
+    labs(title = bquote(italic(.(item))),
+         subtitle = "Placenta-brain correlation at E15", x = lab_x, y = lab_y) +
+    scale_x_continuous(trans = "log2") + scale_y_continuous(trans = "log2") +
+    theme_bw(base_size = 11) +
+    theme(panel.grid.minor = element_blank(),
+          strip.text = element_text(size = 11, face = "bold"),
+          strip.background = element_rect(fill = "grey93", colour = "grey40"),
+          panel.border = element_rect(colour = "grey40"),
+          plot.subtitle = element_text(size = 9.5))
+  if (!is.null(d_ok))
+    p <- p + geom_smooth(data = d_ok, method = "lm", se = TRUE, level = 0.95,
+                         linewidth = 0.8, alpha = 0.18)
+
+  leyenda_grob <- grid::textGrob(leyenda, x = grid::unit(0.08, "npc"),
+                                 y = grid::unit(0.94, "npc"),
+                                 just = c("left", "top"),
+                                 gp = grid::gpar(fontsize = 8.5, lineheight = 1.3))
+  grDevices::png(ruta, width = 13 * 300, height = 6 * 300, res = 300)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  grid::grid.newpage()
+  grid::pushViewport(grid::viewport(
+    layout = grid::grid.layout(1L, 2L, widths = grid::unit(c(2.5, 1), "null"))))
+  grid::pushViewport(grid::viewport(layout.pos.col = 1L))
+  grid::grid.draw(ggplot2::ggplotGrob(p))
+  grid::popViewport()
+  grid::pushViewport(grid::viewport(layout.pos.col = 2L))
+  grid::grid.draw(leyenda_grob)
+  grid::popViewport(2L)
+  invisible(ruta)
+}
 
 # Referencias bibliograficas citadas en la pagina 1 (pedido de correcciones,
 # seccion 1.3): copiadas tal cual de docs/referencias.md (no se reformulan,
@@ -497,22 +592,14 @@ CSS <- paste0("\n",
 "figcaption, .epigrafe { font: .82rem var(--font-ui); color: var(--ink-soft);\n",
 "  margin-top: .35rem; }\n",
 ".fig-modelo { max-height: 25vh; }\n",
+# Figura 2 (placenta) y Figura 3 (cerebro) usan la MISMA clase: las dos son
+# layout(matrix(1:n, nrow=1)) de generar_panel_subset()/
+# generar_panel_cerebro_completo(), mismo ancho y alto por panel (n*1150 x
+# 1000), asi que tienen que verse con el mismo tamano y la misma relacion de
+# aspecto (pedidos/pedido_informe_breve_figuras.md seccion 1).
 ".fig-boxplot { max-height: 26vh; }\n",
-".fig-densidad { max-height: 24vh; }\n",
-".fig-corr { max-height: 20vh; }\n",
-# Las dos figuras de la pagina de cerebro tienen relaciones de aspecto muy
-# distintas (deteccion casi cuadrada, boxplots muy anchos): con solo
-# max-height terminaban con alturas visualmente distintas, porque la mas
-# ancha topaba antes con max-width:100% de su columna. Fila de ALTO FIJO,
-# las imagenes se estiran a esa altura y el ancho de cada columna se reparte
-# segun la relacion de aspecto real de cada imagen (proporcional, no 50/50).
-".cols-fig { display: flex; gap: 1rem; align-items: center; flex-wrap: nowrap;\n",
-"  height: 20vh; margin: .5rem 0; }\n",
-".cols-fig figure { margin: 0; height: 100%; min-width: 0; overflow: hidden;\n",
-"  display: flex; align-items: center; justify-content: center; }\n",
-".cols-fig img { height: 100%; width: auto; max-width: 100%; }\n",
-".cols-fig .fig-chica { flex: 1.1 1 0; }\n",
-".cols-fig .fig-grande { flex: 3.45 1 0; }\n",
+".fig-splom { max-height: 34vh; }\n",
+".fig-corr { max-height: 27vh; }\n",
 ".sim { background: var(--warn-bg); border: 1px solid var(--warn-border);\n",
 "  border-radius: 6px; padding: .55rem .9rem; font-size: .88rem;\n",
 "  font-family: var(--font-ui); text-align: left; }\n",
@@ -644,8 +731,6 @@ pagina <- function(id_, titulo, cuerpo) sprintf(
   '<section class="pagina" id="p%s">\n<h2>%s</h2>\n%s\n</section>', id_, .esc(titulo), cuerpo)
 
 pagina1 <- function(d) {
-  refs_html <- paste0('<li id="ref', seq_along(REFERENCIAS_EPIDEMIO), '">',
-                      REFERENCIAS_EPIDEMIO, '</li>', collapse = "\n")
   cuerpo <- paste0(
     '<p>La inflamaci&oacute;n materna durante la gestaci&oacute;n es considerada ',
     'un factor de riesgo para trastornos del neurodesarrollo en la descendencia, ',
@@ -678,8 +763,7 @@ pagina1 <- function(d) {
     'cada una con su propio cierre. El repositorio conserva el registro de ',
     'procedencia de cada tabla y cada figura, y el de las verificaciones ',
     'aplicadas a cada resultado. La implementaci&oacute;n existe por duplicado, ',
-    'en R y en Python, y ambas se comparan celda a celda.</p>\n',
-    '<ol class="referencias">', refs_html, '</ol>')
+    'en R y en Python, y ambas se comparan celda a celda.</p>')
   pagina(1, "Problema, modelo experimental y método de trabajo", cuerpo)
 }
 
@@ -789,16 +873,13 @@ pagina4 <- function(d, sint) {
     'explicaci&oacute;n por las medias motiv&oacute; la exploraci&oacute;n de ',
     'los datos que se describe en la secci&oacute;n siguiente.</p>')
   cuerpo <- paste0(intro, resultado, '\n',
-    '<div class="cols-fig">',
-    fig_outputs(NOMBRE_DETECCION_BRAIN, "Detección de il6 en cerebro", "fig-chica"),
-    fig_outputs(.ENV13()$NOMBRE_SUBSET_BRAIN,
-               "Boxplots de glut1, slc38a2 y fatp1 en cerebro", "fig-grande"),
-    '</div>\n',
-    '<p class="epigrafe"><strong>Figura 3.</strong> Izquierda: proporci&oacute;n ',
-    'de detecci&oacute;n de il6 en cerebro; este gen no pudo cuantificarse como ',
-    'expresi&oacute;n relativa por limitaciones del m&eacute;todo experimental ',
-    '(ver M&eacute;todos). Derecha: glut1, slc38a2 y fatp1 en cerebro, por sexo ',
-    'y tratamiento.</p>')
+    fig_outputs(NOMBRE_CEREBRO_COMPLETO,
+               "Deteccion de il6, y boxplots de glut1, slc38a2 y fatp1, en cerebro",
+               "fig-boxplot"),
+    '<p class="epigrafe"><strong>Figura 3.</strong> Cerebro: proporci&oacute;n ',
+    'de detecci&oacute;n de il6 (este gen no pudo cuantificarse como ',
+    'expresi&oacute;n relativa por limitaciones del m&eacute;todo experimental, ',
+    'ver M&eacute;todos), glut1, slc38a2 y fatp1, por sexo y tratamiento.</p>')
   pagina(4, "Cerebro fetal", cuerpo)
 }
 
@@ -844,7 +925,7 @@ pagina5 <- function(d, sint) {
     'variabilidad descripta en esta secci&oacute;n, no con una p&eacute;rdida ',
     'de correlaci&oacute;n.</p>')
   fig_corr <- paste0(
-    fig_outputs(NOMBRE_CORR_FATP4, "Correlación placenta-cerebro fatp4", "fig-corr"),
+    fig_outputs(NOMBRE_CORR_FATP4_BREVE, "Correlación placenta-cerebro fatp4", "fig-corr"),
     fig_corr_epigrafe)
   coexpr <- if (sint) paste0(
     '<h3>Co-expresi&oacute;n dentro de cada tejido</h3>\n',
@@ -865,17 +946,21 @@ pagina5 <- function(d, sint) {
     '5).</p>')
   fig_epigrafe <- if (sint) paste0(
     '<p class="epigrafe"><strong>Figura 5.</strong> Cerebro fetal, hembras: ',
-    'densidades de -&Delta;&Delta;Ct por tratamiento en los mismos cinco genes ',
-    '(recorte de la diagonal del diagrama triangular; corrida con datos ',
+    'recorte del diagrama triangular en los mismos cinco genes (diagonal: ',
+    'densidad por tratamiento; tri&aacute;ngulo inferior: dispersi&oacute;n de ',
+    'puntos; tri&aacute;ngulo superior: rho y n; corrida con datos ',
     'sint&eacute;ticos).</p>'
   ) else paste0(
     '<p class="epigrafe"><strong>Figura 5.</strong> Cerebro fetal, hembras: ',
-    'densidades de -&Delta;&Delta;Ct por tratamiento en los cinco genes con ',
-    'interacci&oacute;n significativa sobre la dispersi&oacute;n (recorte de la ',
-    'diagonal del diagrama triangular). La distribuci&oacute;n del grupo LPS es ',
-    'marcadamente m&aacute;s concentrada que la del control, y esa ',
-    'reducci&oacute;n de variabilidad es el mecanismo que explica la ',
-    'ca&iacute;da de correlaci&oacute;n.</p>')
+    'recorte del diagrama triangular en los cinco genes con interacci&oacute;n ',
+    'significativa sobre la dispersi&oacute;n (diagonal: densidad de ',
+    '-&Delta;&Delta;Ct por tratamiento; tri&aacute;ngulo inferior: dispersi&oacute;n ',
+    'de puntos individuales; tri&aacute;ngulo superior: rho de Spearman y n). La ',
+    'distribuci&oacute;n del grupo LPS en la diagonal es marcadamente m&aacute;s ',
+    'concentrada que la del control, y esa reducci&oacute;n de variabilidad es ',
+    'el mecanismo que explica la ca&iacute;da de correlaci&oacute;n, en el ',
+    'mismo contexto de co-expresi&oacute;n entre transportadores que muestra el ',
+    'resto del recorte.</p>')
   limitaciones <- paste0(
     '<h3>Limitaciones</h3>\n',
     '<p>Todas las comparaciones se hacen con n = 9 por grupo, lo que limita la ',
@@ -897,14 +982,19 @@ pagina5 <- function(d, sint) {
     'se&ntilde;alizaci&oacute;n. En el cerebro fetal, el dimorfismo se expresa ',
     'en los transportadores, desplazando el nivel de expresi&oacute;n en unos ',
     'genes y la variabilidad entre individuos en otros.</p>')
+  refs_html <- paste0('<li id="ref', seq_along(REFERENCIAS_EPIDEMIO), '">',
+                      REFERENCIAS_EPIDEMIO, '</li>', collapse = "\n")
+  referencias <- paste0('<h3>Referencias</h3>\n<ol class="referencias">',
+                        refs_html, '</ol>')
   pie <- paste0(
     '<footer>Detalle completo, procedencia y verificaciones: ',
     '<code>docs/informe.html</code>. Presentaci&oacute;n: ',
     '<code>docs/index.html</code>.</footer>')
   cuerpo <- paste0(
     intro, correl, fig_corr, coexpr, '\n',
-    fig_outputs(NOMBRE_DENSIDADES, "Densidades de -ddCt en cerebro, hembras", "fig-densidad"),
-    fig_epigrafe, limitaciones, conclusion, pie)
+    fig_outputs(NOMBRE_SPLOM_BREVE, "Recorte del diagrama triangular, cerebro, hembras",
+               "fig-splom"),
+    fig_epigrafe, limitaciones, conclusion, referencias, pie)
   pagina(5, "Exploración, límites y conclusión", cuerpo)
 }
 
@@ -935,14 +1025,14 @@ main <- function() {
 
   e13 <- .ENV13()
   ruta_placenta_breve <- file.path(RUTA_FIGURAS, NOMBRE_PLACENTA_BREVE)
-  ruta_subset_bra <- file.path(RUTA_FIGURAS, e13$NOMBRE_SUBSET_BRAIN)
-  ruta_deteccion_bra <- file.path(RUTA_FIGURAS, NOMBRE_DETECCION_BRAIN)
-  ruta_densidades <- file.path(RUTA_FIGURAS, NOMBRE_DENSIDADES)
+  ruta_cerebro_completo <- file.path(RUTA_FIGURAS, NOMBRE_CEREBRO_COMPLETO)
+  ruta_splom_breve <- file.path(RUTA_FIGURAS, NOMBRE_SPLOM_BREVE)
+  ruta_corr_fatp4 <- file.path(RUTA_FIGURAS, NOMBRE_CORR_FATP4_BREVE)
 
   e13$generar_panel_subset(GENES_PLACENTA_BREVE, "PLACENTA_E15", ruta_placenta_breve)
-  e13$generar_panel_subset(e13$GENES_SUBSET_BRAIN, "BRAIN_E15", ruta_subset_bra)
-  generar_panel_deteccion_brain(ruta_deteccion_bra)
-  generar_figura_densidades(d$disp_bra_sig_genes, ruta_densidades)
+  generar_panel_cerebro_completo(ruta_cerebro_completo)
+  generar_splom_cerebro_breve(d$disp_bra_sig_genes, ruta_splom_breve)
+  generar_corr_fatp4_informe(ruta_corr_fatp4)
 
   html <- construir_html(d)
 
@@ -999,17 +1089,27 @@ main <- function() {
          "data/processed/qpcr_cuantificacion_long.tsv",
          paste0("boxplots de placenta, subconjunto propio de este informe (",
                 .join_y(GENES_PLACENTA_BREVE), ")")),
-    list(file.path("outputs/figures", NOMBRE_DETECCION_BRAIN), "figura_presentacion",
-         ESTE_SCRIPT, "PROPIO (reusa panel_deteccion de 07_figuras_acto1.R)",
-         "qpcr_il6_brain_fisher.csv + qpcr_il6_brain_tabla2x4.csv",
-         "proporcion de deteccion de il6 en cerebro E15 (D7, no cuantificable)"),
-    list(file.path("outputs/figures", NOMBRE_DENSIDADES), "figura_presentacion", ESTE_SCRIPT,
-         "PROPIO (geom_density, mismo estilo que la diagonal del SPLOM de 08_acto2_correlaciones.R)",
+    list(file.path("outputs/figures", NOMBRE_CEREBRO_COMPLETO), "figura_presentacion",
+         ESTE_SCRIPT,
+         "PROPIO (reusa panel_deteccion y panel_gen de 07_figuras_acto1.R, layout de generar_panel_subset)",
+         "qpcr_il6_brain_fisher.csv + qpcr_il6_brain_tabla2x4.csv + qpcr_cuantificacion_long.tsv",
+         paste0("cerebro: deteccion de il6 (no cuantificable) + boxplots de ",
+                .join_y(GENES_CEREBRO_BREVE),
+                ", los 4 paneles en una imagen con el mismo tamano que la Figura 2")),
+    list(file.path("outputs/figures", NOMBRE_SPLOM_BREVE), "figura_presentacion", ESTE_SCRIPT,
+         "PROPIO (reusa figura_splom de 08_acto2_correlaciones.R con un subconjunto de genes)",
          "data/processed/qpcr_cuantificacion_long.tsv",
-         paste0("recorte de la diagonal del SPLOM: densidades de -ddCt por ",
-                "tratamiento, cerebro E15, SOLO hembras, genes ",
-                .join_y(d$disp_bra_sig_genes),
-                " (interaccion SEXOxTTO significativa sobre la dispersion, BH<0.05)"))
+         paste0("recorte del diagrama triangular completo (diagonal + dispersion + rho/n), ",
+                "cerebro E15, SOLO hembras, genes ", .join_y(d$disp_bra_sig_genes),
+                " (interaccion SEXOxTTO significativa sobre la dispersion, BH<0.05)")),
+    list(file.path("outputs/figures", NOMBRE_CORR_FATP4_BREVE), "figura_presentacion",
+         ESTE_SCRIPT,
+         "PROPIO (reusa pares/spearman_rho/spearman_p/.linea_leyenda de 08_acto2_correlaciones.R; leyenda al costado via grid, no caption de ggplot2)",
+         "data/processed/qpcr_cuantificacion_long.tsv",
+         paste0("variante propia de este informe de la correlacion placenta-cerebro ",
+                "de fatp4 (no modifica acto2_corr_placenta_cerebro_fatp4.png, que usan ",
+                "el informe tecnico y la presentacion): leyenda de Spearman en columna ",
+                "aparte para agrandar el area de los paneles"))
   ))
   registrar_verificaciones(list(
     list("informe_breve_html_generado", "recalculo",

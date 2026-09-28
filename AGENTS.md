@@ -195,23 +195,39 @@ la misma secuencia que exige `13_presentacion.R` (ver leccion documentada en `ES
 sesion de la presentacion: no alcanza con bloquear el texto, las figuras tambien tienen
 que venir de la corrida sintetica).
 
-**Correcciones de redaccion (`pedidos/pedido_informe_breve_correcciones.md`, reemplaza
-al pedido anterior en lo que difiere):** el texto de las 5 paginas lleva acentuacion
-correcta (nunca caracteres acentuados literales en el codigo fuente de R -- entidades
-HTML en el cuerpo de cada pagina, que no pasa por `.esc()`; escapes `\uXXXX` en los
-titulos de pagina, que si pasan por `.esc()` y esa funcion escaparia una entidad
-literal; y `\uXXXX` tambien para el texto que va dentro de una figura PNG, que no es
-HTML), p-valores formateados con una unica funcion `.p_fmt()` (nunca notacion
-cientifica cruda), sin codigos internos del repositorio en el texto (D7/D13 explicados
-en palabras) ni remision a `docs/referencias.md` (reemplazada por citas numeradas
-normales, copiadas tal cual de ese archivo, al pie de la primera pagina), y figuras
-numeradas ("Figura N.") referenciadas por numero en el texto. Se agrega una CUARTA
-figura reusada -- `acto2_corr_placenta_cerebro_fatp4.png`, que ya genera
-`08_acto2_correlaciones.R` con su propia fila `tipo = "figura"` en `procedencia.csv`
-(este script no le agrega una fila propia) -- con un epigrafe que aclara que la
-diferencia entre grupos no fue significativa por test formal, para que el lector no
-interprete el patron visual (correlacion aparente en control, ninguna en LPS, en
-hembras) como una perdida de correlacion real.
+**Correcciones de redaccion (`pedidos/pedido_informe_breve_correcciones.md`):** el
+texto de las 5 paginas lleva acentuacion correcta (nunca caracteres acentuados
+literales en el codigo fuente de R -- entidades HTML en el cuerpo de cada pagina, que
+no pasa por `.esc()`; escapes `\uXXXX` en los titulos de pagina, que si pasan por
+`.esc()` y esa funcion escaparia una entidad literal; y `\uXXXX` tambien para el texto
+que va dentro de una figura PNG, que no es HTML), p-valores formateados con una unica
+funcion `.p_fmt()` (nunca notacion cientifica cruda), sin codigos internos del
+repositorio en el texto (D7/D13 explicados en palabras) ni remision a
+`docs/referencias.md` (reemplazada por citas numeradas normales, copiadas tal cual de
+ese archivo), y figuras numeradas ("Figura N.") referenciadas por numero en el texto.
+
+**Figuras (`pedidos/pedido_informe_breve_figuras.md`, reemplaza al pedido anterior en
+lo que difiere):** tres de las cuatro figuras se reemplazaron por variantes que se leen
+mejor impresas, todas generadas desde el codigo (nunca una imagen prearmada, que
+expondria datos reales en la version publica). Figura 3 (cerebro) pasa de dos PNG
+compuestos por CSS a UNA imagen de 4 paneles iguales (`generar_panel_cerebro_completo()`,
+mismo mecanismo que `generar_panel_subset()`). Figura 5 pasa de un recorte de solo la
+diagonal del SPLOM a un recorte de la estructura COMPLETA del diagrama triangular
+(diagonal + dispersion + rho/n): en vez de reimplementar eso en ggplot2 puro, se reusa
+DIRECTAMENTE `figura_splom()` de `08_acto2_correlaciones.R` con un subconjunto de genes
+-- de ahi la **QUINTA EXCEPCION** a "cada script importa solo 00_config": `.ENV08()`
+fuentea `08_acto2_correlaciones.R` completo, aislado, igual mecanismo que `.ENV13()`
+(mismo guardian `if (sys.nframe()==0L) main()`, sourcearlo no dispara su `main()`).
+Figura 4 (correlacion de fatp4) pasa a ser una VARIANTE PROPIA de este informe, con su
+propia fila en `procedencia.csv` (`tipo = "figura_presentacion"`, nombre distinto:
+`acto2_corr_placenta_cerebro_fatp4_breve.png`) -- la figura original
+(`acto2_corr_placenta_cerebro_fatp4.png`) que usan el informe tecnico y la presentacion
+NO se toca; la variante reusa `pares()`/`spearman_rho()`/`spearman_p()`/
+`.linea_leyenda()`/`PISO_PAR`/`PCH_TTO`/`NOTA_PIE` de `08_acto2_correlaciones.R` (via
+`.ENV08()`) y solo cambia DONDE se dibuja la leyenda de Spearman: una columna aparte via
+`grid::viewport` en vez de "caption" de ggplot2 debajo del grafico, lo que deja mas
+espacio para los paneles de dispersion. Ademas, la bibliografia se movio al final del
+documento (antes iba al pie de la pagina 1).
 
 **Convención de nombres de salidas:**
 
