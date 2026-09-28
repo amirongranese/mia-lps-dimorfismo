@@ -2701,3 +2701,113 @@ queda no es del pedido:
   (ver bug de fuga de datos arriba). El estado actual de `main` en disco
   ya es correcto; el aviso es sobre el HISTORIAL de commits si se decide
   reescribirlo o pushear tal cual.
+
+---
+
+## Sesión 24 — 2026-09-28 — brackets con asteriscos en las dos versiones, sin p de tendencia en la pública
+
+> Pedido por chat (sin archivo `pedidos/`): que los brackets con asteriscos
+> sigan visibles en las figuras de la presentación en las dos versiones (en
+> la pública son efectos simulados, no exponen nada), pero que la versión
+> pública no muestre el **número** de p en los brackets de tendencia
+> (0.05<p<0.1) — bracket punteado sin el número, o sin bracket, a mi
+> criterio. También pidió confirmar que las figuras públicas salen de una
+> corrida sintética (no de `outputs/figures/` con datos reales) y un
+> inventario de en qué diapositivas aparecen asteriscos en cada versión.
+
+### Qué se completó
+
+- **Inventario de figuras con brackets D11** en la presentación (las únicas
+  tres; el resto no tiene): diapositiva 6 (pSTAT3 + subconjunto de
+  placenta), diapositiva 7 (subconjunto de cerebro). `acto2_dispersion_sd.png`
+  (diapositiva 9) **no tiene brackets ni asteriscos** — es un gráfico de
+  barras de SD sin anotación de significancia (el `***`/`**`/`*` que existe
+  en `09_acto2_dispersion.R` pertenece a `figura_test_delta_rho()`, una
+  figura distinta que la presentación no usa). El SPLOM de co-expresión
+  (diapositiva 8) muestra `rho:`, no asteriscos.
+- **Tercera figura reusada**: `13_presentacion.R` ahora regenera también
+  pSTAT3 para la diapositiva 6, reusando `figura_pstat3()` del mismo
+  `.ENV07()` que ya reusaba `panel_gen()`. Se guarda como
+  `outputs/figures/acto1_pstat3_presentacion.png` — **no**
+  `acto1_pstat3.png`, el que usa la corrida principal — para no pisar el
+  archivo que lee `12_informe` (el informe científico nunca debe suprimir
+  ningún p, esto es solo para la presentación).
+- **`aplicar_override_tendencia(sint)`**: con fuente sintética, sobreescribe
+  `d11_texto` dentro de `.ENV07()` (nunca en `07_figuras_acto1.R` mismo) para
+  que, cuando el estilo sea `"punteada"` (tendencia, 0.05<=p<0.1), el texto
+  quede vacío — el bracket punteado se sigue dibujando (línea + guiones),
+  solo se vacía el `"p = 0.NNN"`. Elegí **"bracket punteado sin el número"**
+  (la primera opción que diste) en vez de sacar el bracket entero: mantiene
+  la información visual ("hay algo marginal acá") sin el decimal ficticio.
+  Los brackets sólidos (`*`, `**`, `***`) nunca se tocan, en ninguna versión.
+- **Verificación nueva `presentacion_sin_p_tendencia`**: prueba directamente
+  `d11_texto(0.07)` (0.07 cae en zona de tendencia) y confirma que da
+  `texto=""` con fuente sintética y `texto="p = 0.070"` con fuente real. Es
+  un chequeo de código (no depende de que algún gen actual caiga en esa
+  zona), porque ni los datos reales ni los sintéticos actuales producen una
+  tendencia en estos 3 genes/pSTAT3 (verificado explícitamente, ver abajo).
+- **Bug menor encontrado de paso**: la fila `presentacion_sin_interpretacion`
+  todavía decía en su texto "aviso = 3" en `valor_esperado` (quedó de antes
+  de ampliar el gating a 4 diapositivas en la sesión 23); el valor numérico
+  ya estaba bien (4), solo el string descriptivo. Corregido.
+- Documentado en `AGENTS.md`/`CLAUDE.md` como tercera excepción de reuso de
+  funciones de `07_figuras_acto1.R`.
+
+### Verificado
+
+- **Con datos reales, ninguno de los 3 genes/figuras (placenta: il6, glut3,
+  slc38a2; cerebro: glut1, slc38a2, fatp1; pSTAT3) cae en zona de tendencia**
+  — todos los contrastes relevantes son significativos o no significativos,
+  ninguno 0.05<p<0.1 (confirmado leyendo directamente
+  `qpcr_modelos_clasificacion.csv`, `qpcr_modelos_posthoc.csv`,
+  `pstat3_posthoc.csv`). **Con la corrida sintética actual, tampoco** (mismo
+  chequeo repetido sobre las tablas sintéticas). El override está
+  correctamente implementado y verificado a nivel de código
+  (`presentacion_sin_p_tendencia`), pero **hoy no se ve ningún bracket
+  punteado en ninguna de las dos versiones** porque los datos actuales no
+  producen ninguno en estos genes puntuales — no es que el override no
+  funcione, es que no hay ningún caso que mostrarlo en este momento.
+- **Confirmado con inspección visual (no solo grep) que las figuras de la
+  versión pública salen de una corrida sintética**: `acto1_pstat3_
+  presentacion.png` real muestra dos brackets `***` (interacción
+  significativa, post hoc ♀Control-♀LPS y ♀LPS-♂LPS); la misma figura en la
+  corrida sintética (leída con la herramienta de imágenes, no solo el PDF)
+  muestra un único bracket `Control vs LPS ***` (efecto principal, sin
+  interacción) — estructuralmente distinto, confirma que no es la misma
+  imagen reetiquetada.
+- `docs/index.html`/`.pdf` regenerados: 4/4 avisos sintéticos, 0 números
+  reales (grep con blobs base64 removidos), `presentacion_sin_p_tendencia`
+  = TRUE.
+- `outputs/presentacion_real/` regenerado: `presentacion_sin_p_tendencia`
+  con `texto="p = 0.070"` (comportamiento normal, sin supresión).
+- **`.\run_all.ps1` completo (real, tras el ciclo synth→real de esta
+  sesión): `TODAS LAS VERIFICACIONES PASARON`, 77/77, 0 NO_EJECUTADA, 32/32
+  CSV byte-idénticos.**
+- `git check-ignore` reconfirmado: `outputs/presentacion_real/` ignorado;
+  `docs/index.html`/`.pdf`/`referencias.md` no ignorados.
+
+### Respuesta directa a lo pedido
+
+**¿En qué diapositivas aparecen asteriscos en cada versión?**
+
+| Diapositiva | Figura | Asteriscos/brackets | Pública | Real |
+|---|---|---|---|---|
+| 6 (Placenta) | `acto1_pstat3_presentacion.png` | Sí (D11) | `Control vs LPS ***` (efecto principal, datos sintéticos actuales) | `***` en ♀Control-♀LPS y ♀LPS-♂LPS (interacción) |
+| 6 (Placenta) | subconjunto (il6, glut3, slc38a2) | Sí (D11), por gen | según dato sintético del momento | `***`/`**`/`*` por gen (ver detalle en el código) |
+| 7 (Cerebro) | subconjunto (glut1, slc38a2, fatp1) | Sí (D11), por gen | según dato sintético del momento | `***`/`**`/`*` por gen |
+| 8 (Co-expresión) | SPLOM | No — muestra `rho:`, no significancia | — | — |
+| 9 (Dispersión) | `acto2_dispersion_sd.png` | **No tiene ninguno** — barras de SD sin marca | — | — |
+| 10-12 | sin figuras con brackets | — | — | — |
+
+Ningún bracket punteado (tendencia) aparece hoy en ninguna figura de ninguna
+versión, porque los datos actuales no producen ese caso en estos genes
+puntuales — el código que lo suprimiría en la pública está implementado y
+verificado directamente, a la espera de que algún dato futuro lo dispare.
+
+### Pendiente / siguiente paso concreto
+
+- Sin cambios respecto de la sesión 23: marcador de `analisis_descartados.md`
+  (D13), decisión de publicación de `docs/`/`outputs/`, SPLOM de la sesión
+  19c, y los tres avisos de diseño de la sesión 23 (SPLOM diapositiva 8 a
+  nivel de tejido, figura de dispersión elegida para la diapositiva 9,
+  diapositiva 10 sin figura).
