@@ -2239,3 +2239,153 @@ el piso para algunos items. Corregido completando los 20 campos de
   esto último depende de que el punto 4 esté resuelto (`-Only R` hoy sigue
   exigiendo Python).
 - Punto (c) de la sección 5 de la sesión 19 (SPLOM) sigue sin aplicar.
+
+---
+
+## Sesión 21 — 2026-09-28 — `pedidos/cambios_revision_codex.md`: puntos 4, 5 y 6 (cierre del pedido)
+
+> Continuación directa de la sesión 20, que había cerrado los puntos 1, 3 y 2.
+> Esta sesión cierra los tres que faltaban y **completa el pedido**. Igual que en
+> la sesión 20: **no se agregó ningún análisis estadístico nuevo** — D1–D13, los
+> datos, los modelos y los resultados no cambiaron. Todo es reproducibilidad,
+> conciliación y documentación.
+
+### Punto 4 — reproducibilidad (commit `281891f`)
+
+Sale de `revisiones/PRUEBA_REPRODUCCION.md`. Cinco cosas:
+
+- **4.1 Dónde está el Python.** Averiguado en esta máquina:
+  `C:\Users\Usuario\AppData\Local\Programs\Python\Python313\python.exe`
+  (CPython **3.13.15** per-user de python.org), **presente en el `PATH`**.
+  La prueba externa no lo encontró porque corrió en un entorno aislado sin ese
+  `PATH`, no porque el intérprete no exista. Documentado en README **§2.2**
+  (versión, fuente, instalación, advertencia de no usar el alias de la Store) y
+  README **§2.0**, una tabla nueva con los cuatro lugares donde el pipeline lo
+  busca.
+- **4.2 `-Only R` ya no exige Python.** `run_all.ps1` calcula
+  `$NecesitaR`/`$NecesitaPy` desde `$Only` y **resuelve y exige sólo el
+  intérprete que ese modo va a usar**. Con `-Only R` imprime
+  `Python:  (no se usa en este modo)` y nunca llama a `Resolve-Python`.
+- **4.3 `99_verificar` con una sola implementación.** Dos cambios acoplados:
+  - `run_all.ps1 -Only R|python` **ahora corre `99_verificar`** (antes lo
+    salteaba junto con `98_comparacion`), y exporta
+    `MIA_LPS_UNICA_IMPL=<lenguaje>`.
+  - `99_verificar` (R y Python) tiene un **tercer estado** en los chequeos
+    duros, `sin_ejecutar()`: suma a `chk_tot` pero **ni a `chk_ok` ni a `dur`**.
+    Los **6** chequeos que cruzan R contra Python quedan ahí cuando no se pueden
+    ejecutar: CSV de la contraparte, `comparacion_reporte.md`,
+    `comparacion_R_python.csv`, CSV huérfanos, concordancia numérica y paridad de
+    render. Decisión de diseño: en `-Only` se marcan **aunque el archivo exista
+    en disco**, porque lo que hay es de otra corrida y compararse contra eso es
+    peor que no compararse (con `-FromSynthetic` daría un falso DIFIEREN).
+    Corriendo `99` a mano sin la variable, la ausencia de la contraparte en
+    `outputs/tables/` tiene el mismo efecto.
+  - **La salida final ahora tiene tres estados**, vía `.resultado()` /
+    `_resultado()`: `VERIFICACION FALLIDA (n)` → exit 1;
+    `VERIFICACION PARCIAL: 0 fallos, N chequeo(s) y M fila(s) NO_EJECUTADA` →
+    exit 0; `TODAS LAS VERIFICACIONES PASARON` sólo con **cero fallos y cero
+    NO_EJECUTADA**, contando tanto los chequeos duros como las filas de
+    `verificaciones.csv`. Esto **corrige la decisión de la sesión 20**, que
+    trataba `NO_EJECUTADA` como aviso y dejaba pasar la frase "TODAS"; el punto
+    4.3 pide explícitamente lo contrario.
+- **4.4 Interpretes sin rutas fijas.** Se borraron las rutas hardcodeadas de
+  `run_all.ps1`. `Resolve-Rscript`: `PATH` → registro
+  `HKLM/HKCU\SOFTWARE\R-core\R` (`InstallPath`) → `%ProgramFiles%\R\R-*`,
+  `%ProgramFiles(x86)%\R\R-*`, `%LOCALAPPDATA%\Programs\R\R-*` (nombre
+  descendente). `Resolve-Python`: `.venv\Scripts\python.exe` del repo → `PATH` →
+  `py -3 -c "print(sys.executable)"` → `%LOCALAPPDATA%\Programs\Python\Python3*`,
+  `%ProgramFiles%\Python3*`, `C:\Python3*`. **Cada candidato se valida
+  ejecutándolo** (`Test-Interprete`), así el alias de app-execution de la Store
+  (`python3.exe` en `WindowsApps`, que sólo abre la tienda) no se confunde con un
+  intérprete. Las rutas del README quedaron como ejemplos y `AGENTS.md` §8 lo
+  aclara.
+  **Verificado en esta máquina: `Rscript` NO está en el `PATH`** (`Get-Command
+  Rscript` falla) **y se resuelve igual**, por el registro → la ruta fija del
+  README era la única forma de encontrarlo y ahora no hace falta.
+- **4.5 / 4.6 README.** §2.3 nueva: `powershell.exe -NoProfile -ExecutionPolicy
+  Bypass -File .\run_all.ps1`, con la aclaración de que vale sólo para ese
+  proceso. §2.1: `renv::restore()` necesita red a CRAN la primera vez (~80
+  paquetes) y su caché vive en `%LOCALAPPDATA%\R\cache\R\renv`, fuera del repo.
+  §4 nueva subsección "Verificar con una sola implementación".
+
+### Punto 5 — conciliación de las cinco afirmaciones (commit `48e89df`)
+
+`revisiones/conciliacion_auditoria.md` + `revisiones/conciliar_afirmaciones.py`
+(herramienta de auditoría de un solo uso: sin gemelo en R, no escribe en
+`outputs/`, no entra al checklist de AGENTS §1).
+
+Método: cada número se recalcula desde el CSV con `csv.DictReader` y después se
+exige que **la frase literal** resultante aparezca en el texto del informe
+(`render/R/informe.textonly.html`, sin etiquetas, entidades resueltas). Si el
+informe dijera otro número, la frase no aparece → `NO COINCIDE`.
+
+**Las cinco COINCIDEN.** Ninguna requirió corregir el informe. Lo que se cerró de
+paso:
+
+| # | Afirmación | Fila | Verdicto |
+|---|---|---|---|
+| 1 | IL-6 9/9 LPS vs 1/5 control, Fisher p = 4.995005e-03 | `elisa_fisher_deteccion.csv` `bloque=MS` | sin redondeo: el informe copia el string `%.6e` |
+| 2 | LA sin significancia (♀ 3.017712e-01, ♂ 3.329216e-01) | `elisa_petopeto_la.csv` | además **0 de 4** contrastes de LA con p<0.05 (2 Peto-Peto + 2 Fisher), no sólo los 2 citados |
+| 3 | 18 modelados, 7 cerebro, 0 placenta, 7/7 BH | `qpcr_modelos_clasificacion.csv` | 18 = 20 − `il6@BRAIN` (D7) − `il6R@BRAIN` (piso de celda); `glut3@BRAIN` queda fuera con `p_SEXOxTTO = 5.216446e-02`; los 7 con `p_SEXOxTTO_BH = 2.992194e-02` |
+| 4 | 0 de 27; mínimo fatcd36 ♀ p = 7.504615e-02 | `acto2_test_correlaciones.csv` | 27 = 9 ítems × 3 estratos; el denominador que marcaba la auditoría es correcto y el informe lo dice en la misma frase |
+| 5 | PC1 76 % placenta / 82 % cerebro | `acto2_sensibilidad_pca_varianza.csv` | 0.8155164853 → 81.551649 → **82** con `.round_fmt` (truncar daría 81) |
+
+### Punto 6 — respuesta a la revisión (commit `a7d71f9`)
+
+`revisiones/RESPUESTA.md`: **21 hallazgos de `AUDITORIA.md` (A1–A21) y 10 de
+`PRUEBA_REPRODUCCION.md` (B1–B10)**, cada uno con el hallazgo, qué se hizo y en
+qué commit. Estados: resuelto / resuelto parcialmente / declarado como limitación
+/ no aplica / pendiente. **Los no resueltos están con el motivo**, no omitidos.
+
+### Residuo del punto 2 encontrado al escribir el punto 6 (commit `527ee01`)
+
+El punto 2.2 pide que "100/100 verificaciones" sin desglose desaparezca de todo el
+repo, **nombrando ESTADO**. La sesión 20 verificó el grep sólo contra el README y
+dejó **tres menciones en sus propias entradas de bitácora** (sesiones 18, 19 y
+20). Reformuladas: no se puede desglosar por tipo una corrida anterior a que
+existiera la columna `tipo`, así que dicen "100 filas de `verificaciones.csv` en
+TRUE (sin desglose por tipo — la columna `tipo` se agregó en la sesión 20)".
+Queda de lección: el grep de una afirmación de este tipo va contra **todo** el
+repo, no contra el archivo que uno sospecha.
+
+### Verificado
+
+- **`.\run_all.ps1 -Only R -FromSynthetic`** (lo que pedía el punto 7):
+  `Python: (no se usa en este modo)`, corre R 00–11 + 12 + 99, **3,5 min**,
+  `VERIFICACION PARCIAL: 0 fallos, 6 chequeo(s) y 0 fila(s) NO_EJECUTADA`,
+  exit 0, con los 6 `NO_EJECUTADA` listados uno por uno con su motivo.
+- **Sobre datos sintéticos el informe no muestra conclusiones biológicas**
+  (punto 3.4 de la sesión 20, re-verificado acá): 9 avisos de "Informe generado
+  con datos sintéticos" en `docs/informe.html` y **0 ocurrencias** de
+  "Ningun gen mostro interaccion", "sobreviven a la correccion BH",
+  "El eigengene (PC1) explica" y "valida el modelo". Fila
+  `informe_sintetico_sin_interpretacion` = `recalculo` / TRUE / `aviso=9/9`.
+- **`.\run_all.ps1` completo (datos reales): `TODAS LAS VERIFICACIONES PASARON`
+  en R y en Python — 77/77 chequeos duros, 0 NO_EJECUTADA, 32/32 CSV
+  byte-idénticos, peor |dif| 0.00e+00, paridad de render OK, PDF ok, 5,6 min.**
+- `verificaciones.csv`: **108 filas, 50 `recalculo` + 9 `existencia` +
+  49 `declaracion`, todas en TRUE**, 0 `NO_EJECUTADA` (leído con
+  `csv.DictReader`).
+- `informe.textonly.html` de R y de Python byte-idénticos (`cmp`).
+  `informe.html` no lo es y no debe serlo: R 4.693.873 B, Python 12.817.505 B —
+  los PNG de matplotlib pesan más que los de R base (ver AGENTS §7).
+- `99_verificar` probado en las 4 combinaciones antes de la corrida larga:
+  R/Python × (R+Python / una sola implementación). Los dos lenguajes dan
+  **77/77 + 0** en modo completo y **71/77 + 6 NO_EJECUTADA** en modo único, con
+  los mismos 6 ítems.
+
+### Pendiente / siguiente paso concreto
+
+El pedido `cambios_revision_codex.md` **está completo** (puntos 1 a 7). Lo que
+queda no es del pedido:
+
+- **`<<< COMPLETAR: evidencia de analisis previos >>>`** en
+  `outputs/tables/analisis_descartados.md` (sección `05_qpcr_modelos`, D13):
+  **lo tiene que completar el usuario** con el dato concreto de qué análisis
+  previo mostró que `MADRE` no modificaba los resultados. Sigue pendiente desde
+  la sesión 20; no se inventó ningún número.
+- **Decisión de publicación**: qué se versiona de `docs/` y `outputs/`. De ella
+  dependen los hallazgos A1, A17 y B10 de `revisiones/RESPUESTA.md` (paquete
+  inmutable de artefactos con hashes SHA-256), los únicos que quedaron en
+  **Pendiente**.
+- Punto (c) de la sección 5 de la sesión 19 (SPLOM) sigue sin aplicar.
