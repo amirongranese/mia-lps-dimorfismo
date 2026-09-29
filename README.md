@@ -250,11 +250,14 @@ el informe técnico y la presentación). El texto usa acentuación correcta, p-v
 formato de texto científico, figuras numeradas y la bibliografía al final del
 documento.
 
-**EXCEPCIÓN a la regla general de que `docs/` es reproducible sin datos crudos:** a
-diferencia de todo el resto del repositorio (`docs/informe.html`, `docs/index.html`,
-`docs/presentacion.pdf` siguen siendo la versión sintética), `docs/informe_breve.html`
-y `docs/informe_breve.pdf` pasan a ser los generados con **datos reales** y así se
-versionan (decisión explícita de la autora, `pedidos/pedido_d13_e_informe_real.md`).
+**EXCEPCIÓN a la regla general de que `docs/` es reproducible sin datos crudos:**
+`docs/informe_breve.html` y `docs/informe_breve.pdf` se generan con
+`R/14_informe_breve.R` (script manual, **no forma parte de `run_all.ps1`**) y son **el
+único archivo del repositorio que contiene datos experimentales reales** — todo lo
+demás (`docs/informe.html`, `docs/index.html`, `docs/presentacion.pdf`, y el resto de
+`outputs/`) se reproduce íntegramente sin acceso a los datos crudos. Pasan a ser los
+generados con **datos reales** y así se versionan a propósito (decisión explícita de la
+autora, `pedidos/pedido_d13_e_informe_real.md`).
 Llevan un aviso, debajo del subtítulo, aclarando que contienen resultados
 experimentales inéditos y que el resto del repositorio usa datos sintéticos. La versión
 sintética de este mismo informe se sigue generando, solo para comparar, en
