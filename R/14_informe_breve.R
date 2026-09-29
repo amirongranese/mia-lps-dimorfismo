@@ -25,18 +25,36 @@
 # forma: el aislamiento es transitivo (07 queda aislado DENTRO del aislamiento
 # de 13).
 #
-# DOS VERSIONES, mismo codigo, la fuente de datos decide el destino (identico
-# mecanismo que 12_informe.R / 13_presentacion.R):
-#   - fuente == "sintetico" -> docs/informe_breve.html + docs/informe_breve.pdf
-#     (PUBLICA: se versiona).
-#   - fuente == "real"      -> outputs/informe_breve_real/informe_breve.{html,pdf}
-#     (PARA LEER: nunca se versiona, ver .gitignore).
+# DOS VERSIONES, mismo codigo, la fuente de datos decide el destino.
+#
+# EXCEPCION EXPLICITA a la regla general de que "docs/ es sintetico"
+# (pedidos/pedido_d13_e_informe_real.md, decidido por la autora): a
+# diferencia de TODO el resto del repositorio (docs/informe.html,
+# docs/index.html, docs/presentacion.pdf siguen siendo la version sintetica,
+# publica, reproducible sin datos crudos), el informe breve de docs/ pasa a
+# ser el generado con DATOS REALES:
+#   - fuente == "real"      -> docs/informe_breve.html + docs/informe_breve.pdf
+#     (PUBLICA: se versiona; contiene resultados experimentales ineditos,
+#     ver el aviso de pagina 1).
+#   - fuente == "sintetico" -> outputs/informe_breve_sintetico/informe_breve.{html,pdf}
+#     (solo para comparar contra la version real; NUNCA se versiona, ver
+#     .gitignore).
+# PROTECCION CONTRA SOBRESCRITURA: `destino` en main() decide el archivo por
+# `sint`, nunca al reves -- una corrida sintetica de este script escribe
+# EXCLUSIVAMENTE en outputs/informe_breve_sintetico/ y nunca toca
+# docs/informe_breve.*; ademas, 14_informe_breve.R NO es parte de
+# run_all.ps1 (es un script manual, igual que 13_presentacion.R), asi que
+# ninguna corrida del pipeline principal (sintetica o real) puede pisar
+# docs/informe_breve.* -- solo una invocacion MANUAL de este script en modo
+# real la escribe.
 # La leccion de la sesion de la presentacion (bug de fuga de datos en
-# 13_presentacion.R): este script NUNCA recalcula, solo lee outputs/figures/ y
-# outputs/tables/R/ vigentes -- para la version publica hay que dejar esas
-# carpetas en estado SINTETICO antes de correrlo
-# (`.\run_all.ps1 -Only R -FromSynthetic`), igual que para la presentacion. No
-# alcanza con forzar MIA_LPS_FORZAR_SINTETICO=1 sobre este script solo.
+# 13_presentacion.R) se mantiene igual de valida en sentido inverso: este
+# script NUNCA recalcula, solo lee outputs/figures/ y outputs/tables/R/
+# vigentes -- para dejar docs/informe_breve.* con datos reales hay que
+# dejar esas carpetas en estado REAL antes de correrlo (`.\run_all.ps1`
+# completo, sin `-FromSynthetic`), y para la copia sintetica de comparacion
+# hay que dejarlas en estado SINTETICO antes
+# (`.\run_all.ps1 -Only R -FromSynthetic`).
 #
 # MECANISMO DE AVISO (pedido_informe_breve_final.md, seccion 0): a diferencia
 # de la version anterior de este script (que reemplazaba la pagina 3/4/5
@@ -92,7 +110,7 @@ ESTE_SCRIPT <- "14_informe_breve"
 LANG <- "R"
 
 RUTA_ASSETS <- file.path(RAIZ_REPO, "assets")
-RUTA_INFORME_BREVE_REAL <- file.path(RUTA_OUT, "informe_breve_real")
+RUTA_INFORME_BREVE_SINTETICO <- file.path(RUTA_OUT, "informe_breve_sintetico")
 
 # =========================================================================
 # Helpers de lectura/escritura/formato -- copia de 12_informe.R /
@@ -372,6 +390,21 @@ sim_bloque <- function(desc) sprintf(
          'de esta version publica: no refleja los resultados reales, que estan ',
          'disponibles en la version privada del informe.</em></p>'), desc)
 
+# Aviso de pagina 1 (pedidos/pedido_d13_e_informe_real.md, seccion 2.2):
+# ESTE documento SI se genera con datos reales y SI se versiona (excepcion
+# explicita a la regla general del repositorio). Debajo del subtitulo, en
+# tipografia menor. Solo se muestra en la version real -- la copia sintetica
+# de comparacion (outputs/informe_breve_sintetico/) no afirma nada sobre
+# datos experimentales, asi que no lleva este aviso.
+AVISO_FUENTE_REAL <- paste0(
+  '<p class="aviso-fuente">Este informe fue generado a partir de los datos ',
+  'experimentales del proyecto, que por tratarse de resultados in&eacute;ditos ',
+  'no se incluyen en el repositorio. El resto del repositorio funciona con ',
+  'datos sint&eacute;ticos de id&eacute;ntica estructura, de modo que el ',
+  'an&aacute;lisis completo puede reproducirse sin acceso a los datos ',
+  'originales; los valores obtenidos en esa reproducci&oacute;n no coinciden ',
+  'con los de este informe.</p>')
+
 # =========================================================================
 # Figuras nuevas.
 # =========================================================================
@@ -582,6 +615,9 @@ CSS <- paste0("\n",
 "main { max-width: 46rem; margin: 0 auto; padding: 2.2rem 2rem 4rem; }\n",
 "h1 { font: 700 1.55rem var(--font-ui); margin: 0 0 .2rem; }\n",
 ".subtitulo { font: 1rem var(--font-ui); color: var(--ink-soft); margin: 0 0 1.6rem; }\n",
+".aviso-fuente { font: .78rem var(--font-ui); color: var(--ink-soft);\n",
+"  margin: -1rem 0 1.6rem; padding: .5rem .8rem; background: var(--warn-bg);\n",
+"  border: 1px solid var(--warn-border); border-radius: 6px; }\n",
 "section.pagina { margin: 0 0 2.6rem; }\n",
 "section.pagina h2 { font: 700 1.18rem var(--font-ui); color: var(--accent);\n",
 "  border-bottom: 2px solid var(--accent); padding-bottom: .25rem; margin: 0 0 .8rem; }\n",
@@ -987,9 +1023,12 @@ pagina5 <- function(d, sint) {
   referencias <- paste0('<h3>Referencias</h3>\n<ol class="referencias">',
                         refs_html, '</ol>')
   pie <- paste0(
-    '<footer>Detalle completo, procedencia y verificaciones: ',
-    '<code>docs/informe.html</code>. Presentaci&oacute;n: ',
-    '<code>docs/index.html</code>.</footer>')
+    '<footer>La metodolog&iacute;a completa, el registro de procedencia y las ',
+    'verificaciones aplicadas est&aacute;n documentados en ',
+    '<code>docs/informe.html</code> y en la presentaci&oacute;n ',
+    '(<code>docs/index.html</code>); ambos se generan con datos sint&eacute;ticos: ',
+    'la metodolog&iacute;a es la misma, pero los n&uacute;meros que muestran no ',
+    'son los de este informe.</footer>')
   cuerpo <- paste0(
     intro, correl, fig_corr, coexpr, '\n',
     fig_outputs(NOMBRE_SPLOM_BREVE, "Recorte del diagrama triangular, cerebro, hembras",
@@ -1014,6 +1053,7 @@ construir_html <- function(d) {
     "<h1>Transportadores de nutrientes en el eje placenta&ndash;cerebro fetal en ",
     "un modelo de activaci&oacute;n inmune materna</h1>\n",
     "<p class=\"subtitulo\">Informe breve</p>\n",
+    if (!sint) AVISO_FUENTE_REAL else "",
     paginas,
     "\n</main>\n</body>\n</html>\n")
 }
@@ -1036,7 +1076,7 @@ main <- function() {
 
   html <- construir_html(d)
 
-  destino <- if (sint) RUTA_DOCS else RUTA_INFORME_BREVE_REAL
+  destino <- if (sint) RUTA_INFORME_BREVE_SINTETICO else RUTA_DOCS
   if (!dir.exists(destino)) dir.create(destino, recursive = TRUE, showWarnings = FALSE)
   ruta_html <- file.path(destino, "informe_breve.html")
   ruta_pdf <- file.path(destino, "informe_breve.pdf")
@@ -1069,17 +1109,20 @@ main <- function() {
 
   gi_ok <- tryCatch({
     rc <- system2("git", c("-C", shQuote(RAIZ_REPO), "check-ignore", "-q",
-                           shQuote(file.path(RUTA_INFORME_BREVE_REAL, "informe_breve.html"))),
+                           shQuote(file.path(RUTA_INFORME_BREVE_SINTETICO, "informe_breve.html"))),
                   stdout = FALSE, stderr = FALSE)
     rc == 0L
   }, error = function(e) NA)
 
-  destino_rel <- if (sint) "docs" else "outputs/informe_breve_real"
+  destino_rel <- if (sint) "outputs/informe_breve_sintetico" else "docs"
   ent <- "AGENTS.md + outputs/tables/*.csv + outputs/figures/*.png + assets/*.png"
   registrar_procedencia(list(
     list(file.path(destino_rel, "informe_breve.html"), "informe", ESTE_SCRIPT, "PROPIO", ent,
          paste0("informe breve (maximo 5 paginas); version ",
-                if (sint) "PUBLICA (sintetica)" else "PARA LEER (real, no versionada)")),
+                if (sint)
+                  "SINTETICA, solo para comparar contra la real (no versionada)"
+                else
+                  "PUBLICA (datos reales, ver aviso de pagina 1; excepcion a docs/ sintetico)")),
     list(file.path(destino_rel, "informe_breve.pdf"), "informe", ESTE_SCRIPT, "PROPIO",
          "informe_breve.html",
          paste0("version imprimible por impresion headless; best-effort (estado: ",
@@ -1119,12 +1162,36 @@ main <- function() {
          if (file.exists(ruta_html) && file.info(ruta_html)$size > 0) "TRUE" else "FALSE",
          ESTE_SCRIPT),
     list("informe_breve_max_5_paginas", "recalculo",
-         "docs/informe_breve.pdf (publica) tiene 5 paginas o menos",
+         "docs/informe_breve.pdf (publica, real) tiene 5 paginas o menos",
          sprintf("fuente=%s; paginas=%s", d$fuente, n_paginas),
-         "paginas <= 5 (solo exigido en la version publica)",
-         if (!sint) "NO_EJECUTADA"
+         "paginas <= 5 (solo exigido en la version publica, ahora la real)",
+         if (sint) "NO_EJECUTADA"
          else if (!is.na(n_paginas) && n_paginas > 0L && n_paginas <= 5L) "TRUE"
          else "FALSE",
+         ESTE_SCRIPT),
+    list("informe_breve_aviso_fuente_real", "recalculo",
+         paste0("la version real (publica, docs/) lleva el aviso de datos ",
+                "experimentales de pagina 1; la sintetica (comparacion, no ",
+                "publicada) no lo lleva"),
+         # OJO: buscar 'class="aviso-fuente"' (el atributo del <p>), NO
+         # "aviso-fuente" a secas -- esa cadena tambien aparece en la regla
+         # CSS ".aviso-fuente { ... }", que esta SIEMPRE en el <style>,
+         # independientemente de si el parrafo se inserta o no (bug
+         # encontrado y corregido en esta misma sesion: el chequeo daba
+         # TRUE incluso en la version sintetica, que no lleva el aviso).
+         sprintf("fuente=%s; aviso_presente=%s", d$fuente,
+                 grepl('class="aviso-fuente"', html, fixed = TRUE)),
+         "presente si fuente real, ausente si fuente sintetica",
+         if (grepl('class="aviso-fuente"', html, fixed = TRUE) == !sint) "TRUE" else "FALSE",
+         ESTE_SCRIPT),
+    list("informe_breve_destino_por_fuente", "recalculo",
+         paste0("proteccion contra sobrescritura: la corrida real escribe en ",
+                "docs/, la sintetica en outputs/informe_breve_sintetico/, nunca ",
+                "al reves"),
+         sprintf("fuente=%s; destino=%s", d$fuente, destino_rel),
+         "real -> docs; sintetico -> outputs/informe_breve_sintetico",
+         if ((sint && destino_rel == "outputs/informe_breve_sintetico") ||
+             (!sint && destino_rel == "docs")) "TRUE" else "FALSE",
          ESTE_SCRIPT),
     list("informe_breve_sin_interpretacion", "recalculo",
          paste0("con fuente sintetica, cada afirmacion sobre que dio un analisis ",
@@ -1141,8 +1208,8 @@ main <- function() {
          sprintf("usadas=%d; faltan=%s", length(usadas),
                  if (length(faltan_figs)) paste(faltan_figs, collapse = ", ") else "[]"),
          "faltan = []", if (!length(faltan_figs)) "TRUE" else "FALSE", ESTE_SCRIPT),
-    list("informe_breve_gitignore_real", "recalculo",
-         "outputs/informe_breve_real/ esta cubierto por .gitignore (git check-ignore)",
+    list("informe_breve_gitignore_sintetico", "recalculo",
+         "outputs/informe_breve_sintetico/ esta cubierto por .gitignore (git check-ignore)",
          sprintf("ignorado=%s", if (is.na(gi_ok)) "NA" else gi_ok), "TRUE",
          if (isTRUE(gi_ok)) "TRUE" else if (is.na(gi_ok)) "NO_EJECUTADA" else "FALSE",
          ESTE_SCRIPT),

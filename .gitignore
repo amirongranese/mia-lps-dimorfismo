@@ -26,10 +26,13 @@ outputs/figures/*
 # publica (sintetica) va aparte, a docs/ (ver mas abajo).
 outputs/presentacion_real/
 
-# --- Informe breve con datos reales (14_informe_breve -- solo R) ---
-# Mismo criterio que outputs/presentacion_real/ arriba (pedidos/
-# pedido_informe_breve.md). La version publica (sintetica) va a docs/.
-outputs/informe_breve_real/
+# --- Informe breve, copia SINTETICA de comparacion (14_informe_breve -- solo R) ---
+# pedidos/pedido_d13_e_informe_real.md invierte el criterio de este script
+# respecto del resto del repo: la version REAL de docs/informe_breve.{html,pdf}
+# SI se versiona (ver excepcion mas abajo, en el bloque de docs/*); esta
+# carpeta es la copia SINTETICA, generada solo para comparar contra la real,
+# y nunca se versiona.
+outputs/informe_breve_sintetico/
 
 # --- Informe generado y log de corrida ---
 # Los regenera 12_informe / 99_verificar. Sobre datos reales dejarian numeros
@@ -43,8 +46,13 @@ docs/*
 !docs/index.html
 !docs/presentacion.pdf
 !docs/referencias.md
-# Excepcion: informe breve PUBLICO (14_informe_breve sobre datos sinteticos,
-# pedidos/pedido_informe_breve.md) -- mismo criterio que la presentacion.
+# Excepcion EXPLICITA a la regla de "docs/ es sintetico" (14_informe_breve,
+# pedidos/pedido_d13_e_informe_real.md, decidido por la autora): estos dos
+# archivos SI contienen datos experimentales reales y SI se versionan a
+# proposito -- llevan el aviso correspondiente en la primera pagina del
+# informe. La proteccion contra sobrescritura vive en el propio script
+# (14_informe_breve.R: la corrida sintetica nunca escribe en docs/, ver
+# outputs/informe_breve_sintetico/ mas arriba).
 !docs/informe_breve.html
 !docs/informe_breve.pdf
 logs/*

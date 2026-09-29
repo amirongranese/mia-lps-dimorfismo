@@ -235,39 +235,53 @@ las citas de `pedidos/referencias_epidemiologia.md`, copiadas a `docs/referencia
 ### Informe breve (`14_informe_breve`, solo R)
 
 Informe de máximo 5 páginas para lectura rápida
-(`pedidos/pedido_informe_breve_figuras.md`, reemplaza en lo que difiere a
-`pedidos/pedido_informe_breve_correcciones.md` → `pedido_informe_breve_final.md` →
-`pedido_informe_breve.md`), capa de presentación sobre lo que ya calcularon 02..12, sin
-recalcular nada. Cuatro figuras, todas generadas desde el código (nunca una imagen
-prearmada): un subconjunto de boxplots de placenta con lista de genes propia; una
-figura de cerebro con detección de il6 y tres boxplots, los 4 paneles del mismo tamaño
-(reusa `panel_deteccion()`/`panel_gen()` de `07_figuras_acto1.R`); un recorte del
-diagrama triangular completo (diagonal + dispersión + rho/n) de cerebro en hembras
-(reusa `figura_splom()` de `08_acto2_correlaciones.R`); y una variante propia de la
-correlación placenta-cerebro de fatp4 con la leyenda de Spearman al costado (no
-modifica la figura original que usan el informe técnico y la presentación). El texto
-usa acentuación correcta, p-valores en formato de texto científico, figuras numeradas
-y la bibliografía al final del documento. Mismo mecanismo de dos versiones:
+(`pedidos/pedido_d13_e_informe_real.md`, reemplaza en lo que difiere a
+`pedidos/pedido_informe_breve_figuras.md` → `pedido_informe_breve_correcciones.md` →
+`pedido_informe_breve_final.md` → `pedido_informe_breve.md`), capa de presentación
+sobre lo que ya calcularon 02..12, sin recalcular nada. Cuatro figuras, todas generadas
+desde el código (nunca una imagen prearmada): un subconjunto de boxplots de placenta
+con lista de genes propia; una figura de cerebro con detección de il6 y tres boxplots,
+los 4 paneles del mismo tamaño (reusa `panel_deteccion()`/`panel_gen()` de
+`07_figuras_acto1.R`); un recorte del diagrama triangular completo (diagonal +
+dispersión + rho/n) de cerebro en hembras (reusa `figura_splom()` de
+`08_acto2_correlaciones.R`); y una variante propia de la correlación placenta-cerebro
+de fatp4 con la leyenda de Spearman al costado (no modifica la figura original que usan
+el informe técnico y la presentación). El texto usa acentuación correcta, p-valores en
+formato de texto científico, figuras numeradas y la bibliografía al final del
+documento.
+
+**EXCEPCIÓN a la regla general de que `docs/` es reproducible sin datos crudos:** a
+diferencia de todo el resto del repositorio (`docs/informe.html`, `docs/index.html`,
+`docs/presentacion.pdf` siguen siendo la versión sintética), `docs/informe_breve.html`
+y `docs/informe_breve.pdf` pasan a ser los generados con **datos reales** y así se
+versionan (decisión explícita de la autora, `pedidos/pedido_d13_e_informe_real.md`).
+Llevan un aviso, debajo del subtítulo, aclarando que contienen resultados
+experimentales inéditos y que el resto del repositorio usa datos sintéticos. La versión
+sintética de este mismo informe se sigue generando, solo para comparar, en
+`outputs/informe_breve_sintetico/` (nunca se versiona):
 
 ```powershell
-# Version PUBLICA (datos sinteticos) -> docs/informe_breve.html + docs/informe_breve.pdf
-# Se versiona.
+# Version PUBLICA (datos reales) -> docs/informe_breve.html + docs/informe_breve.pdf
+# Se versiona: excepcion explicita, ver AGENTS.md.
+& "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" R\14_informe_breve.R
+
+# Version sintetica, SOLO para comparar contra la real -> outputs/informe_breve_sintetico/
+# NUNCA se versiona (.gitignore). OJO: MIA_LPS_FORZAR_SINTETICO=1 no alcanza por si solo
+# -- hay que regenerar outputs/tables/ y outputs/figures/ desde datos sinteticos ANTES
+# (.\run_all.ps1 -Only R -FromSynthetic), igual que para 13_presentacion.R.
 $env:MIA_LPS_FORZAR_SINTETICO = '1'
 & "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" R\14_informe_breve.R
 Remove-Item Env:\MIA_LPS_FORZAR_SINTETICO
-
-# Version PARA LEER (datos reales) -> outputs/informe_breve_real/
-# NUNCA se versiona (.gitignore): son resultados biologicos ineditos.
-& "C:\Program Files\R\R-4.6.1\bin\Rscript.exe" R\14_informe_breve.R
 ```
 
-Con datos sintéticos, ninguna sección queda vacía: se conservan la narrativa, los
-métodos, la descripción de qué análisis se hicieron y las figuras (siempre de la corrida
-vigente); solo la frase puntual que afirma qué dio un análisis sobre datos reales se
-reemplaza por un aviso corto. Las cifras y las figuras siempre se leen en vivo de
-`outputs/tables/` y `outputs/figures/`, así que la versión pública correcta requiere
-regenerar esas tablas/figuras desde datos sintéticos antes de correr el script (ver
-`AGENTS.md` §3, cuarta excepción).
+Ninguna sección queda vacía en ninguna de las dos versiones: se conservan la
+narrativa, los métodos, la descripción de qué análisis se hicieron y las figuras
+(siempre de la corrida vigente); en la copia sintética de comparación, solo la frase
+puntual que afirma qué dio un análisis sobre datos reales se reemplaza por un aviso
+corto. `14_informe_breve.R` no es parte de `run_all.ps1` (es manual, igual que
+`13_presentacion.R`), así que ninguna corrida del pipeline principal puede pisar
+`docs/informe_breve.*` -- solo una invocación manual de este script en modo real lo
+hace (ver `AGENTS.md` §3).
 
 ---
 

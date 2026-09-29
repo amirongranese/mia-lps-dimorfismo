@@ -117,12 +117,15 @@ MIA_LPS_reanalisis/
 │  │  └─ python/     <- salidas numéricas de la implementación Python
 │  ├─ intermediate/  <- CONTENIDO IGNORADO por git
 │  ├─ presentacion_real/  <- 13_presentacion sobre datos reales. NUNCA se versiona
-│  └─ informe_breve_real/ <- 14_informe_breve sobre datos reales. NUNCA se versiona
+│  └─ informe_breve_sintetico/ <- 14_informe_breve sobre datos sinteticos, solo para
+│                                 comparar contra la version real. NUNCA se versiona
 ├─ docs/   informe.html  informe.pdf   (listo para GitHub Pages, CONTENIDO IGNORADO)
 │          index.html  presentacion.pdf  referencias.md   <- 13_presentacion sobre datos
 │          sinteticos: presentacion PUBLICA, estos 3 SI se versionan (excepcion a docs/*)
-│          informe_breve.html  informe_breve.pdf  <- 14_informe_breve sobre datos
-│          sinteticos: informe breve PUBLICO, estos 2 SI se versionan (misma excepcion)
+│          informe_breve.html  informe_breve.pdf  <- 14_informe_breve sobre DATOS REALES
+│          (excepcion INVERSA: aqui SI se versionan resultados experimentales, ver aviso
+│          de pagina 1; unico caso en todo el repo donde docs/ no es reproducible sin
+│          datos ineditos, pedidos/pedido_d13_e_informe_real.md)
 └─ logs/   corrida_<AAAA-MM-DD>.txt
 ```
 
@@ -179,8 +182,10 @@ hembras, cerebro, en los genes con interaccion SEXOxTTO significativa sobre la
 dispersion, BH<0.05, leidos de `acto2_dispersion_interaccion.csv` -- con resguardo a un
 conjunto fijo de 5 genes si esa corrida puntual no deja ninguno bajo el umbral, ya que
 los efectos sinteticos son arbitrarios). Genera DOS versiones por el mismo mecanismo de
-`fuente_datos()`: sintetica -> `docs/informe_breve.{html,pdf}` (PUBLICA, se versiona);
-real -> `outputs/informe_breve_real/` (NUNCA se versiona, cubierto por `.gitignore`).
+`fuente_datos()` -- destino invertido respecto de como se describe aca originalmente,
+ver la excepcion explicita mas abajo (`pedidos/pedido_d13_e_informe_real.md`): real ->
+`docs/informe_breve.{html,pdf}` (PUBLICA, se versiona); sintetica ->
+`outputs/informe_breve_sintetico/` (NUNCA se versiona, cubierto por `.gitignore`).
 **Mecanismo de aviso mas granular que el de la version anterior de este pedido:** en vez
 de reemplazar la pagina 3/4/5 ENTERA por un aviso generico, se conservan siempre la
 narrativa fija de cada pagina, la descripcion de que analisis se hicieron, las figuras
@@ -228,6 +233,40 @@ NO se toca; la variante reusa `pares()`/`spearman_rho()`/`spearman_p()`/
 `grid::viewport` en vez de "caption" de ggplot2 debajo del grafico, lo que deja mas
 espacio para los paneles de dispersion. Ademas, la bibliografia se movio al final del
 documento (antes iba al pie de la pagina 1).
+
+**EXCEPCION EXPLICITA a "docs/ es sintetico" (`pedidos/pedido_d13_e_informe_real.md`,
+decidido por la autora):** el resto del repositorio sigue funcionando integramente con
+datos sinteticos (`docs/informe.html`, `docs/index.html`, `docs/presentacion.pdf` -- se
+reproducen sin acceso a los datos crudos), pero `docs/informe_breve.html` y
+`docs/informe_breve.pdf` pasan a ser los generados con DATOS REALES y asi se versionan
+-- son la unica excepcion en todo el repositorio a la regla general de que el contenido
+de `docs/` es reproducible sin datos ineditos. La version sintetica de este mismo
+informe se sigue generando, solo para comparar, en `outputs/informe_breve_sintetico/`
+(NUNCA se versiona). El mecanismo se invierte respecto de las otras cuatro figuras/
+scripts de presentacion:
+- `fuente == "real"` -> `docs/informe_breve.{html,pdf}` (PUBLICA; lleva el aviso
+  `AVISO_FUENTE_REAL` debajo del subtitulo, en tipografia menor, aclarando que son
+  datos experimentales ineditos y que el resto del repo usa datos sinteticos).
+- `fuente == "sintetico"` -> `outputs/informe_breve_sintetico/informe_breve.{html,pdf}`
+  (solo para comparar contra la real; sin el aviso anterior).
+**Proteccion contra sobrescritura:** `destino` en `main()` decide el archivo por
+`sint`, nunca al reves, y `14_informe_breve.R` NO es parte de `run_all.ps1` (es manual,
+igual que `13_presentacion.R`) -- ninguna corrida del pipeline principal, sintetica o
+real, puede pisar `docs/informe_breve.*`; solo una invocacion MANUAL de este script en
+modo real lo hace. Verificado empiricamente: una corrida sintetica completa
+(`run_all.ps1 -Only R -FromSynthetic`) no modifica el hash de `docs/informe_breve.html`
+ni de `docs/informe_breve.pdf`. La remision final del informe ("Detalle completo...")
+ya no apunta a `docs/informe.html` como si sus numeros coincidieran -- se reformulo para
+aclarar que la metodologia/procedencia/verificaciones de `docs/informe.html` y
+`docs/index.html` corresponden a la corrida sintetica, no a los numeros de este
+documento. **Leccion de secuencia (encontrada y corregida en esta misma sesion):**
+`MIA_LPS_FORZAR_SINTETICO=1` solo cambia la ETIQUETA `fuente` que usa este script para
+decidir destino/avisos -- NO regenera `outputs/tables/`/`outputs/figures/`. Generar la
+copia sintetica de comparacion sin haber corrido antes
+`run_all.ps1 -Only R -FromSynthetic` produce un archivo con esa etiqueta pero con
+figuras y tablas REALES (detectado comparando el tamaño en bytes de los blobs de
+figura, identicos a los de la version real) -- exactamente el mismo error ya documentado
+para `13_presentacion.R`, ahora en sentido inverso.
 
 **Convención de nombres de salidas:**
 
