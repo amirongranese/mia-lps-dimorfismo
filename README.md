@@ -1,5 +1,7 @@
 # Reanálisis reproducible — MIA-LPS en placenta E15 y cerebro fetal E15
 
+📄 **[Informe breve del proyecto (PDF)](docs/informe_breve.pdf)** — resultados con datos experimentales reales.
+
 Reanálisis bioestadístico del modelo murino de activación inmune materna (LPS 100 µg/kg
 i.p., día 15 de gestación, colecta a las 6 h). Caracteriza la respuesta de la placenta y
 del cerebro fetal a la activación inmune materna y evalúa si depende del sexo del feto.
