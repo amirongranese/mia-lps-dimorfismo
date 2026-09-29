@@ -3553,3 +3553,54 @@ eliminado `outputs/informe_breve_real/`.
 - Sin cambios respecto de la sesión 24: decisión de publicación general de
   `docs/`/`outputs/` (más allá del informe breve, ya resuelta esta
   sesión), SPLOM de la sesión 19c, y los avisos de diseño de la sesión 23.
+
+---
+
+## Sesión 30 — 2026-09-28 — H1 de la reauditoría (crash con datos sintéticos)
+
+> `revisiones/REAUDITORIA_2026-09-28.md` (agente externo, clon limpio):
+> `python/12_informe.py` fallaba con `OverflowError` al correr sobre
+> sintéticos (`disp_holm_min` en `math.inf`, sin genes de cerebro sin
+> explicación por posthoc que lo actualicen, y `_round_fmt()` intentando
+> redondearlo). Por restricción de tiempo, la autora pidió arreglar **solo
+> H1**, documentar H2–H4 como hallazgos conocidos sin arreglar, y agregar al
+> README que `docs/informe_breve.*` es el único archivo del repo con datos
+> reales.
+
+**H1, resuelto en R y Python**: `disp_holm_min`/`disp_holm_candidatos` pasa
+de un acumulador en infinito a una lista, vacía si no hay genes en
+`disp_genes`; el mínimo se calcula solo si hay candidatos, si no, cadena
+vacía (no infinito). **No** se implementó la sugerencia literal de saltear
+`numeros_conclusiones()` cuando la fuente es sintética: la sección
+"Resumen" de `construir_html()` lee `nc["disp_bra_sig_n"]` **sin** el gate
+de `sint` que sí tienen las secciones interpretativas — saltear el cálculo
+la rompía con `KeyError`. El fix de `disp_holm_min` ya alcanza para que sea
+seguro llamarla siempre.
+
+Al verificar con `run_all.ps1 -FromSynthetic` completo apareció un
+**segundo bug del mismo patrón, no descripto en H1 pero bloqueante para la
+misma verificación**: `pstat3_hh`/`pstat3_mm` usaban una búsqueda que
+explota (Python) o da `NA` (R) cuando pSTAT3 no tiene interacción
+significativa con la corrida sintética actual (post hoc vacío). Se aplicó
+el mismo patrón defensivo (`"n/d"`) que ya existía en `resumen_numeros()`
+para el mismo contraste.
+
+Verificación nueva: `informe_sin_infinito_en_texto` (`12_informe`, ambos
+lenguajes). **Verificado**: `run_all.ps1 -FromSynthetic` completo, antes
+fallaba, ahora `TODAS LAS VERIFICACIONES PASARON` en R y Python, 77/77,
+32/32 CSV byte-idénticos. Estado real restaurado después.
+
+H2, H3 y H4 **no se tocaron** — documentados como hallazgos conocidos en
+`revisiones/RESPUESTA.md` §C, con el motivo (restricción de tiempo,
+decisión explícita de la autora de priorizar el bug bloqueante).
+
+`README.md` actualizado: `docs/informe_breve.*` es explícitamente "el único
+archivo del repositorio que contiene datos experimentales reales", generado
+por `R/14_informe_breve.R`, que no es parte de `run_all.ps1`.
+
+### Pendiente / siguiente paso concreto
+
+- H2, H3 y H4 de `revisiones/REAUDITORIA_2026-09-28.md` (ver
+  `revisiones/RESPUESTA.md` §C para el detalle de cada uno).
+- Sin cambios respecto de la sesión 24: SPLOM de la sesión 19c y los avisos
+  de diseño de la sesión 23.
