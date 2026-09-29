@@ -3409,3 +3409,147 @@ confirma que `outputs/informe_breve_real/` sigue excluido.
   `analisis_descartados.md` (D13), decisión de publicación de
   `docs/`/`outputs/`, SPLOM de la sesión 19c, y los avisos de diseño de la
   sesión 23.
+
+---
+
+## Sesión 29 — 2026-09-28 — evidencia D13 e informe breve con datos reales
+
+> Pedido por archivo `pedidos/pedido_d13_e_informe_real.md`. Dos cambios
+> sin relación entre sí: (1) completar el marcador `<<< COMPLETAR:
+> evidencia de análisis previos >>>` en la entrada de D13 de
+> `analisis_descartados.md`; (2) cambio de criterio **decidido por la
+> autora**: `docs/informe_breve.{html,pdf}` pasa a generarse con datos
+> reales y a versionarse, mientras el resto del repositorio (`docs/informe.html`,
+> `docs/index.html`, `docs/presentacion.pdf`) sigue siendo íntegramente
+> sintético. Pedido explícito de listar los archivos con datos reales que
+> quedarían versionados ANTES de comitear, para revisión previa.
+
+### Qué se completó
+
+- **D13**: el marcador estaba en el CÓDIGO FUENTE que genera
+  `analisis_descartados.md` (`R/05_qpcr_modelos.R` y `python/05_qpcr_modelos.py`,
+  función `bloque_descartes()`/`_bloque_descartes()`), no solo en el
+  archivo ya generado — corregido en ambos, texto idéntico palabra por
+  palabra (verificado luego con `diff` entre los `.md` renderizados de R y
+  Python: sin diferencias). Revisados todos los `COMPLETAR` en archivos
+  versionados (`git ls-files | xargs grep -ln COMPLETAR`): el único activo
+  era este; el resto son registros históricos (`ESTADO.md`,
+  `pedidos/cambios_revision_codex.md`, `revisiones/RESPUESTA.md`, que no se
+  tocan) y una validación defensiva ya satisfecha en `R/13_presentacion.R`
+  (`PRESENTACION_AUTORA` ya no dice "COMPLETAR").
+- **Informe breve real, mecanismo invertido**: `14_informe_breve.R` ahora
+  escribe `docs/informe_breve.{html,pdf}` cuando `fuente == "real"`, y
+  `outputs/informe_breve_sintetico/` (renombrado desde
+  `outputs/informe_breve_real/`) cuando `fuente == "sintetico"` — exactamente
+  al revés del resto del repositorio y del resto de las figuras/scripts de
+  presentación. Documentado como excepción EXPLÍCITA en `AGENTS.md`/
+  `CLAUDE.md` (árbol de carpetas, cuarta excepción corregida, y un párrafo
+  nuevo dedicado) y en `README.md`.
+- **Aviso de página 1** (`AVISO_FUENTE_REAL`, clase CSS `.aviso-fuente`):
+  debajo del subtítulo, en tipografía menor, solo en la versión real
+  (`if (!sint) AVISO_FUENTE_REAL else ""` en `construir_html()`) — la copia
+  sintética de comparación no lo lleva, porque no sería cierto que "este
+  informe fue generado a partir de los datos experimentales".
+- **Remisión final reformulada**: el pie ya no dice "Detalle completo...:
+  `docs/informe.html`" como si sus números coincidieran con los de este
+  documento (ahora real); ahora aclara explícitamente que
+  `docs/informe.html`/`docs/index.html` documentan la metodología,
+  procedencia y verificaciones, pero corresponden a la corrida sintética y
+  sus números no son los de este informe.
+- **Protección contra sobrescritura**: `destino` en `main()` decide el
+  archivo únicamente por `sint`, nunca al revés; además `14_informe_breve.R`
+  NO es parte de `run_all.ps1` (es manual, igual que `13_presentacion.R`),
+  así que ninguna corrida del pipeline principal —sintética o real— puede
+  pisar `docs/informe_breve.*` por sí sola.
+
+### Bug encontrado y corregido en esta sesión
+
+1. **Verificación `informe_breve_aviso_fuente_real` con falso positivo**:
+   la primera versión buscaba la subcadena `"aviso-fuente"` en el HTML
+   completo, pero esa misma subcadena aparece SIEMPRE en la regla CSS
+   `.aviso-fuente { ... }` del `<style>`, sin importar si el `<p>` del
+   aviso se insertó o no — el chequeo daba `TRUE` incluso en la versión
+   sintética, que no debía llevar el aviso. Encontrado porque
+   `98_comparacion`/`99_verificar` marcó `FALSE` esa fila tras generar la
+   copia sintética de comparación. **Fix**: buscar el atributo completo
+   `'class="aviso-fuente"'` (con comillas), que solo aparece cuando el
+   `<p>` se renderiza.
+2. **Secuencia incorrecta al generar la copia sintética de comparación**:
+   se generó `outputs/informe_breve_sintetico/` usando
+   `MIA_LPS_FORZAR_SINTETICO=1` **sin haber corrido antes**
+   `run_all.ps1 -Only R -FromSynthetic` — esa variable de entorno solo
+   cambia la ETIQUETA `fuente` que usa el script para decidir destino y
+   avisos, no regenera `outputs/tables/`/`outputs/figures/`. Resultado: el
+   archivo quedó etiquetado "sintético" pero con figuras y tablas REALES.
+   Detectado comparando el tamaño en bytes de cada blob de figura entre esa
+   copia y `docs/informe_breve.html` (real): eran idénticos byte a byte.
+   Es exactamente el mismo error ya documentado para `13_presentacion.R`
+   en sesiones anteriores, ahora cometido en sentido inverso. **Fix**: se
+   descartó esa corrida (el archivo es local, ignorado por git, nunca llegó
+   a versionarse) y se rehizo la secuencia completa en el orden correcto:
+   `run_all.ps1 -Only R -FromSynthetic` → `14_informe_breve.R` con
+   `MIA_LPS_FORZAR_SINTETICO=1` → `run_all.ps1` completo (real) →
+   `14_informe_breve.R` (real, sin variable de entorno) para dejar
+   `docs/informe_breve.*` fresco.
+3. **Directorio huérfano `outputs/informe_breve_real/`**: al renombrar la
+   carpeta de comparación sintética, el `.gitignore` dejó de proteger la
+   carpeta VIEJA (con contenido real de la sesión anterior) — apareció como
+   no rastreada (`??`) en `git status`. Confirmado que no estaba versionada
+   y borrada antes de seguir.
+
+### Verificado
+
+- `outputs/tables/analisis_descartados.md`: 0 ocurrencias de `COMPLETAR`;
+  texto de D13 idéntico entre el snapshot de render R y Python.
+- `docs/informe_breve.pdf`/`.html`: generados con `fuente = real`, **5
+  páginas**, contienen el aviso de página 1 (`class="aviso-fuente"`
+  presente).
+- **Una corrida sintética completa NO modifica `docs/informe_breve.*`**:
+  hash MD5 de `docs/informe_breve.html` idéntico antes y después de
+  `run_all.ps1 -Only R -FromSynthetic` (`1193f6e1a988108e03b48e7f1943ef9c`,
+  sin cambios). El PDF varía de hash entre corridas por la propia
+  impresión headless (no determinística bit a bit, ya documentado como
+  best-effort), pero el HTML —la fuente de verdad del contenido— es
+  estable.
+- `docs/informe.html`, `docs/index.html`, `docs/presentacion.pdf`: sin
+  cambios de `git status` tras la corrida sintética (siguen siendo
+  exactamente los ya versionados). Nota aparte: un grep rápido de
+  `"4.995005e-03"` (el p de Fisher de ELISA en suero materno) apareció
+  también en la corrida sintética de `docs/informe.html` — verificado que
+  **no es una fuga**: el generador sintético reproduce exactamente los
+  mismos márgenes de tabla (1/5 control, 9/9 LPS) que los datos reales, y
+  el test exacto de Fisher es discreto (depende solo de los márgenes), así
+  que el mismo p puede repetirse legítimamente entre corridas con distintos
+  datos. Anotado por si vuelve a aparecer como falso positivo en un chequeo
+  futuro.
+- `outputs/informe_breve_sintetico/`: **5 páginas**, figuras confirmadas
+  distintas de las reales por tamaño de blob (ver bug #2 arriba, ya
+  corregido), sin el aviso de página 1.
+- `git check-ignore` confirmado: `outputs/informe_breve_sintetico/`
+  ignorado; `docs/informe_breve.html`/`.pdf` no ignorados (verificado con
+  archivos de prueba antes de tocar código, mismo criterio que sesiones
+  anteriores).
+- `run_all.ps1` completo (real), corrida final: `TODAS LAS VERIFICACIONES
+  PASARON`, 77/77, 0 NO_EJECUTADA, 32/32 CSV byte-idénticos.
+- `procedencia.csv`/`verificaciones.csv` finales revisados: sin filas
+  `FALSE` inesperadas; las 9 verificaciones de `14_informe_breve` en
+  `TRUE` (dos nuevas: `informe_breve_aviso_fuente_real`,
+  `informe_breve_destino_por_fuente`; renombrada:
+  `informe_breve_gitignore_real` → `informe_breve_gitignore_sintetico`).
+
+### Archivos con datos reales que quedan versionados (listados antes de comitear, por pedido explícito)
+
+**Exactamente dos, ninguno más:**
+
+- `docs/informe_breve.html`
+- `docs/informe_breve.pdf`
+
+Ningún otro archivo del repositorio cambia de sintético a real. `git status`
+no muestra nada bajo `data/`, `outputs/informe_breve_sintetico/` ni el ya
+eliminado `outputs/informe_breve_real/`.
+
+### Pendiente / siguiente paso concreto
+
+- Sin cambios respecto de la sesión 24: decisión de publicación general de
+  `docs/`/`outputs/` (más allá del informe breve, ya resuelta esta
+  sesión), SPLOM de la sesión 19c, y los avisos de diseño de la sesión 23.
