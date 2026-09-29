@@ -526,7 +526,8 @@ numeros_conclusiones <- function() {
 
   t <- .tab("qpcr_modelos_posthoc.csv")
   tej_p <- .col(t, "TEJIDO"); gen_p <- .col(t, "GEN"); pholm <- .col(t, "p_holm")
-  media_genes <- character(0); disp_genes <- character(0); disp_holm_min <- Inf
+  media_genes <- character(0); disp_genes <- character(0)
+  disp_holm_candidatos <- numeric(0)
   for (g in bra_int_genes) {
     idx <- tej_p == "BRAIN_E15" & gen_p == g
     ps <- suppressWarnings(as.numeric(pholm[idx]))
@@ -534,12 +535,19 @@ numeros_conclusiones <- function() {
       media_genes <- c(media_genes, g)
     } else {
       disp_genes <- c(disp_genes, g)
-      disp_holm_min <- min(disp_holm_min, min(ps, na.rm = TRUE))
+      disp_holm_candidatos <- c(disp_holm_candidatos, ps[!is.na(ps)])
     }
   }
   n$bra_media_genes <- .join_y(sort(media_genes, method = "radix"))
   n$bra_disp_genes <- .join_y(sort(disp_genes, method = "radix"))
-  n$bra_disp_holm_min <- .round_fmt(disp_holm_min, 3L)
+  # H1 (revisiones/REAUDITORIA_2026-09-28.md): sin genes en disp_genes no hay
+  # minimo que estimar -- conjunto vacio, nunca Inf. El anterior
+  # `disp_holm_min <- Inf` sin actualizar (0 genes de cerebro con
+  # interaccion significativa, como con los datos sinteticos actuales)
+  # llegaba intacto a .round_fmt(): floor(Inf) no explota en R, pero
+  # produce el texto literal "Inf" -- mismo bug, sin la excepcion de Python.
+  n$bra_disp_holm_min <- if (length(disp_holm_candidatos))
+    .round_fmt(min(disp_holm_candidatos), 3L) else ""
 
   # --- pSTAT3 (Acto 1.4) ---
   t <- .tab("pstat3_descriptivo.csv")
@@ -547,10 +555,20 @@ numeros_conclusiones <- function() {
   .mean_grp <- function(g) .round_fmt(me[gr == g][1])
   n$pstat3_hc <- .mean_grp("HEMBRA_CONTROL"); n$pstat3_hl <- .mean_grp("HEMBRA_LPS")
   n$pstat3_mc <- .mean_grp("MACHO_CONTROL"); n$pstat3_ml <- .mean_grp("MACHO_LPS")
+  # Encontrado al verificar H1 (corrida sintetica completa): con datos
+  # sinteticos la interaccion SEXOxTTO de pSTAT3 puede no ser significativa
+  # (D6: el post hoc solo corre si es significativa), y entonces
+  # pstat3_posthoc.csv queda sin filas. `ph[contr == "..."][1]` no explota en
+  # R (da NA_character_), pero "NA" quedaba filtrado al texto -- mismo patron
+  # de bug que disp_holm_min. Fix: mismo patron defensivo ya usado para este
+  # contraste en resumen_numeros() (bucle con default "n/d").
   t <- .tab("pstat3_posthoc.csv")
   contr <- .col(t, "contraste"); ph <- .col(t, "p_holm")
-  n$pstat3_hh <- ph[contr == "HEMBRA_CONTROL-HEMBRA_LPS"][1]
-  n$pstat3_mm <- ph[contr == "MACHO_CONTROL-MACHO_LPS"][1]
+  n$pstat3_hh <- "n/d"; n$pstat3_mm <- "n/d"
+  for (k in seq_along(contr)) {
+    if (contr[k] == "HEMBRA_CONTROL-HEMBRA_LPS") n$pstat3_hh <- ph[k]
+    else if (contr[k] == "MACHO_CONTROL-MACHO_LPS") n$pstat3_mm <- ph[k]
+  }
 
   # --- Acto 2.3-2.4: Delta rho + interaccion sobre dispersion ---
   t <- .tab("acto2_test_correlaciones.csv")
@@ -1170,7 +1188,18 @@ generar_pdf <- function(html_path, pdf_path) {
 # =========================================================================
 main <- function() {
   fuente <- fuente_datos(ARCHIVO_QPCR)
+  sint <- fuente != "real"
   num <- resumen_numeros()
+  # H1 (revisiones/REAUDITORIA_2026-09-28.md): antes, numeros_conclusiones()
+  # se llamaba siempre, sin importar la fuente, y con datos sinteticos el
+  # equivalente Python explotaba con OverflowError si no habia genes de
+  # cerebro con interaccion significativa -- ver el fix de disp_holm_min mas
+  # abajo (conjunto vacio, no Inf), que es lo que en realidad evita el
+  # problema en TODOS los casos. OJO: no se salta este calculo cuando
+  # `sint` -- la seccion "Resumen" de construir_html() lee
+  # nc$disp_bra_sig_n/nc$disp_bra_sig_genes SIN gate de `sint` (a diferencia
+  # de conclusion_seccion/sintesis_eje_html/conclusion_revisada_html, que si
+  # estan gateadas); saltear el calculo dejaria esa seccion sin esos campos.
   nc <- numeros_conclusiones()
   html <- construir_html(fuente, num, nc)
   textonly <- html_sin_figuras(html)
@@ -1212,8 +1241,7 @@ main <- function() {
   # 3.4: con fuente sintetica, ninguna frase interpretativa puede aparecer --
   # se recalcula contando cuantas veces aparece el aviso en el HTML final
   # (9 = 7 conclusiones de seccion + sintesis + conclusion revisada) contra
-  # el esperado segun `sint`.
-  sint <- fuente != "real"
+  # el esperado segun `sint` (ya calculado mas arriba).
   m_aviso <- gregexpr(AVISO_SINTETICO, html, fixed = TRUE)[[1]]
   n_aviso <- if (length(m_aviso) == 1L && m_aviso[1] == -1L) 0L else length(m_aviso)
   n_aviso_esperado <- if (sint) 9L else 0L
@@ -1277,7 +1305,29 @@ main <- function() {
                 "aviso de datos sinteticos -- nunca se arma la prosa biologica"),
          sprintf("fuente=%s; aviso=%d/%d", fuente, n_aviso, n_aviso_esperado),
          "aviso = 9 si fuente sintetica, 0 si fuente real",
-         if (n_aviso == n_aviso_esperado) "TRUE" else "FALSE", ESTE_SCRIPT)
+         if (n_aviso == n_aviso_esperado) "TRUE" else "FALSE", ESTE_SCRIPT),
+    # H1 (revisiones/REAUDITORIA_2026-09-28.md): cubre el caso que hoy hace
+    # explotar la corrida sintetica en Python (0 genes de cerebro en
+    # disp_genes -> antes `disp_holm_min` quedaba en Inf y .round_fmt()
+    # tiraba OverflowError al redondearlo en Python; en R no explotaba pero
+    # podia dejar el texto literal "Inf") y, en general, que ese minimo no
+    # estimable nunca se filtre al texto como "inf"/"Inf" literal, sea cual
+    # sea la fuente.
+    local({
+      m_inf <- gregexpr("\\binf\\b", html, perl = TRUE, ignore.case = TRUE)[[1]]
+      n_inf <- if (length(m_inf) == 1L && m_inf[1] == -1L) 0L else length(m_inf)
+      list("informe_sin_infinito_en_texto", "recalculo",
+           paste0("cuando no hay genes de cerebro sin explicacion por posthoc ",
+                  "(disp_genes vacio), el minimo de p de Holm no estimable se ",
+                  "representa como cadena vacia, nunca como infinito -- el ",
+                  "texto no contiene 'inf'/'Inf' literal"),
+           sprintf("fuente=%s; bra_disp_genes=%s; bra_disp_holm_min=%s; ocurrencias_inf=%d",
+                   fuente, dQuote(nc$bra_disp_genes, q = FALSE),
+                   dQuote(nc$bra_disp_holm_min, q = FALSE), n_inf),
+           "ocurrencias_inf = 0",
+           if (n_inf == 0L) "TRUE" else "FALSE",
+           ESTE_SCRIPT)
+    })
   ))
 
   cat("== 12_informe.R ==\n")

@@ -658,7 +658,7 @@ def numeros_conclusiones():
     pholm = _col(h, f, "p_holm")
     media_genes = []
     disp_genes = []
-    disp_holm_min = math.inf
+    disp_holm_candidatos = []
     for g in bra_int_genes:
         ps = [_num_or_none(p) for t, gg, p in zip(tej_p, gen_p, pholm)
               if t == "BRAIN_E15" and gg == g]
@@ -667,10 +667,16 @@ def numeros_conclusiones():
             media_genes.append(g)
         else:
             disp_genes.append(g)
-            disp_holm_min = min(disp_holm_min, min(ps))
+            disp_holm_candidatos.extend(ps)
     n["bra_media_genes"] = _join_y(sorted(media_genes))
     n["bra_disp_genes"] = _join_y(sorted(disp_genes))
-    n["bra_disp_holm_min"] = _round_fmt(disp_holm_min, 3)
+    # H1 (revisiones/REAUDITORIA_2026-09-28.md): sin genes en disp_genes no
+    # hay minimo que estimar -- conjunto vacio, nunca math.inf. El anterior
+    # `disp_holm_min = math.inf` sin actualizar (0 genes de cerebro con
+    # interaccion significativa, como con los datos sinteticos actuales)
+    # llegaba intacto a _round_fmt() -> math.floor(inf) -> OverflowError.
+    n["bra_disp_holm_min"] = (
+        _round_fmt(min(disp_holm_candidatos), 3) if disp_holm_candidatos else "")
 
     # --- pSTAT3 (Acto 1.4) ---
     h, f = _tab("pstat3_descriptivo.csv")
@@ -684,11 +690,24 @@ def numeros_conclusiones():
     n["pstat3_hl"] = _mean_grp("HEMBRA_LPS")
     n["pstat3_mc"] = _mean_grp("MACHO_CONTROL")
     n["pstat3_ml"] = _mean_grp("MACHO_LPS")
+    # Encontrado al verificar H1 (corrida sintetica completa): con datos
+    # sinteticos la interaccion SEXOxTTO de pSTAT3 puede no ser significativa
+    # (D6: el post hoc solo corre si es significativa), y entonces
+    # pstat3_posthoc.csv queda sin filas. `.index()` tiraba ValueError sobre
+    # una lista vacia -- mismo patron de bug que disp_holm_min, y bloqueaba
+    # la misma verificacion. Fix: mismo patron defensivo ya usado para este
+    # contraste en resumen_numeros() (busqueda con default "n/d", nunca
+    # .index() sobre una lista que puede no tener la clave).
     h, f = _tab("pstat3_posthoc.csv")
     contr = _col(h, f, "contraste")
     ph = _col(h, f, "p_holm")
-    n["pstat3_hh"] = ph[contr.index("HEMBRA_CONTROL-HEMBRA_LPS")]
-    n["pstat3_mm"] = ph[contr.index("MACHO_CONTROL-MACHO_LPS")]
+    n["pstat3_hh"] = "n/d"
+    n["pstat3_mm"] = "n/d"
+    for c, v in zip(contr, ph):
+        if c == "HEMBRA_CONTROL-HEMBRA_LPS":
+            n["pstat3_hh"] = v
+        elif c == "MACHO_CONTROL-MACHO_LPS":
+            n["pstat3_mm"] = v
 
     # --- Acto 2.3-2.4: Delta rho + interaccion sobre dispersion ---
     h, f = _tab("acto2_test_correlaciones.csv")
@@ -1352,7 +1371,20 @@ def generar_pdf(html_path: Path, pdf_path: Path) -> str:
 # =========================================================================
 def main():
     fuente = cfg.fuente_datos(cfg.ARCHIVO_QPCR)
+    sint = fuente != "real"
     num = resumen_numeros()
+    # H1 (revisiones/REAUDITORIA_2026-09-28.md): antes, `numeros_conclusiones()`
+    # se llamaba siempre, sin importar la fuente, y explotaba con
+    # OverflowError si no habia genes de cerebro con interaccion
+    # significativa (las tablas sinteticas actuales no tienen ninguno) --
+    # ver el fix de `disp_holm_min` mas abajo (conjunto vacio, no infinito),
+    # que es lo que en realidad evita la excepcion en TODOS los casos.
+    # OJO: no se salta este calculo cuando `sint` -- la seccion "1. Resumen"
+    # de construir_html() lee nc["disp_bra_sig_n"]/nc["disp_bra_sig_genes"]
+    # sin gate de `sint` (a diferencia de conclusion_seccion/
+    # sintesis_eje_html/conclusion_revisada_html, que si estan gateadas);
+    # saltear el calculo dejaria esa seccion con un KeyError en vez del
+    # OverflowError original.
     nc = numeros_conclusiones()
     html = construir_html(fuente, num, nc)
 
@@ -1390,8 +1422,7 @@ def main():
     # 3.4: con fuente sintetica, ninguna frase interpretativa puede aparecer --
     # se recalcula contando cuantas veces aparece el aviso en el HTML final
     # (9 = 7 conclusiones de seccion + sintesis + conclusion revisada) contra
-    # el esperado segun la fuente.
-    sint = fuente != "real"
+    # el esperado segun la fuente. `sint` ya se calculo mas arriba.
     n_aviso = html.count(AVISO_SINTETICO)
     n_aviso_esperado = 9 if sint else 0
 
@@ -1454,6 +1485,23 @@ def main():
          "fuente=%s; aviso=%d/%d" % (fuente, n_aviso, n_aviso_esperado),
          "aviso = 9 si fuente sintetica, 0 si fuente real",
          "TRUE" if n_aviso == n_aviso_esperado else "FALSE", ESTE_SCRIPT],
+        # H1 (revisiones/REAUDITORIA_2026-09-28.md): cubre el caso que hoy
+        # hace explotar la corrida sintetica (0 genes de cerebro en
+        # disp_genes -> antes `disp_holm_min` quedaba en math.inf y
+        # _round_fmt() tiraba OverflowError al redondearlo) y, en general,
+        # que ese minimo no estimable nunca se filtre al texto como "inf"/
+        # "Inf" literal, sea cual sea la fuente.
+        ["informe_sin_infinito_en_texto", "recalculo",
+         "cuando no hay genes de cerebro sin explicacion por posthoc "
+         "(disp_genes vacio), el minimo de p de Holm no estimable se "
+         "representa como cadena vacia, nunca como infinito -- el texto no "
+         "contiene 'inf'/'Inf' literal",
+         "fuente=%s; bra_disp_genes=%r; bra_disp_holm_min=%r; ocurrencias_inf=%d" % (
+             fuente, nc.get("bra_disp_genes"), nc.get("bra_disp_holm_min"),
+             len(re.findall(r"\binf\b", html, re.IGNORECASE))),
+         "ocurrencias_inf = 0",
+         "TRUE" if not re.search(r"\binf\b", html, re.IGNORECASE) else "FALSE",
+         ESTE_SCRIPT],
     ])
 
     print("== 12_informe.py ==")
