@@ -99,6 +99,12 @@ hallazgos conocidos, sin arreglarlos.
 | H3 | **Media** — snapshot ausente tratado como omisión con motivo incorrecto: `99_verificar` informa «no hay salidas de la contraparte en `outputs/tables/` para comparar» cuando en realidad sí existen las 32 tablas de cada lado; lo que falta es `outputs/intermediate/render/python/` (consecuencia de que H1 impedía terminar esa corrida). | **No resuelto en esta tanda**, misma razón que H2. Con H1 arreglado, este síntoma puntual (snapshot Python ausente por el crash) ya no debería repetirse, pero el motivo genérico e impreciso del mensaje sigue sin distinguir "modo de una sola implementación" de "artefacto faltante en modo completo" — queda pendiente arreglar el mensaje en sí. | — |
 | H4 | **Media** — el desglose por tipo sigue incompleto: `comparacion_reporte.md` §4 informa solo totales agregados (94 o 101 en `TRUE`) sin desglosar por `recalculo`/`existencia`/`declaracion`, aunque las filas sí están rotuladas desde la respuesta anterior (A4/A5). | **No resuelto en esta tanda**, misma razón que H2 y H3. | — |
 
+**Nota de cierre.** Tras el arreglo de H1, se verificó desde un clon limpio del
+repositorio público con un agente externo que nunca vio el proyecto. Siguiendo el
+README, instaló el entorno con `renv` y ejecutó el pipeline. La pasada completa de
+Python terminó sin errores y la de R avanzó hasta la simulación, sin fallos, momento en
+que se interrumpió por límite de uso del servicio, no por un problema del repositorio.
+
 ## Pendientes conocidos, fuera del alcance de esta tanda
 
 1. **Paquete inmutable de artefactos con hashes SHA-256** por commit (A1, A17, B10):
