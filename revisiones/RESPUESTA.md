@@ -22,6 +22,7 @@ desde las tablas y reproducibilidad.
 | `48e89df` | Punto 5 (`revisiones/conciliacion_auditoria.md` + script de conciliación) |
 | `527ee01` | Residuo del punto 2: las 3 menciones de «100/100 verificaciones» que quedaban en `ESTADO.md` |
 | este commit | Punto 6 (este archivo) |
+| *(sección C)* | `revisiones/REAUDITORIA_2026-09-28.md`: H1 (bloqueante, arreglado en R y Python + verificación nueva); H2/H3/H4 documentados aquí como hallazgos conocidos, no arreglados por restricción de tiempo (decisión explícita del usuario) |
 
 ## Estados usados
 
@@ -82,6 +83,21 @@ desde las tablas y reproducibilidad.
 | B10 | «La frase de corrida exitosa en `ESTADO.md` no aporta evidencia forense disponible en este checkout.» | **Resuelto parcialmente.** Correcto como crítica de la evidencia. Lo que cambió: `ESTADO.md` ya no dice «100/100 verificaciones» sin desglose, y el log de corrida informa modo, desglose por tipo y `NO_EJECUTADA`. Lo que falta es el paquete de artefactos con hashes (A1/A17), pendiente de la decisión de publicación. | `8ffbec2`, `527ee01`, `281891f` |
 
 ---
+
+---
+
+## C. `REAUDITORIA_2026-09-28.md` — reauditoría de reproducción
+
+Pedido por chat, no por archivo. Alcance acotado explícitamente por el usuario, por
+restricción de tiempo: arreglar solo H1 (bloqueante); documentar H2, H3 y H4 como
+hallazgos conocidos, sin arreglarlos.
+
+| # | Hallazgo | Qué se hizo | Commit |
+|---|---|---|---|
+| H1 | **Bloqueante** — con datos sintéticos, `python/12_informe.py` fallaba con `OverflowError: cannot convert float infinity to integer` (`main()` → `numeros_conclusiones()` → `_round_fmt()`). `disp_holm_min` se inicializaba en `math.inf` y, sin genes de cerebro en `disp_genes` (0 con las tablas sintéticas actuales), nunca se actualizaba; `_round_fmt()` intentaba redondearlo. R tenía el mismo cálculo sin la excepción (`floor(Inf)` no explota en R, pero deja el texto literal "Inf"). | **Resuelto**, en R y Python. `disp_holm_min`/`disp_holm_candidatos` pasa de un acumulador inicializado en infinito a una lista de candidatos, vacía si no hay genes en `disp_genes`; el mínimo solo se calcula si la lista no está vacía, y se representa como cadena vacía en caso contrario (mismo criterio que `_join_y`/`.join_y` ya usan para conjuntos vacíos en el resto del archivo). **No se implementó tal cual la sugerencia de "no calcular las conclusiones cuando la fuente es sintética"**: hacerlo (`nc = {}` si `sint`) rompe con `KeyError` la sección "Resumen" de `construir_html()`, que lee `nc["disp_bra_sig_n"]`/`nc["disp_bra_sig_genes"]` **sin** el gate de `sint` que sí tienen `conclusion_seccion`/`sintesis_eje_html`/`conclusion_revisada_html` — un acoplamiento que el arreglo sugerido no contemplaba. El fix de `disp_holm_min` alcanza para que `numeros_conclusiones()` sea seguro de llamar siempre, así que se sigue llamando siempre (como antes), en vez de introducir esa regresión. Al verificar con la corrida sintética completa apareció un **segundo caso del mismo patrón, no descripto en el hallazgo pero que bloqueaba la misma verificación**: `pstat3_hh`/`pstat3_mm` en `numeros_conclusiones()` usaban `contr.index(...)` (Python, `ValueError`) / `ph[contr == "..."][1]` (R, da `NA` silencioso) para un contraste que no existe en `pstat3_posthoc.csv` cuando pSTAT3 no tiene interacción SEXO×TTO significativa con la corrida sintética actual (D6: el post hoc solo corre si la interacción es significativa). Se aplicó el mismo patrón defensivo (`"n/d"` por defecto) que **ya existía** en `resumen_numeros()` para ese mismo contraste, en vez de inventar uno nuevo. Verificación nueva: `informe_sin_infinito_en_texto` (`12_informe`, ambos lenguajes) — confirma 0 ocurrencias de `"inf"`/`"Inf"` literal en el texto del informe. **Verificado**: `run_all.ps1 -FromSynthetic` completo (R + Python) — antes fallaba con la excepción de arriba; ahora `TODAS LAS VERIFICACIONES PASARON` en los dos lenguajes, 77/77 chequeos duros, 32/32 CSV byte-idénticos, paridad de render OK. Estado real del pipeline restaurado después (`run_all.ps1` completo, sin `-FromSynthetic`). | — |
+| H2 | **Alta** — evidencia de dependencia del estado previo en la paridad: el snapshot R de `comparacion_reporte.md` tiene 94 filas en la auditoría de verificaciones; el archivo actual tiene 101. `auditar_verificaciones()` excluye solo las filas del propio `98_comparacion`, pero incluye las de `12_informe`, y la primera pasada de 98 precede al primer informe. | **No resuelto en esta tanda.** Se prioriza H1 (bloqueante) por restricción de tiempo, según indicación explícita del usuario. Hallazgo conocido: definir una población de filas estable entre pasadas y probar el primer arranque sin salidas previas, en un directorio aislado. | — |
+| H3 | **Media** — snapshot ausente tratado como omisión con motivo incorrecto: `99_verificar` informa «no hay salidas de la contraparte en `outputs/tables/` para comparar» cuando en realidad sí existen las 32 tablas de cada lado; lo que falta es `outputs/intermediate/render/python/` (consecuencia de que H1 impedía terminar esa corrida). | **No resuelto en esta tanda**, misma razón que H2. Con H1 arreglado, este síntoma puntual (snapshot Python ausente por el crash) ya no debería repetirse, pero el motivo genérico e impreciso del mensaje sigue sin distinguir "modo de una sola implementación" de "artefacto faltante en modo completo" — queda pendiente arreglar el mensaje en sí. | — |
+| H4 | **Media** — el desglose por tipo sigue incompleto: `comparacion_reporte.md` §4 informa solo totales agregados (94 o 101 en `TRUE`) sin desglosar por `recalculo`/`existencia`/`declaracion`, aunque las filas sí están rotuladas desde la respuesta anterior (A4/A5). | **No resuelto en esta tanda**, misma razón que H2 y H3. | — |
 
 ## Pendientes conocidos, fuera del alcance de esta tanda
 
